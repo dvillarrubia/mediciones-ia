@@ -1,0 +1,66 @@
+# ===========================================
+# Docker Compose para Producción en VPS
+# Uso: docker compose -f docker-compose.prod.yml up -d
+# ===========================================
+
+services:
+  app:
+    image: mediciones-ia:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+    container_name: mediciones-ia-app
+    restart: always
+    expose:
+      - "3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - sqlite_data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - mediciones-network
+      - traefik-public
+    labels:
+      # Traefik labels para reverse proxy automático
+      - "traefik.enable=true"
+      - "traefik.http.routers.mediciones.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
+      - "traefik.http.routers.mediciones.entrypoints=websecure"
+      - "traefik.http.routers.mediciones.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mediciones.loadbalancer.server.port=3003"
+      # Redirect HTTP to HTTPS
+      - "traefik.http.routers.mediciones-http.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
+      - "traefik.http.routers.mediciones-http.entrypoints=web"
+      - "traefik.http.routers.mediciones-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+volumes:
+  sqlite_data:
+    driver: local
+
+networks:
+  mediciones-network:
+    driver: bridge
+  traefik-public:
+    external: true

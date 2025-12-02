@@ -1,0 +1,25 @@
+{
+  "configuration": {
+    "name": "Ilerna Online",
+    "competitors": ["Medac", "Cesur Formación", "Linkia FP"],
+    "templateId": "educacion",
+    "aiModels": ["chatgpt"],
+    "questions": [
+      {
+        "id": "test_1",
+        "question": "¿Cuál es el mejor centro de FP?",
+        "category": "Evaluación y Recomendación de Centros"
+      },
+      {
+        "id": "test_2",
+        "question": "Opiniones sobre fp a distancia",
+        "category": "Evaluación y Recomendación de Centros"
+      },
+      {
+        "id": "test_3",
+        "question": "¿Qué centro de FP online recomiendan?",
+        "category": "Evaluación y Recomendación de Centros"
+      }
+    ]
+  }
+}

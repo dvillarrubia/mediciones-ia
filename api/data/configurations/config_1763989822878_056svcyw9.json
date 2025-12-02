@@ -1,0 +1,26 @@
+{
+  "name": "asd",
+  "description": "asd",
+  "targetBrand": "asd",
+  "competitorBrands": [
+    "asd"
+  ],
+  "prioritySources": [
+    "asd"
+  ],
+  "aiModels": [
+    "chatgpt",
+    "claude",
+    "gemini"
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "question": "asd",
+      "category": "asd"
+    }
+  ],
+  "id": "config_1763989822878_056svcyw9",
+  "createdAt": "2025-11-24T13:10:22.878Z",
+  "updatedAt": "2025-11-24T13:10:22.878Z"
+}

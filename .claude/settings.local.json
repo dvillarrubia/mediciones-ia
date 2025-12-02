@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(time curl -s -X POST http://localhost:3003/api/analysis/execute -H \"Content-Type: application/json\" -d @test-analysis.json -o /dev/null)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:api:*)",
+      "Bash(npm run:*)",
+      "Bash(xargs:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(find:*)",
+      "Bash(docker --version:*)",
+      "Bash(docker compose:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(PORT=3004 docker compose:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker ps:*)",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__performance_start_trace",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__performance_analyze_insight",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(tree:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
