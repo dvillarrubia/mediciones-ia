@@ -1,5 +1,22 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3003';
+// En producción, usar el mismo host que sirve el frontend
+// En desarrollo, usar localhost:3003
+const getApiBaseUrl = () => {
+  // Si hay una variable de entorno definida, usarla
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  // En el navegador, usar el mismo origen (protocolo + host + puerto)
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  // Fallback para desarrollo
+  return 'http://localhost:3003';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export const API_ENDPOINTS = {
   // Health check
