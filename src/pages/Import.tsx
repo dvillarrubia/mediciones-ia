@@ -192,12 +192,12 @@ const Import: React.FC = () => {
         name: excelData.nombre || 'Configuración importada',
         description: excelData.descripcion || 'Importada desde Excel',
         targetBrand: excelData.marcaObjetivo || '',
-        competitors: excelData.competidores ? excelData.competidores.split(',').map(c => c.trim()) : [],
-        prioritySources: excelData.fuentesPrioritarias ? excelData.fuentesPrioritarias.split(',').map(s => s.trim()) : [],
+        competitorBrands: excelData.competidores ? excelData.competidores.split(',').map(c => c.trim()).filter(c => c.length > 0) : [],
+        prioritySources: excelData.fuentesPrioritarias ? excelData.fuentesPrioritarias.split(',').map(s => s.trim()).filter(s => s.length > 0) : ['ChatGPT', 'Claude', 'Gemini'],
         aiModels: excelData.modelosIA ? excelData.modelosIA.split(',').map(m => m.trim().toLowerCase()) : ['chatgpt'],
         questions: excelData.preguntas.map(q => ({
           id: q.id || `q${Date.now()}`,
-          text: q.pregunta,
+          question: q.pregunta,
           category: q.categoria
         }))
       };
@@ -398,12 +398,12 @@ const Import: React.FC = () => {
         description: templateDescription.trim() || `Plantilla basada en ${excelData.nombre || 'importación Excel'}`,
         isTemplate: true,
         targetBrand: excelData.marcaObjetivo || '',
-        competitors: excelData.competidores ? excelData.competidores.split(',').map(c => c.trim()) : [],
-        prioritySources: excelData.fuentesPrioritarias ? excelData.fuentesPrioritarias.split(',').map(s => s.trim()) : [],
+        competitorBrands: excelData.competidores ? excelData.competidores.split(',').map(c => c.trim()).filter(c => c.length > 0) : [],
+        prioritySources: excelData.fuentesPrioritarias ? excelData.fuentesPrioritarias.split(',').map(s => s.trim()).filter(s => s.length > 0) : ['ChatGPT', 'Claude', 'Gemini'],
         aiModels: excelData.modelosIA ? excelData.modelosIA.split(',').map(m => m.trim().toLowerCase()) : ['chatgpt'],
         questions: excelData.preguntas.map(q => ({
           id: q.id || `q${Date.now()}`,
-          text: q.pregunta,
+          question: q.pregunta,
           category: q.categoria
         }))
       };

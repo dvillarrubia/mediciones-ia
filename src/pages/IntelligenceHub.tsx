@@ -14,6 +14,7 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   FileSpreadsheet,
   GitCompare,
   X,
@@ -51,6 +52,7 @@ interface AnalysisDetail {
   id: string;
   timestamp: string;
   configuration: {
+    name?: string;
     brand: string;
     competitors: string[];
     templateId: string;
@@ -146,6 +148,16 @@ const IntelligenceHub: React.FC = () => {
   // Comparación
   const [compareAnalyses, setCompareAnalyses] = useState<AnalysisDetail[]>([]);
 
+  // Datos de tendencias (cargados de todos los análisis)
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [allAnalysesDetails, setAllAnalysesDetails] = useState<AnalysisDetail[]>([]);
+
+  // Filtros para Tendencias e Insights
+  const [trendsDateFrom, setTrendsDateFrom] = useState<string>('');
+  const [trendsDateTo, setTrendsDateTo] = useState<string>('');
+  const [trendsSelectedAnalyses, setTrendsSelectedAnalyses] = useState<Set<string>>(new Set());
+  const [showTrendsFilters, setShowTrendsFilters] = useState(false);
+
   // Estados de UI
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
@@ -218,6 +230,41 @@ const IntelligenceHub: React.FC = () => {
       showNotification('error', 'Error de conexión');
     }
   };
+
+  const loadAllAnalysesDetails = async () => {
+    if (allAnalysesDetails.length > 0 || trendsLoading) return;
+
+    try {
+      setTrendsLoading(true);
+      const details: AnalysisDetail[] = [];
+
+      for (const analysis of analyses) {
+        try {
+          const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${analysis.id}`);
+          const data = await response.json();
+          if (data.success) {
+            details.push(data.data);
+          }
+        } catch (e) {
+          console.error(`Error loading analysis ${analysis.id}:`, e);
+        }
+      }
+
+      setAllAnalysesDetails(details);
+    } catch (error) {
+      console.error('Error loading all analyses:', error);
+      showNotification('error', 'Error al cargar datos de tendencias');
+    } finally {
+      setTrendsLoading(false);
+    }
+  };
+
+  // Cargar detalles cuando se cambia a la pestaña de tendencias o insights
+  useEffect(() => {
+    if ((activeTab === 'trends' || activeTab === 'insights') && analyses.length > 0 && allAnalysesDetails.length === 0) {
+      loadAllAnalysesDetails();
+    }
+  }, [activeTab, analyses]);
 
   const deleteAnalysis = async (id: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar este análisis? Esta acción no se puede deshacer.')) {
@@ -378,6 +425,45 @@ const IntelligenceHub: React.FC = () => {
     } catch (error) {
       console.error('Error generating Excel report:', error);
       showNotification('error', 'Error al generar Excel');
+    } finally {
+      setExportingId(null);
+    }
+  };
+
+  const generatePDFReport = async (analysisId: string) => {
+    try {
+      setExportingId(analysisId);
+      showNotification('success', 'Generando PDF... Esto puede tardar unos segundos');
+
+      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${analysisId}`);
+      const data = await response.json();
+
+      if (data.success) {
+        const reportResponse = await fetch(API_ENDPOINTS.analysisReportPDF, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            analysisResult: data.data.results,
+            configuration: data.data.configuration
+          })
+        });
+
+        if (reportResponse.ok) {
+          const blob = await reportResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `informe-${analysisId}.pdf`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          showNotification('success', 'Informe PDF descargado');
+        } else {
+          throw new Error('Error al generar PDF');
+        }
+      }
+    } catch (error) {
+      console.error('Error generating PDF report:', error);
+      showNotification('error', 'Error al generar PDF');
     } finally {
       setExportingId(null);
     }
@@ -558,120 +644,313 @@ const IntelligenceHub: React.FC = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
-  // Datos para tendencias
-  const trendsData = useMemo(() => {
-    const sortedAnalyses = [...analyses].sort((a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+  // Análisis filtrados solo por fecha (para mostrar en la lista de selección)
+  const analysesFilteredByDate = useMemo(() => {
+    let result = [...allAnalysesDetails];
 
-    return sortedAnalyses.map(analysis => ({
-      date: new Date(analysis.timestamp).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
-      timestamp: analysis.timestamp,
-      brand: analysis.targetBrand,
-      confidence: analysis.overallConfidence
-    }));
-  }, [analyses]);
+    if (trendsDateFrom) {
+      const fromDate = new Date(trendsDateFrom);
+      result = result.filter(a => new Date(a.timestamp) >= fromDate);
+    }
+    if (trendsDateTo) {
+      const toDate = new Date(trendsDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      result = result.filter(a => new Date(a.timestamp) <= toDate);
+    }
 
-  // Insights AI
+    return result;
+  }, [allAnalysesDetails, trendsDateFrom, trendsDateTo]);
+
+  // Análisis filtrados para Tendencias e Insights (fecha + selección manual)
+  const filteredAnalysesForTrends = useMemo(() => {
+    let result = analysesFilteredByDate;
+
+    // Filtrar por análisis seleccionados (solo si hay selección específica)
+    if (trendsSelectedAnalyses.size > 0) {
+      result = result.filter(a => trendsSelectedAnalyses.has(a.id));
+    }
+
+    return result;
+  }, [analysesFilteredByDate, trendsSelectedAnalyses]);
+
+  // Datos para tendencias - Menciones por marca
+  const brandMentionsData = useMemo(() => {
+    const brandStats: { [key: string]: { mentions: number; positive: number; neutral: number; negative: number } } = {};
+
+    filteredAnalysesForTrends.forEach(analysis => {
+      const questions = analysis.results?.questions || [];
+      questions.forEach(q => {
+        (q.brandMentions || []).forEach(bm => {
+          if (bm.mentioned && bm.frequency > 0) {
+            if (!brandStats[bm.brand]) {
+              brandStats[bm.brand] = { mentions: 0, positive: 0, neutral: 0, negative: 0 };
+            }
+            brandStats[bm.brand].mentions += bm.frequency;
+
+            const sentiment = (bm.context || 'neutral').toLowerCase();
+            if (sentiment.includes('positiv')) {
+              brandStats[bm.brand].positive += bm.frequency;
+            } else if (sentiment.includes('negativ')) {
+              brandStats[bm.brand].negative += bm.frequency;
+            } else {
+              brandStats[bm.brand].neutral += bm.frequency;
+            }
+          }
+        });
+      });
+    });
+
+    return Object.entries(brandStats)
+      .map(([brand, stats]) => ({
+        brand,
+        mentions: stats.mentions,
+        positive: stats.positive,
+        neutral: stats.neutral,
+        negative: stats.negative,
+        positivePercent: stats.mentions > 0 ? (stats.positive / stats.mentions) * 100 : 0,
+        negativePercent: stats.mentions > 0 ? (stats.negative / stats.mentions) * 100 : 0
+      }))
+      .sort((a, b) => b.mentions - a.mentions);
+  }, [filteredAnalysesForTrends]);
+
+  // Datos para tendencias - Evolución temporal de menciones
+  const mentionsOverTimeData = useMemo(() => {
+    const dataByDate: { [date: string]: { [brand: string]: number } } = {};
+    const allBrands = new Set<string>();
+
+    filteredAnalysesForTrends
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .forEach(analysis => {
+        const dateKey = new Date(analysis.timestamp).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+
+        if (!dataByDate[dateKey]) {
+          dataByDate[dateKey] = {};
+        }
+
+        const questions = analysis.results?.questions || [];
+        questions.forEach(q => {
+          (q.brandMentions || []).forEach(bm => {
+            if (bm.mentioned && bm.frequency > 0) {
+              allBrands.add(bm.brand);
+              dataByDate[dateKey][bm.brand] = (dataByDate[dateKey][bm.brand] || 0) + bm.frequency;
+            }
+          });
+        });
+      });
+
+    return {
+      data: Object.entries(dataByDate).map(([date, brands]) => ({
+        date,
+        ...brands
+      })),
+      brands: Array.from(allBrands)
+    };
+  }, [filteredAnalysesForTrends]);
+
+  // Datos para tendencias - Evolución del sentimiento por marca
+  const sentimentOverTimeData = useMemo(() => {
+    const dataByDateBrand: { [key: string]: { positive: number; neutral: number; negative: number; total: number } } = {};
+
+    filteredAnalysesForTrends
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .forEach(analysis => {
+        const dateKey = new Date(analysis.timestamp).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+
+        const questions = analysis.results?.questions || [];
+        questions.forEach(q => {
+          (q.brandMentions || []).forEach(bm => {
+            if (bm.mentioned && bm.frequency > 0) {
+              const key = `${dateKey}|${bm.brand}`;
+              if (!dataByDateBrand[key]) {
+                dataByDateBrand[key] = { positive: 0, neutral: 0, negative: 0, total: 0 };
+              }
+
+              const sentiment = (bm.context || 'neutral').toLowerCase();
+              dataByDateBrand[key].total += bm.frequency;
+              if (sentiment.includes('positiv')) {
+                dataByDateBrand[key].positive += bm.frequency;
+              } else if (sentiment.includes('negativ')) {
+                dataByDateBrand[key].negative += bm.frequency;
+              } else {
+                dataByDateBrand[key].neutral += bm.frequency;
+              }
+            }
+          });
+        });
+      });
+
+    // Agrupar por marca para el gráfico
+    const brandSentimentData: { [brand: string]: { date: string; positivePercent: number; negativePercent: number }[] } = {};
+
+    Object.entries(dataByDateBrand).forEach(([key, stats]) => {
+      const [date, brand] = key.split('|');
+      if (!brandSentimentData[brand]) {
+        brandSentimentData[brand] = [];
+      }
+      brandSentimentData[brand].push({
+        date,
+        positivePercent: stats.total > 0 ? (stats.positive / stats.total) * 100 : 0,
+        negativePercent: stats.total > 0 ? (stats.negative / stats.total) * 100 : 0
+      });
+    });
+
+    return brandSentimentData;
+  }, [filteredAnalysesForTrends]);
+
+  // Insights AI - Análisis inteligente basado en datos reales
   const insights = useMemo((): Insight[] => {
-    if (analyses.length === 0) return [];
+    if (brandMentionsData.length === 0) return [];
 
     const insights: Insight[] = [];
+    const totalMentions = brandMentionsData.reduce((sum, b) => sum + b.mentions, 0);
 
-    // Marca con mayor presencia
-    const brandCounts = new Map<string, number>();
-    analyses.forEach(a => {
-      brandCounts.set(a.targetBrand, (brandCounts.get(a.targetBrand) || 0) + 1);
-    });
-    const topBrand = Array.from(brandCounts.entries()).sort((a, b) => b[1] - a[1])[0];
-    if (topBrand) {
+    // 1. LÍDER DEL MERCADO - Marca con más menciones
+    const leader = brandMentionsData[0];
+    if (leader) {
+      const shareOfVoice = ((leader.mentions / totalMentions) * 100).toFixed(1);
       insights.push({
-        type: 'positive',
-        title: 'Marca Más Analizada',
-        description: `${topBrand[0]} cuenta con ${topBrand[1]} análisis realizados, siendo la marca con mayor seguimiento.`,
+        type: 'info',
+        title: `${leader.brand} lidera el Share of Voice`,
+        description: `Con ${leader.mentions} menciones (${shareOfVoice}% del total), ${leader.brand} es la marca más visible en las respuestas de IA generativa. ${leader.positivePercent > 50 ? 'Además, tiene un sentimiento mayoritariamente positivo.' : leader.negativePercent > 30 ? 'Sin embargo, presenta un porcentaje notable de menciones negativas.' : ''}`,
         icon: Target
       });
     }
 
-    // Confianza promedio
-    const avgConfidence = analyses.reduce((sum, a) => sum + a.overallConfidence, 0) / analyses.length;
-    if (avgConfidence < 50) {
-      insights.push({
-        type: 'negative',
-        title: 'Confianza Baja Detectada',
-        description: `La confianza promedio es de ${avgConfidence.toFixed(1)}%. Considera revisar las fuentes o ajustar las preguntas.`,
-        icon: AlertTriangle
-      });
-    } else if (avgConfidence > 75) {
+    // 2. MARCA CON MEJOR SENTIMIENTO
+    const bestSentiment = [...brandMentionsData]
+      .filter(b => b.mentions >= 5) // Solo marcas con suficientes menciones
+      .sort((a, b) => b.positivePercent - a.positivePercent)[0];
+
+    if (bestSentiment && bestSentiment.positivePercent > 50) {
       insights.push({
         type: 'positive',
-        title: 'Alta Confianza General',
-        description: `La confianza promedio es de ${avgConfidence.toFixed(1)}%, indicando análisis de alta calidad.`,
-        icon: CheckCircle2
+        title: `${bestSentiment.brand} tiene el mejor sentimiento`,
+        description: `${bestSentiment.positivePercent.toFixed(0)}% de las menciones de ${bestSentiment.brand} son positivas (${bestSentiment.positive} de ${bestSentiment.mentions}). Esta marca tiene la mejor percepción en las IAs generativas.`,
+        icon: TrendingUp
       });
     }
 
-    // Tendencia temporal
-    if (analyses.length >= 3) {
-      const sortedByDate = [...analyses].sort((a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-      const recent = sortedByDate.slice(-3);
-      const older = sortedByDate.slice(0, 3);
-      const recentAvg = recent.reduce((sum, a) => sum + a.overallConfidence, 0) / recent.length;
-      const olderAvg = older.reduce((sum, a) => sum + a.overallConfidence, 0) / older.length;
-      const diff = recentAvg - olderAvg;
+    // 3. MARCA CON PEOR SENTIMIENTO (ALERTA)
+    const worstSentiment = [...brandMentionsData]
+      .filter(b => b.mentions >= 5)
+      .sort((a, b) => b.negativePercent - a.negativePercent)[0];
 
-      if (diff > 10) {
+    if (worstSentiment && worstSentiment.negativePercent > 20) {
+      insights.push({
+        type: 'negative',
+        title: `Alerta: ${worstSentiment.brand} tiene sentimiento negativo`,
+        description: `${worstSentiment.negativePercent.toFixed(0)}% de las menciones de ${worstSentiment.brand} son negativas (${worstSentiment.negative} de ${worstSentiment.mentions}). Requiere atención para mejorar su posicionamiento en IA.`,
+        icon: AlertTriangle
+      });
+    }
+
+    // 4. COMPETIDOR EMERGENTE - Segunda marca más mencionada
+    if (brandMentionsData.length >= 2) {
+      const second = brandMentionsData[1];
+      const gap = leader.mentions - second.mentions;
+      const gapPercent = ((gap / leader.mentions) * 100).toFixed(0);
+
+      if (gap < leader.mentions * 0.3) {
         insights.push({
-          type: 'positive',
-          title: 'Mejora en Confianza',
-          description: `Los análisis recientes muestran un aumento de ${diff.toFixed(1)}% en confianza.`,
-          icon: TrendingUp
+          type: 'opportunity',
+          title: `${second.brand} compite de cerca con ${leader.brand}`,
+          description: `Solo ${gap} menciones separan a ${second.brand} (${second.mentions}) del líder. La competencia por el Share of Voice está muy reñida.`,
+          icon: Zap
         });
-      } else if (diff < -10) {
+      } else {
         insights.push({
-          type: 'negative',
-          title: 'Disminución en Confianza',
-          description: `Los análisis recientes muestran una disminución de ${Math.abs(diff).toFixed(1)}% en confianza.`,
-          icon: TrendingDown
+          type: 'info',
+          title: `${leader.brand} domina sobre ${second.brand}`,
+          description: `${leader.brand} tiene ${gapPercent}% más menciones que su competidor más cercano. Existe una brecha significativa en visibilidad.`,
+          icon: BarChart3
         });
       }
     }
 
-    // Categorías más frecuentes
-    const categoryCounts = new Map<string, number>();
-    analyses.forEach(a => {
-      a.categories.forEach(c => {
-        categoryCounts.set(c, (categoryCounts.get(c) || 0) + 1);
-      });
-    });
-    const topCategory = Array.from(categoryCounts.entries()).sort((a, b) => b[1] - a[1])[0];
-    if (topCategory) {
-      insights.push({
-        type: 'info',
-        title: 'Categoría Predominante',
-        description: `"${topCategory[0]}" es la categoría más analizada con ${topCategory[1]} menciones.`,
-        icon: Info
-      });
-    }
-
-    // Oportunidad de análisis
-    const daysSinceLastAnalysis = analyses.length > 0
-      ? Math.floor((Date.now() - new Date(analyses[analyses.length - 1].timestamp).getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
-
-    if (daysSinceLastAnalysis > 7) {
+    // 5. MARCAS CON BAJA VISIBILIDAD
+    const lowVisibility = brandMentionsData.filter(b => b.mentions < 10 && b.mentions > 0);
+    if (lowVisibility.length > 0) {
+      const names = lowVisibility.slice(0, 3).map(b => b.brand).join(', ');
       insights.push({
         type: 'opportunity',
-        title: 'Oportunidad de Actualización',
-        description: `Han pasado ${daysSinceLastAnalysis} días desde el último análisis. Considera realizar uno nuevo.`,
-        icon: Zap
+        title: `${lowVisibility.length} marcas con baja visibilidad`,
+        description: `${names}${lowVisibility.length > 3 ? ` y ${lowVisibility.length - 3} más` : ''} tienen menos de 10 menciones. Oportunidad para mejorar su posicionamiento en IA generativa.`,
+        icon: AlertCircle
       });
     }
 
-    return insights;
-  }, [analyses]);
+    // 6. DISTRIBUCIÓN DE SENTIMIENTO GENERAL
+    const totalPositive = brandMentionsData.reduce((sum, b) => sum + b.positive, 0);
+    const totalNegative = brandMentionsData.reduce((sum, b) => sum + b.negative, 0);
+    const totalNeutral = brandMentionsData.reduce((sum, b) => sum + b.neutral, 0);
+    const positivePercent = (totalPositive / totalMentions) * 100;
+    const negativePercent = (totalNegative / totalMentions) * 100;
+
+    if (positivePercent > 60) {
+      insights.push({
+        type: 'positive',
+        title: 'Sentimiento general muy positivo',
+        description: `El ${positivePercent.toFixed(0)}% de todas las menciones son positivas. Las IAs generativas tienen una percepción favorable del mercado analizado.`,
+        icon: CheckCircle2
+      });
+    } else if (negativePercent > 30) {
+      insights.push({
+        type: 'negative',
+        title: 'Alto nivel de menciones negativas',
+        description: `El ${negativePercent.toFixed(0)}% de las menciones son negativas. El sector tiene desafíos de percepción en las IAs generativas.`,
+        icon: TrendingDown
+      });
+    }
+
+    // 7. CONCENTRACIÓN DEL MERCADO
+    if (brandMentionsData.length >= 3) {
+      const top3Mentions = brandMentionsData.slice(0, 3).reduce((sum, b) => sum + b.mentions, 0);
+      const top3Percent = (top3Mentions / totalMentions) * 100;
+
+      if (top3Percent > 80) {
+        const top3Names = brandMentionsData.slice(0, 3).map(b => b.brand).join(', ');
+        insights.push({
+          type: 'info',
+          title: 'Mercado muy concentrado',
+          description: `${top3Names} acumulan el ${top3Percent.toFixed(0)}% de todas las menciones. El resto de marcas tiene muy poca visibilidad en IA.`,
+          icon: Info
+        });
+      }
+    }
+
+    // 8. ANÁLISIS TEMPORAL (si hay datos)
+    if (Object.keys(sentimentOverTimeData).length > 0) {
+      // Buscar marcas con tendencia positiva o negativa
+      Object.entries(sentimentOverTimeData).forEach(([brand, data]) => {
+        if (data.length >= 2) {
+          const firstHalf = data.slice(0, Math.ceil(data.length / 2));
+          const secondHalf = data.slice(Math.ceil(data.length / 2));
+
+          const avgFirst = firstHalf.reduce((sum, d) => sum + d.positivePercent, 0) / firstHalf.length;
+          const avgSecond = secondHalf.reduce((sum, d) => sum + d.positivePercent, 0) / secondHalf.length;
+          const diff = avgSecond - avgFirst;
+
+          if (diff > 15) {
+            insights.push({
+              type: 'positive',
+              title: `${brand} mejora su sentimiento`,
+              description: `El sentimiento positivo de ${brand} ha aumentado ${diff.toFixed(0)}pp en los últimos análisis. Tendencia favorable.`,
+              icon: TrendingUp
+            });
+          } else if (diff < -15) {
+            insights.push({
+              type: 'negative',
+              title: `${brand} empeora su sentimiento`,
+              description: `El sentimiento positivo de ${brand} ha caído ${Math.abs(diff).toFixed(0)}pp. Requiere investigación.`,
+              icon: TrendingDown
+            });
+          }
+        }
+      });
+    }
+
+    return insights.slice(0, 8); // Limitar a 8 insights máximo
+  }, [brandMentionsData, sentimentOverTimeData]);
 
   const SortButton: React.FC<{ field: SortField; label: string }> = ({ field, label }) => (
     <button
@@ -1031,6 +1310,20 @@ const IntelligenceHub: React.FC = () => {
                               </button>
                               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                                 <button
+                                  onClick={() => generatePDFReport(analysis.id)}
+                                  disabled={exportingId === analysis.id}
+                                  className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm disabled:opacity-50 font-medium text-red-600 border-b"
+                                >
+                                  PDF (Informe)
+                                </button>
+                                <button
+                                  onClick={() => generateExcelReport(analysis.id)}
+                                  disabled={exportingId === analysis.id}
+                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm disabled:opacity-50"
+                                >
+                                  Excel
+                                </button>
+                                <button
                                   onClick={() => generateMarkdownReport(analysis.id)}
                                   disabled={exportingId === analysis.id}
                                   className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm disabled:opacity-50"
@@ -1043,13 +1336,6 @@ const IntelligenceHub: React.FC = () => {
                                   className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm disabled:opacity-50"
                                 >
                                   JSON
-                                </button>
-                                <button
-                                  onClick={() => generateExcelReport(analysis.id)}
-                                  disabled={exportingId === analysis.id}
-                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm disabled:opacity-50"
-                                >
-                                  Excel
                                 </button>
                                 <button
                                   onClick={() => generateCSVReport(analysis.id)}
@@ -1134,62 +1420,380 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB 2: TENDENCIAS */}
           {activeTab === 'trends' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold mb-4">Evolución de Confianza en el Tiempo</h2>
-                {trendsData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={trendsData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="confidence" stroke="#3b82f6" name="Confianza %" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    No hay datos suficientes para mostrar tendencias
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h2 className="text-xl font-bold mb-4">Análisis por Marca</h2>
-                {(() => {
-                  const brandData = Array.from(
-                    analyses.reduce((map, a) => {
-                      const existing = map.get(a.targetBrand) || { brand: a.targetBrand, count: 0, avgConfidence: 0 };
-                      existing.count += 1;
-                      existing.avgConfidence += a.overallConfidence;
-                      map.set(a.targetBrand, existing);
-                      return map;
-                    }, new Map<string, { brand: string; count: number; avgConfidence: number }>())
-                  ).map(([_, data]) => ({
-                    brand: data.brand,
-                    count: data.count,
-                    avgConfidence: data.avgConfidence / data.count
-                  }));
-
-                  return brandData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={brandData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="brand" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="count" fill="#3b82f6" name="Cantidad de Análisis" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      No hay datos disponibles
+            <div className="space-y-8">
+              {trendsLoading ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="w-8 h-8 mx-auto text-blue-500 animate-spin mb-4" />
+                  <p className="text-gray-600">Cargando datos de tendencias...</p>
+                  <p className="text-sm text-gray-400 mt-1">Esto puede tardar unos segundos</p>
+                </div>
+              ) : allAnalysesDetails.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No hay datos suficientes para mostrar tendencias</p>
+                  <p className="text-sm mt-1">Realiza algunos análisis primero</p>
+                </div>
+              ) : (
+                <>
+                  {/* FILTROS DE TENDENCIAS */}
+                  <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-5 h-5 text-gray-500" />
+                        <h3 className="font-semibold text-gray-700">Filtros de Análisis</h3>
+                        <span className="text-sm text-gray-500">
+                          ({filteredAnalysesForTrends.length} de {allAnalysesDetails.length} análisis)
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setShowTrendsFilters(!showTrendsFilters)}
+                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      >
+                        {showTrendsFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+                        <ChevronDown className={`w-4 h-4 transition-transform ${showTrendsFilters ? 'rotate-180' : ''}`} />
+                      </button>
                     </div>
-                  );
-                })()}
-              </div>
+
+                    {/* Filtros rápidos siempre visibles */}
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <input
+                          type="date"
+                          value={trendsDateFrom}
+                          onChange={(e) => setTrendsDateFrom(e.target.value)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Desde"
+                        />
+                        <span className="text-gray-400">-</span>
+                        <input
+                          type="date"
+                          value={trendsDateTo}
+                          onChange={(e) => setTrendsDateTo(e.target.value)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Hasta"
+                        />
+                      </div>
+
+                      {(trendsDateFrom || trendsDateTo || trendsSelectedAnalyses.size > 0) && (
+                        <button
+                          onClick={() => {
+                            setTrendsDateFrom('');
+                            setTrendsDateTo('');
+                            setTrendsSelectedAnalyses(new Set());
+                          }}
+                          className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1"
+                        >
+                          <X className="w-4 h-4" />
+                          Limpiar filtros
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Panel expandible con selección de análisis */}
+                    {showTrendsFilters && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-700">
+                            Seleccionar análisis específicos
+                            {(trendsDateFrom || trendsDateTo) && (
+                              <span className="font-normal text-gray-500 ml-2">
+                                ({analysesFilteredByDate.length} en el rango de fechas)
+                              </span>
+                            )}
+                          </h4>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setTrendsSelectedAnalyses(new Set())}
+                              className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                            >
+                              Usar todos
+                            </button>
+                            <button
+                              onClick={() => setTrendsSelectedAnalyses(new Set(['__none__']))}
+                              className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                            >
+                              Deseleccionar todos
+                            </button>
+                          </div>
+                        </div>
+                        {analysesFilteredByDate.length === 0 ? (
+                          <div className="text-center py-4 text-gray-500 text-sm">
+                            No hay análisis en el rango de fechas seleccionado
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                            {analysesFilteredByDate.map(analysis => (
+                              <label
+                                key={analysis.id}
+                                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                                  trendsSelectedAnalyses.size === 0 || trendsSelectedAnalyses.has(analysis.id)
+                                    ? 'bg-blue-50 border-blue-200'
+                                    : 'bg-gray-50 border-gray-200 opacity-60'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={trendsSelectedAnalyses.size === 0 || trendsSelectedAnalyses.has(analysis.id)}
+                                  onChange={(e) => {
+                                    let newSet: Set<string>;
+                                    if (trendsSelectedAnalyses.size === 0) {
+                                      // Modo "todos": crear set con todos los del rango excepto el deseleccionado
+                                      newSet = new Set(analysesFilteredByDate.map(a => a.id));
+                                      newSet.delete(analysis.id);
+                                    } else {
+                                      newSet = new Set(trendsSelectedAnalyses);
+                                      newSet.delete('__none__'); // Limpiar marcador especial
+                                      if (e.target.checked) {
+                                        newSet.add(analysis.id);
+                                      } else {
+                                        newSet.delete(analysis.id);
+                                      }
+                                    }
+                                    // Si todos están seleccionados, volver a modo "todos" (set vacío)
+                                    if (newSet.size === analysesFilteredByDate.length) {
+                                      newSet = new Set();
+                                    }
+                                    // Si no queda ninguno, poner marcador especial
+                                    if (newSet.size === 0 && !e.target.checked) {
+                                      newSet = new Set(['__none__']);
+                                    }
+                                    setTrendsSelectedAnalyses(newSet);
+                                  }}
+                                  className="rounded text-blue-600"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-800 truncate">
+                                    {analysis.configuration.name || analysis.configuration.brand}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {analysis.configuration.brand} · {new Date(analysis.timestamp).toLocaleDateString('es-ES')}
+                                  </div>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 1. MENCIONES POR MARCA */}
+                  <div className="bg-white rounded-lg shadow-sm border p-6">
+                    <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+                      <Target className="w-5 h-5 text-blue-600" />
+                      Menciones por Marca
+                    </h2>
+                    <p className="text-gray-500 text-sm mb-4">
+                      Total de menciones en {filteredAnalysesForTrends.length} análisis
+                      {trendsDateFrom || trendsDateTo ? ` (${trendsDateFrom || '...'} - ${trendsDateTo || '...'})` : ''}
+                    </p>
+
+                    {brandMentionsData.length > 0 ? (
+                      <>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={brandMentionsData.slice(0, 10)} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis dataKey="brand" type="category" width={120} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="bg-white p-3 rounded-lg shadow-lg border">
+                                      <p className="font-bold">{data.brand}</p>
+                                      <p className="text-sm">Total: <span className="font-semibold">{data.mentions}</span> menciones</p>
+                                      <div className="flex gap-2 mt-1 text-xs">
+                                        <span className="text-green-600">+{data.positive} pos</span>
+                                        <span className="text-gray-500">{data.neutral} neu</span>
+                                        <span className="text-red-600">-{data.negative} neg</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="mentions" fill="#3b82f6" name="Menciones" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+
+                        {/* Tabla detallada */}
+                        <div className="mt-6 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b bg-gray-50">
+                                <th className="text-left p-3 font-semibold">Marca</th>
+                                <th className="text-center p-3 font-semibold">Menciones</th>
+                                <th className="text-center p-3 font-semibold text-green-600">Positivo</th>
+                                <th className="text-center p-3 font-semibold text-gray-500">Neutral</th>
+                                <th className="text-center p-3 font-semibold text-red-600">Negativo</th>
+                                <th className="text-left p-3 font-semibold">Sentimiento</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {brandMentionsData.map((brand, idx) => (
+                                <tr key={brand.brand} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                  <td className="p-3 font-medium">{brand.brand}</td>
+                                  <td className="p-3 text-center font-bold text-blue-600">{brand.mentions}</td>
+                                  <td className="p-3 text-center text-green-600">{brand.positive} ({brand.positivePercent.toFixed(0)}%)</td>
+                                  <td className="p-3 text-center text-gray-500">{brand.neutral}</td>
+                                  <td className="p-3 text-center text-red-600">{brand.negative} ({brand.negativePercent.toFixed(0)}%)</td>
+                                  <td className="p-3">
+                                    <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 w-32">
+                                      <div
+                                        className="bg-green-500"
+                                        style={{ width: `${brand.positivePercent}%` }}
+                                      />
+                                      <div
+                                        className="bg-gray-400"
+                                        style={{ width: `${100 - brand.positivePercent - brand.negativePercent}%` }}
+                                      />
+                                      <div
+                                        className="bg-red-500"
+                                        style={{ width: `${brand.negativePercent}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No hay datos de menciones</div>
+                    )}
+                  </div>
+
+                  {/* 2. EVOLUCIÓN DE MENCIONES EN EL TIEMPO */}
+                  <div className="bg-white rounded-lg shadow-sm border p-6">
+                    <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      Evolución de Menciones
+                    </h2>
+                    <p className="text-gray-500 text-sm mb-4">Cómo han evolucionado las menciones de cada marca a lo largo del tiempo</p>
+
+                    {mentionsOverTimeData.data.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={mentionsOverTimeData.data}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          {mentionsOverTimeData.brands.slice(0, 8).map((brand, idx) => {
+                            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+                            return (
+                              <Line
+                                key={brand}
+                                type="monotone"
+                                dataKey={brand}
+                                stroke={colors[idx % colors.length]}
+                                strokeWidth={2}
+                                dot={{ r: 4 }}
+                                connectNulls
+                              />
+                            );
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No hay datos temporales suficientes</div>
+                    )}
+                  </div>
+
+                  {/* 3. EVOLUCIÓN DEL SENTIMIENTO POR MARCA */}
+                  <div className="bg-white rounded-lg shadow-sm border p-6">
+                    <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-purple-600" />
+                      Evolución del Sentimiento por Marca
+                    </h2>
+                    <p className="text-gray-500 text-sm mb-4">Porcentaje de menciones positivas y negativas por marca a lo largo del tiempo</p>
+
+                    {Object.keys(sentimentOverTimeData).length > 0 ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {Object.entries(sentimentOverTimeData)
+                          .filter(([_, data]) => data.length > 0)
+                          .slice(0, 6)
+                          .map(([brand, data]) => (
+                            <div key={brand} className="border rounded-lg p-4">
+                              <h3 className="font-semibold mb-3 text-gray-800">{brand}</h3>
+                              <ResponsiveContainer width="100%" height={150}>
+                                <LineChart data={data}>
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                                  <Tooltip
+                                    formatter={(value: number) => `${value.toFixed(1)}%`}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="positivePercent"
+                                    stroke="#10b981"
+                                    strokeWidth={2}
+                                    name="% Positivo"
+                                    dot={{ r: 3 }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="negativePercent"
+                                    stroke="#ef4444"
+                                    strokeWidth={2}
+                                    name="% Negativo"
+                                    dot={{ r: 3 }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                              <div className="flex justify-center gap-4 mt-2 text-xs">
+                                <span className="flex items-center gap-1">
+                                  <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                                  Positivo
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                                  Negativo
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No hay datos de sentimiento suficientes</div>
+                    )}
+                  </div>
+
+                  {/* Resumen de datos */}
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-100">
+                    <h3 className="font-bold text-gray-800 mb-3">Resumen de Datos</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">{filteredAnalysesForTrends.length}</div>
+                        <div className="text-sm text-gray-600">Análisis incluidos</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">{brandMentionsData.length}</div>
+                        <div className="text-sm text-gray-600">Marcas detectadas</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-purple-600">
+                          {brandMentionsData.reduce((sum, b) => sum + b.mentions, 0)}
+                        </div>
+                        <div className="text-sm text-gray-600">Total menciones</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-orange-600">
+                          {brandMentionsData.length > 0
+                            ? (brandMentionsData.reduce((sum, b) => sum + b.positivePercent, 0) / brandMentionsData.length).toFixed(0)
+                            : 0}%
+                        </div>
+                        <div className="text-sm text-gray-600">Sentimiento positivo promedio</div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1306,52 +1910,301 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 4: INSIGHTS AI */}
           {activeTab === 'insights' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold mb-2">Insights Automáticos</h2>
-                <p className="text-gray-600 mb-6">
-                  Análisis inteligente de patrones y tendencias en tus datos
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <Lightbulb className="w-8 h-8" />
+                  <h2 className="text-2xl font-bold">Insights Inteligentes</h2>
+                </div>
+                <p className="text-purple-100">
+                  Análisis automático de Share of Voice, sentimiento y tendencias basado en {filteredAnalysesForTrends.length} análisis, {brandMentionsData.length} marcas y {brandMentionsData.reduce((sum, b) => sum + b.mentions, 0)} menciones.
                 </p>
               </div>
 
-              {insights.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {insights.map((insight, index) => {
-                    const Icon = insight.icon;
-                    const colors = {
-                      positive: 'bg-green-50 border-green-200 text-green-900',
-                      negative: 'bg-red-50 border-red-200 text-red-900',
-                      opportunity: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-                      info: 'bg-blue-50 border-blue-200 text-blue-900'
-                    };
-                    const iconColors = {
-                      positive: 'text-green-600',
-                      negative: 'text-red-600',
-                      opportunity: 'text-yellow-600',
-                      info: 'text-blue-600'
-                    };
+              {/* FILTROS (compartidos con Tendencias) */}
+              {allAnalysesDetails.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-5 h-5 text-gray-500" />
+                      <h3 className="font-semibold text-gray-700">Filtros de Análisis</h3>
+                      <span className="text-sm text-gray-500">
+                        ({filteredAnalysesForTrends.length} de {allAnalysesDetails.length} análisis)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowTrendsFilters(!showTrendsFilters)}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      {showTrendsFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showTrendsFilters ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
 
-                    return (
-                      <div
-                        key={index}
-                        className={`p-6 rounded-lg border-2 ${colors[insight.type]}`}
+                  {/* Filtros rápidos */}
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <input
+                        type="date"
+                        value={trendsDateFrom}
+                        onChange={(e) => setTrendsDateFrom(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="date"
+                        value={trendsDateTo}
+                        onChange={(e) => setTrendsDateTo(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {(trendsDateFrom || trendsDateTo || trendsSelectedAnalyses.size > 0) && (
+                      <button
+                        onClick={() => {
+                          setTrendsDateFrom('');
+                          setTrendsDateTo('');
+                          setTrendsSelectedAnalyses(new Set());
+                        }}
+                        className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1"
                       >
-                        <div className="flex items-start gap-4">
-                          <div className={`p-3 rounded-lg bg-white ${iconColors[insight.type]}`}>
-                            <Icon className="w-6 h-6" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-bold mb-2">{insight.title}</h3>
-                            <p className="text-sm opacity-90">{insight.description}</p>
-                          </div>
+                        <X className="w-4 h-4" />
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Panel expandible */}
+                  {showTrendsFilters && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          Seleccionar análisis específicos
+                          {(trendsDateFrom || trendsDateTo) && (
+                            <span className="font-normal text-gray-500 ml-2">
+                              ({analysesFilteredByDate.length} en el rango de fechas)
+                            </span>
+                          )}
+                        </h4>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setTrendsSelectedAnalyses(new Set())}
+                            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          >
+                            Usar todos
+                          </button>
+                          <button
+                            onClick={() => setTrendsSelectedAnalyses(new Set(['__none__']))}
+                            className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                          >
+                            Deseleccionar todos
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
+                      {analysesFilteredByDate.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          No hay análisis en el rango de fechas seleccionado
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                          {analysesFilteredByDate.map(analysis => (
+                            <label
+                              key={analysis.id}
+                              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                                trendsSelectedAnalyses.size === 0 || trendsSelectedAnalyses.has(analysis.id)
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : 'bg-gray-50 border-gray-200 opacity-60'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={trendsSelectedAnalyses.size === 0 || trendsSelectedAnalyses.has(analysis.id)}
+                                onChange={(e) => {
+                                  let newSet: Set<string>;
+                                  if (trendsSelectedAnalyses.size === 0) {
+                                    newSet = new Set(analysesFilteredByDate.map(a => a.id));
+                                    newSet.delete(analysis.id);
+                                  } else {
+                                    newSet = new Set(trendsSelectedAnalyses);
+                                    newSet.delete('__none__');
+                                    if (e.target.checked) {
+                                      newSet.add(analysis.id);
+                                    } else {
+                                      newSet.delete(analysis.id);
+                                    }
+                                  }
+                                  if (newSet.size === analysesFilteredByDate.length) {
+                                    newSet = new Set();
+                                  }
+                                  if (newSet.size === 0 && !e.target.checked) {
+                                    newSet = new Set(['__none__']);
+                                  }
+                                  setTrendsSelectedAnalyses(newSet);
+                                }}
+                                className="rounded text-blue-600"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-800 truncate">
+                                  {analysis.configuration.name || analysis.configuration.brand}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {analysis.configuration.brand} · {new Date(analysis.timestamp).toLocaleDateString('es-ES')}
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Estado de carga */}
+              {trendsLoading ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="w-8 h-8 mx-auto text-purple-500 animate-spin mb-4" />
+                  <p className="text-gray-600">Analizando datos para generar insights...</p>
+                </div>
+              ) : allAnalysesDetails.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-lg shadow">
+                  <Lightbulb className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Sin datos para analizar</h3>
+                  <p className="text-gray-500 mb-4">
+                    Primero visita la pestaña "Tendencias" para cargar los datos de análisis.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('trends')}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Ir a Tendencias
+                  </button>
+                </div>
+              ) : insights.length > 0 ? (
+                <>
+                  {/* Resumen rápido */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                      <div className="text-3xl font-bold text-blue-600">{brandMentionsData.length}</div>
+                      <div className="text-sm text-gray-500">Marcas analizadas</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                      <div className="text-3xl font-bold text-green-600">
+                        {brandMentionsData.length > 0 ? brandMentionsData[0].brand : '-'}
+                      </div>
+                      <div className="text-sm text-gray-500">Líder SOV</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                      <div className="text-3xl font-bold text-purple-600">
+                        {(() => {
+                          const best = [...brandMentionsData].filter(b => b.mentions >= 5).sort((a, b) => b.positivePercent - a.positivePercent)[0];
+                          return best ? best.brand : '-';
+                        })()}
+                      </div>
+                      <div className="text-sm text-gray-500">Mejor sentimiento</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                      <div className="text-3xl font-bold text-orange-600">
+                        {insights.filter(i => i.type === 'negative' || i.type === 'opportunity').length}
+                      </div>
+                      <div className="text-sm text-gray-500">Alertas/Oportunidades</div>
+                    </div>
+                  </div>
+
+                  {/* Insights cards */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {insights.map((insight, index) => {
+                      const Icon = insight.icon;
+                      const styles = {
+                        positive: {
+                          card: 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200',
+                          icon: 'bg-green-100 text-green-600',
+                          title: 'text-green-900',
+                          badge: 'bg-green-100 text-green-700'
+                        },
+                        negative: {
+                          card: 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200',
+                          icon: 'bg-red-100 text-red-600',
+                          title: 'text-red-900',
+                          badge: 'bg-red-100 text-red-700'
+                        },
+                        opportunity: {
+                          card: 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200',
+                          icon: 'bg-amber-100 text-amber-600',
+                          title: 'text-amber-900',
+                          badge: 'bg-amber-100 text-amber-700'
+                        },
+                        info: {
+                          card: 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200',
+                          icon: 'bg-blue-100 text-blue-600',
+                          title: 'text-blue-900',
+                          badge: 'bg-blue-100 text-blue-700'
+                        }
+                      };
+
+                      const style = styles[insight.type];
+                      const badgeText = {
+                        positive: 'Fortaleza',
+                        negative: 'Alerta',
+                        opportunity: 'Oportunidad',
+                        info: 'Información'
+                      };
+
+                      return (
+                        <div
+                          key={index}
+                          className={`p-5 rounded-xl border-2 ${style.card} transition-all hover:shadow-md`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className={`p-3 rounded-xl ${style.icon}`}>
+                              <Icon className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${style.badge}`}>
+                                  {badgeText[insight.type]}
+                                </span>
+                              </div>
+                              <h3 className={`font-bold text-lg mb-2 ${style.title}`}>{insight.title}</h3>
+                              <p className="text-gray-700 text-sm leading-relaxed">{insight.description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Leyenda */}
+                  <div className="bg-white rounded-lg shadow p-4">
+                    <h4 className="font-medium text-gray-700 mb-3">Leyenda de Insights</h4>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                        <span className="text-gray-600">Fortaleza - Aspectos positivos a mantener</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                        <span className="text-gray-600">Alerta - Requiere atención inmediata</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                        <span className="text-gray-600">Oportunidad - Área de mejora potencial</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                        <span className="text-gray-600">Información - Dato relevante del mercado</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Lightbulb className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No hay suficientes datos para generar insights</p>
+                <div className="text-center py-12 bg-white rounded-lg shadow">
+                  <Lightbulb className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">No hay insights disponibles</h3>
+                  <p className="text-gray-500">
+                    Necesitas más datos de análisis para generar insights útiles.
+                  </p>
                 </div>
               )}
             </div>
@@ -1697,35 +2550,40 @@ const IntelligenceHub: React.FC = () => {
               )}
 
               {/* Botones de exportación */}
-              <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white pb-2">
+              <div className="flex flex-col gap-2 pt-4 border-t sticky bottom-0 bg-white pb-2">
+                {/* Botón principal de PDF */}
                 <button
-                  onClick={() => generateMarkdownReport(selectedAnalysisDetail.id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                  onClick={() => generatePDFReport(selectedAnalysisDetail.id)}
+                  disabled={exportingId === selectedAnalysisDetail.id}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 shadow-sm"
                 >
-                  <Download className="w-4 h-4" />
-                  Markdown
+                  <FileText className="w-5 h-5" />
+                  Descargar Informe PDF
                 </button>
-                <button
-                  onClick={() => generateJSONReport(selectedAnalysisDetail.id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  JSON
-                </button>
-                <button
-                  onClick={() => generateExcelReport(selectedAnalysisDetail.id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Excel
-                </button>
-                <button
-                  onClick={() => generateCSVReport(selectedAnalysisDetail.id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  CSV
-                </button>
+                {/* Otros formatos */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => generateExcelReport(selectedAnalysisDetail.id)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Excel
+                  </button>
+                  <button
+                    onClick={() => generateMarkdownReport(selectedAnalysisDetail.id)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    MD
+                  </button>
+                  <button
+                    onClick={() => generateJSONReport(selectedAnalysisDetail.id)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    JSON
+                  </button>
+                </div>
               </div>
             </div>
           </div>

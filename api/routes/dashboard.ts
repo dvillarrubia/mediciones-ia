@@ -178,19 +178,20 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
     });
   }
 
-  // Calcular Share of Voice por marca
+  // Calcular Share of Voice por marca - Usar TODOS los análisis para visión global
+  // IMPORTANTE: Calculamos el sentimiento desde las preguntas individuales,
+  // no desde el brandSummary consolidado (que solo tiene un valor promedio)
   const brandMentions: { [key: string]: { count: number; positive: number; neutral: number; negative: number } } = {};
 
-  periodAnalyses.forEach(analysis => {
-    if (analysis.results?.brandSummary) {
-      const brandSummary = analysis.results.brandSummary;
-      // Combinar targetBrands y competitors en un solo array para procesar
-      const allBrands = [
-        ...(brandSummary.targetBrands || []),
-        ...(brandSummary.competitors || [])
-      ];
+  // Usar TODOS los análisis (no solo periodAnalyses) para tener visión completa del SOV
+  analyses.forEach(analysis => {
+    // Procesar cada pregunta individualmente para obtener sentimientos precisos
+    const questions = analysis.questions || [];
 
-      allBrands.forEach((brandData: any) => {
+    questions.forEach((question: any) => {
+      const questionBrandMentions = question.brandMentions || [];
+
+      questionBrandMentions.forEach((brandData: any) => {
         const brandName = brandData.brand;
         if (brandData.mentioned && brandData.frequency > 0) {
           if (!brandMentions[brandName]) {
@@ -198,18 +199,19 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
           }
           brandMentions[brandName].count += brandData.frequency;
 
-          // Contabilizar sentimiento basado en context (SentimentType)
-          const sentiment = (brandData.context || brandData.sentiment || 'neutral').toLowerCase();
+          // Contabilizar sentimiento basado en context de CADA pregunta
+          // y multiplicar por la frecuencia para reflejar correctamente el peso
+          const sentiment = (brandData.context || 'neutral').toLowerCase();
           if (sentiment.includes('positiv')) {
-            brandMentions[brandName].positive++;
+            brandMentions[brandName].positive += brandData.frequency;
           } else if (sentiment.includes('negativ')) {
-            brandMentions[brandName].negative++;
+            brandMentions[brandName].negative += brandData.frequency;
           } else {
-            brandMentions[brandName].neutral++;
+            brandMentions[brandName].neutral += brandData.frequency;
           }
         }
       });
-    }
+    });
   });
 
   const totalMentions = Object.values(brandMentions).reduce((sum, b) => sum + b.count, 0);

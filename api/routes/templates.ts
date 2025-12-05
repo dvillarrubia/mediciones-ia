@@ -1,15 +1,151 @@
 import { Router, Request, Response } from 'express';
 import ConfigService from '../services/configService.js';
-import { 
-  PREDEFINED_TEMPLATES, 
-  COMMON_SOURCES, 
-  AnalysisTemplate, 
+import {
+  PREDEFINED_TEMPLATES,
+  COMMON_SOURCES,
+  AnalysisTemplate,
   CustomConfiguration,
-  AnalysisQuestion 
+  AnalysisQuestion
 } from '../config/templates.js';
+import {
+  AI_MODELS,
+  COUNTRIES,
+  DEFAULT_MODEL,
+  DEFAULT_COUNTRY,
+  getModelById,
+  getCountryByCode
+} from '../config/constants.js';
 
 const router = Router();
 const configService = new ConfigService();
+
+// ==========================================
+// ENDPOINTS DE MODELOS DE IA
+// ==========================================
+
+/**
+ * GET /api/templates/ai-models
+ * Obtener todos los modelos de IA disponibles con información detallada
+ */
+router.get('/ai-models', (req: Request, res: Response) => {
+  try {
+    // Agrupar modelos por proveedor
+    const modelsByProvider = {
+      openai: AI_MODELS.filter(m => m.provider === 'openai'),
+      anthropic: AI_MODELS.filter(m => m.provider === 'anthropic'),
+      google: AI_MODELS.filter(m => m.provider === 'google')
+    };
+
+    res.json({
+      success: true,
+      data: {
+        models: AI_MODELS,
+        byProvider: modelsByProvider,
+        defaultModel: DEFAULT_MODEL,
+        recommended: AI_MODELS.filter(m => m.recommended)
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener modelos de IA:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+/**
+ * GET /api/templates/ai-models/:id
+ * Obtener información de un modelo específico
+ */
+router.get('/ai-models/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const model = getModelById(id);
+
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        error: 'Modelo no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: model
+    });
+  } catch (error) {
+    console.error('Error al obtener modelo:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+// ==========================================
+// ENDPOINTS DE PAÍSES
+// ==========================================
+
+/**
+ * GET /api/templates/countries
+ * Obtener todos los países disponibles para análisis
+ */
+router.get('/countries', (req: Request, res: Response) => {
+  try {
+    // Agrupar países por región
+    const countriesByRegion = {
+      europe: COUNTRIES.filter(c => ['ES', 'PT', 'GB', 'DE', 'FR', 'IT'].includes(c.code)),
+      latinamerica: COUNTRIES.filter(c => ['MX', 'AR', 'CO', 'CL', 'PE', 'EC', 'BR', 'LATAM'].includes(c.code)),
+      northamerica: COUNTRIES.filter(c => ['US', 'US-ES'].includes(c.code)),
+      global: COUNTRIES.filter(c => c.code === 'GLOBAL')
+    };
+
+    res.json({
+      success: true,
+      data: {
+        countries: COUNTRIES,
+        byRegion: countriesByRegion,
+        defaultCountry: DEFAULT_COUNTRY
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener países:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+/**
+ * GET /api/templates/countries/:code
+ * Obtener información de un país específico
+ */
+router.get('/countries/:code', (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const country = getCountryByCode(code.toUpperCase());
+
+    if (!country) {
+      return res.status(404).json({
+        success: false,
+        error: 'País no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: country
+    });
+  } catch (error) {
+    console.error('Error al obtener país:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
 
 /**
  * GET /api/templates

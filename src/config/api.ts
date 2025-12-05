@@ -13,6 +13,10 @@ export const API_ENDPOINTS = {
   predefinedTemplates: `${API_BASE_URL}/api/templates/predefined`,
   customConfigurations: `${API_BASE_URL}/api/templates/configurations`,
 
+  // AI Models & Countries
+  aiModels: `${API_BASE_URL}/api/templates/ai-models`,
+  countries: `${API_BASE_URL}/api/templates/countries`,
+
   // Analysis
   analysisCategories: `${API_BASE_URL}/api/analysis/categories`,
   analysisExecute: `${API_BASE_URL}/api/analysis/execute`,
@@ -22,6 +26,7 @@ export const API_ENDPOINTS = {
   analysisReportJSON: `${API_BASE_URL}/api/analysis/report/json`,
   analysisReportTable: `${API_BASE_URL}/api/analysis/report/table`,
   analysisReportExcel: `${API_BASE_URL}/api/analysis/report/excel`,
+  analysisReportPDF: `${API_BASE_URL}/api/analysis/report/pdf`,
 
   // Dashboard
   dashboard: `${API_BASE_URL}/api/dashboard`,

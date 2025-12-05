@@ -9,7 +9,7 @@ import app from './app.js';
 const PORT = process.env.PORT || 3003;
 
 const server = app.listen(PORT, () => {
-  console.log(`Server ready on port ${PORT}`);
+  console.log(`🚀 Server ready on port ${PORT}`);
 });
 
 /**

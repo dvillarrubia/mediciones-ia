@@ -453,6 +453,48 @@ class DatabaseService {
     });
   }
 
+  async updateAnalysisConfiguration(id: string, configUpdates: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Base de datos no inicializada'));
+        return;
+      }
+
+      // Primero obtenemos la configuración actual
+      const selectQuery = 'SELECT configuration FROM analysis WHERE id = ?';
+
+      this.db.get(selectQuery, [id], (err, row: any) => {
+        if (err) {
+          console.error('Error al obtener análisis:', err);
+          reject(err);
+          return;
+        }
+
+        if (!row) {
+          reject(new Error('Análisis no encontrado'));
+          return;
+        }
+
+        // Mezclamos la configuración actual con las actualizaciones
+        const currentConfig = JSON.parse(row.configuration || '{}');
+        const updatedConfig = { ...currentConfig, ...configUpdates };
+
+        // Actualizamos en la base de datos
+        const updateQuery = 'UPDATE analysis SET configuration = ? WHERE id = ?';
+
+        this.db.run(updateQuery, [JSON.stringify(updatedConfig), id], function(updateErr) {
+          if (updateErr) {
+            console.error('Error al actualizar configuración:', updateErr);
+            reject(updateErr);
+          } else {
+            console.log(`Configuración de análisis ${id} actualizada`);
+            resolve();
+          }
+        });
+      });
+    });
+  }
+
   async getAnalysesByBrand(brand: string): Promise<SavedAnalysis[]> {
     return new Promise((resolve, reject) => {
       if (!this.db) {

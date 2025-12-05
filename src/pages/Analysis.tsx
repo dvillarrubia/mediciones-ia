@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Settings, Eye, Edit3, Copy, Trash2, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Play, Settings, Eye, Edit3, Copy, Trash2, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Loader2, Info, Globe, Cpu, Sparkles, Zap, DollarSign } from 'lucide-react';
 import { API_ENDPOINTS } from '../config/api';
 import NotificationSystem from '../components/NotificationSystem';
 import { useNotifications } from '../hooks/useNotifications';
@@ -10,6 +10,31 @@ interface AnalysisQuestion {
   id: string;
   question: string;
   category: string;
+}
+
+// Tipos para modelos de IA
+interface AIModelInfo {
+  id: string;
+  name: string;
+  provider: 'openai' | 'anthropic' | 'google';
+  description: string;
+  strengths: string[];
+  contextWindow: string;
+  pricing: string;
+  recommended?: boolean;
+  requiresApiKey: string;
+}
+
+// Tipos para países
+interface CountryInfo {
+  code: string;
+  name: string;
+  flag: string;
+  language: string;
+  locale: string;
+  timezone: string;
+  description: string;
+  marketContext: string;
 }
 
 interface AnalysisTemplate {
@@ -100,7 +125,15 @@ const Analysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // Nuevos estados para modelo y país
+  const [aiModels, setAiModels] = useState<AIModelInfo[]>([]);
+  const [countries, setCountries] = useState<CountryInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o-mini');
+  const [selectedCountry, setSelectedCountry] = useState<string>('ES');
+  const [showModelInfo, setShowModelInfo] = useState(false);
+  const [showCountryInfo, setShowCountryInfo] = useState(false);
+
   // Proyecto seleccionado
   const { selectedProjectId } = useProjectStore();
 
@@ -143,11 +176,43 @@ const Analysis = () => {
     );
   };
 
-  // Cargar plantillas y configuraciones al montar el componente
+  // Cargar plantillas, configuraciones, modelos y países al montar el componente
   useEffect(() => {
     loadTemplates();
     loadCustomConfigurations();
+    loadAIModels();
+    loadCountries();
   }, []);
+
+  const loadAIModels = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.aiModels);
+      const data = await response.json();
+      if (data.success) {
+        setAiModels(data.data.models);
+        if (data.data.defaultModel) {
+          setSelectedModel(data.data.defaultModel);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando modelos de IA:', error);
+    }
+  };
+
+  const loadCountries = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.countries);
+      const data = await response.json();
+      if (data.success) {
+        setCountries(data.data.countries);
+        if (data.data.defaultCountry) {
+          setSelectedCountry(data.data.defaultCountry);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando países:', error);
+    }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -228,6 +293,9 @@ const Analysis = () => {
         }
       }
 
+      // Obtener información del país seleccionado para el contexto
+      const countryInfo = countries.find(c => c.code === selectedCountry);
+
       const response = await fetch(API_ENDPOINTS.analysisExecute, {
         method: 'POST',
         headers: {
@@ -240,7 +308,12 @@ const Analysis = () => {
             questions: editableQuestions
           },
           userApiKeys: parsedApiKeys,
-          projectId: selectedProjectId || undefined
+          projectId: selectedProjectId || undefined,
+          // Nuevos parámetros: modelo y país
+          selectedModel: selectedModel,
+          countryCode: selectedCountry,
+          countryContext: countryInfo?.marketContext || '',
+          countryLanguage: countryInfo?.language || 'Español'
         }),
       });
 
@@ -509,6 +582,232 @@ const Analysis = () => {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Model & Country Selection Panel */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+            <Settings className="h-5 w-5 mr-2 text-blue-600" />
+            Configuración del Análisis
+          </h2>
+          <div className="flex items-center text-sm text-gray-500">
+            <Info className="h-4 w-4 mr-1" />
+            Selecciona el modelo de IA y el país para contextualizar las preguntas
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* AI Model Selector */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-900 flex items-center">
+                <Cpu className="h-4 w-4 mr-2 text-purple-600" />
+                Modelo de IA
+              </h3>
+              <button
+                onClick={() => setShowModelInfo(!showModelInfo)}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+              >
+                <Info className="h-4 w-4 mr-1" />
+                {showModelInfo ? 'Ocultar info' : 'Ver detalles'}
+              </button>
+            </div>
+
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <optgroup label="OpenAI (GPT)">
+                {aiModels.filter(m => m.provider === 'openai').map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.recommended ? '⭐' : ''} - {model.pricing}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Anthropic (Claude)">
+                {aiModels.filter(m => m.provider === 'anthropic').map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.recommended ? '⭐' : ''} - {model.pricing}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Google (Gemini)">
+                {aiModels.filter(m => m.provider === 'google').map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.recommended ? '⭐' : ''} - {model.pricing}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+
+            {/* Model Info Panel */}
+            {showModelInfo && (() => {
+              const model = aiModels.find(m => m.id === selectedModel);
+              if (!model) return null;
+              return (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900 flex items-center">
+                      {model.name}
+                      {model.recommended && (
+                        <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full flex items-center">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Recomendado
+                        </span>
+                      )}
+                    </h4>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      model.provider === 'openai' ? 'bg-green-100 text-green-800' :
+                      model.provider === 'anthropic' ? 'bg-orange-100 text-orange-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {model.provider === 'openai' ? 'OpenAI' :
+                       model.provider === 'anthropic' ? 'Anthropic' : 'Google'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">{model.description}</p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="flex items-center text-sm">
+                      <Zap className="h-4 w-4 mr-2 text-yellow-500" />
+                      <span className="text-gray-600">Contexto: {model.contextWindow}</span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <DollarSign className="h-4 w-4 mr-2 text-green-500" />
+                      <span className="text-gray-600">{model.pricing}</span>
+                    </div>
+                  </div>
+
+                  <div className="mb-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Fortalezas:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {model.strengths.map((strength, idx) => (
+                        <span key={idx} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                          {strength}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                    <strong>Requiere:</strong> API Key de {model.requiresApiKey.replace('_API_KEY', '')} configurada
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Country Selector */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-900 flex items-center">
+                <Globe className="h-4 w-4 mr-2 text-green-600" />
+                País / Mercado
+              </h3>
+              <button
+                onClick={() => setShowCountryInfo(!showCountryInfo)}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+              >
+                <Info className="h-4 w-4 mr-1" />
+                {showCountryInfo ? 'Ocultar info' : 'Ver detalles'}
+              </button>
+            </div>
+
+            <select
+              value={selectedCountry}
+              onChange={(e) => setSelectedCountry(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <optgroup label="Europa">
+                {countries.filter(c => ['ES', 'PT', 'GB', 'DE', 'FR', 'IT'].includes(c.code)).map(country => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name} ({country.language})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Latinoamérica">
+                {countries.filter(c => ['MX', 'AR', 'CO', 'CL', 'PE', 'EC', 'BR', 'LATAM'].includes(c.code)).map(country => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name} ({country.language})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Norteamérica">
+                {countries.filter(c => ['US', 'US-ES'].includes(c.code)).map(country => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name} ({country.language})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Global">
+                {countries.filter(c => c.code === 'GLOBAL').map(country => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+
+            {/* Country Info Panel */}
+            {showCountryInfo && (() => {
+              const country = countries.find(c => c.code === selectedCountry);
+              if (!country) return null;
+              return (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center mb-2">
+                    <span className="text-2xl mr-2">{country.flag}</span>
+                    <h4 className="font-semibold text-gray-900">{country.name}</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">{country.description}</p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="text-sm">
+                      <span className="text-gray-500">Idioma:</span>
+                      <span className="ml-2 font-medium">{country.language}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-500">Zona horaria:</span>
+                      <span className="ml-2 font-medium">{country.timezone}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                    <span className="text-xs font-medium text-blue-800 uppercase block mb-1">
+                      Contexto que se añadirá a las preguntas:
+                    </span>
+                    <p className="text-sm text-blue-900 italic">"{country.marketContext}"</p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Quick Selection Summary */}
+        <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <Cpu className="h-4 w-4 mr-2 text-purple-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  {aiModels.find(m => m.id === selectedModel)?.name || selectedModel}
+                </span>
+              </div>
+              <span className="text-gray-300">|</span>
+              <div className="flex items-center">
+                <span className="text-lg mr-2">{countries.find(c => c.code === selectedCountry)?.flag}</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {countries.find(c => c.code === selectedCountry)?.name || selectedCountry}
+                </span>
+              </div>
+            </div>
+            <span className="text-xs text-gray-500">
+              Las preguntas se realizarán con el contexto del país seleccionado
+            </span>
+          </div>
         </div>
       </div>
 

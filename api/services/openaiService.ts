@@ -403,29 +403,72 @@ class OpenAIService {
   }
 
   /**
+   * Obtiene el modelo de generación a usar basado en la configuración
+   */
+  private getGenerationModel(configuration: any): string {
+    // Si hay un modelo seleccionado en la configuración, usarlo
+    if (configuration.selectedModel) {
+      // Solo usar modelos de OpenAI para generación (por ahora)
+      const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+      if (openaiModels.includes(configuration.selectedModel)) {
+        return configuration.selectedModel;
+      }
+      // Si es un modelo de otro proveedor, usar el modelo por defecto de OpenAI
+      console.log(`⚠️ Modelo ${configuration.selectedModel} no es de OpenAI, usando ${this.GENERATION_MODEL}`);
+    }
+    return this.GENERATION_MODEL;
+  }
+
+  /**
+   * Construye el mensaje del sistema con contexto de país
+   */
+  private buildSystemMessage(configuration: any): string {
+    const industry = configuration.industry || 'sector correspondiente';
+    const countryContext = configuration.countryContext || 'en España, considerando el mercado español';
+    const countryLanguage = configuration.countryLanguage || 'Español';
+
+    return `Eres un experto en ${industry} ${countryContext}.
+Responde siempre en ${countryLanguage}.
+Proporciona información relevante y actualizada para ese mercado específico.
+Menciona empresas, marcas y servicios que operen en ese territorio.`;
+  }
+
+  /**
    * Analiza una pregunta específica con configuración personalizada y mecanismos de recuperación
    * NUEVO ENFOQUE: Analiza respuestas generativas de ChatGPT para medir menciones de marca
    */
   private async analyzeQuestionWithConfiguration(questionData: any, configuration: any): Promise<QuestionAnalysis> {
     const questionId = questionData.id;
-    
+
+    // Obtener modelo dinámicamente
+    const generationModel = this.getGenerationModel(configuration);
+
     return await this.executeWithRetry(async () => {
-      console.log(`🔍 [${questionId}] Iniciando análisis de respuesta generativa`);
-      console.log(`📝 [${questionId}] Pregunta: "${questionData.question}"`);
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`🔍 [${questionId}] INICIANDO ANÁLISIS DE RESPUESTA GENERATIVA`);
+      console.log(`${'='.repeat(60)}`);
+      console.log(`📝 Pregunta: "${questionData.question.substring(0, 80)}..."`);
+      console.log(`🤖 MODELO GENERACIÓN (usuario eligió): ${generationModel}`);
+      console.log(`💰 MODELO ANÁLISIS (económico fijo): ${this.ANALYSIS_MODEL}`);
+      console.log(`🌍 País: ${configuration.countryCode || 'ES'}`);
+      console.log(`${'='.repeat(60)}\n`);
 
       try {
-        console.log(`🚀 [${questionId}] Paso 1: Generando respuesta con ${this.GENERATION_MODEL}...`);
+        console.log(`🚀 [${questionId}] Paso 1: Generando respuesta con ${generationModel}...`);
         const startTime = Date.now();
 
         let generatedContent = '';
+
+        // Generar clave de caché incluyendo país y modelo
+        const cacheKey = `${questionData.question}_${configuration.countryCode || 'ES'}_${generationModel}`;
 
         // Intentar obtener del caché primero
         if (this.ENABLE_CACHE) {
           try {
             const cachedResponse = await cacheService.get(
-              questionData.question,
+              cacheKey,
               configuration,
-              this.GENERATION_MODEL
+              generationModel
             );
 
             if (cachedResponse) {
@@ -441,13 +484,12 @@ class OpenAIService {
 
         // Si no está en caché, llamar a OpenAI
         if (!generatedContent) {
-          // PASO 1: Obtener respuesta generativa de ChatGPT sobre la pregunta
-          const industry = configuration.industry || 'sector correspondiente';
-          const systemMessage = `Eres un experto en ${industry} en España. Responde de manera informativa y completa sobre temas del ${industry} español.`;
+          // Construir mensaje del sistema con contexto de país
+          const systemMessage = this.buildSystemMessage(configuration);
 
           const generativeResponse = await Promise.race([
             this.client.chat.completions.create({
-              model: this.GENERATION_MODEL, // Usar modelo PRINCIPAL para generar respuestas de calidad
+              model: generationModel, // Usar modelo SELECCIONADO por el usuario
               messages: [
                 {
                   role: 'system',
@@ -471,14 +513,14 @@ class OpenAIService {
 
           console.log(`📨 [${questionId}] Respuesta generativa recibida en ${responseTime}ms (${generatedContent.length} caracteres)`);
 
-          // Guardar en caché
+          // Guardar en caché con clave que incluye país y modelo
           if (this.ENABLE_CACHE && generatedContent) {
             try {
               await cacheService.set(
-                questionData.question,
+                cacheKey,
                 generatedContent,
                 configuration,
-                this.GENERATION_MODEL,
+                generationModel,
                 7 // TTL de 7 días
               );
             } catch (cacheError) {
@@ -599,10 +641,15 @@ FORMATO JSON (responde SOLO con JSON válido):
   private buildGenerativeAnalysisPrompt(originalQuestion: string, generatedContent: string, configuration: any): string {
     const targetBrandsStr = configuration.targetBrands || (configuration.targetBrand ? [configuration.targetBrand] : TARGET_BRANDS);
     const competitorBrandsStr = configuration.competitorBrands || COMPETITOR_BRANDS;
+    const countryContext = configuration.countryContext || 'en España';
+    const countryLanguage = configuration.countryLanguage || 'Español';
 
-    return `Analiza el siguiente contenido generado por IA para identificar menciones de marcas del sector correspondiente.
+    return `Analiza el siguiente contenido generado por IA para identificar menciones de marcas ${countryContext}.
 
 PREGUNTA ORIGINAL: "${originalQuestion}"
+
+CONTEXTO GEOGRÁFICO: ${countryContext}
+IDIOMA: ${countryLanguage}
 
 CONTENIDO GENERADO POR IA A ANALIZAR:
 "${generatedContent}"
@@ -617,8 +664,9 @@ INSTRUCCIONES:
 3. Evalúa el contexto y sentimiento de cada mención
 4. Determina la frecuencia y relevancia de cada mención
 5. Proporciona evidencia textual específica de las menciones
+6. Ten en cuenta el contexto geográfico (${countryContext}) al evaluar la relevancia
 
-FORMATO JSON (responde SOLO con JSON válido):
+FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
 {
   "summary": "Resumen del análisis de menciones en la respuesta generativa (50-100 palabras)",
   "generatedContent": "${generatedContent.substring(0, 2000)}...",
@@ -634,7 +682,8 @@ FORMATO JSON (responde SOLO con JSON válido):
   ],
   "sentiment": "positive/negative/neutral",
   "confidenceScore": 0.0-1.0,
-  "analysisType": "generative_response"
+  "analysisType": "generative_response",
+  "marketContext": "${countryContext}"
 }`;
   }
 

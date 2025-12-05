@@ -12,7 +12,8 @@ export interface AnalysisTemplate {
   targetBrand?: string;
   targetBrands?: string[];
   competitorBrands: string[];
-  prioritySources: string[];
+  suggestedBrands?: string[]; // Marcas sugeridas para que el usuario elija
+  prioritySources: string[]; // Deprecado
   questions: AnalysisQuestion[];
   createdAt: string;
   updatedAt: string;
@@ -34,12 +35,13 @@ export interface CustomConfiguration {
 
 export const SEGUROS_TEMPLATE: AnalysisTemplate = {
   id: "seguros",
-  name: "Análisis de Presencia en IA Generativa - Seguros",
-  description: "Plantilla especializada para medir la presencia de marcas aseguradoras en respuestas de IA generativa",
+  name: "Seguros",
+  description: "Preguntas para analizar presencia de aseguradoras en IA generativa: hogar, auto, salud, vida",
   industry: "Seguros",
-  targetBrands: ["Occident", "Catalana Occidente", "GCO", "Plus Ultra Seguros", "Seguros Bilbao", "NorteHispana"],
-  competitorBrands: ["Mapfre", "Allianz", "AXA", "Santalucía", "Caser", "Ocaso", "Línea Directa", "Mutua Madrileña", "Tuio", "Generali", "Pelayo", "MGS", "AMA"],
-  prioritySources: ["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"], // Ahora son fuentes de IA generativa
+  targetBrands: [], // El usuario define sus marcas
+  competitorBrands: [], // El usuario define sus competidores
+  suggestedBrands: ["Mapfre", "Allianz", "AXA", "Santalucía", "Caser", "Línea Directa", "Mutua Madrileña", "Generali", "Pelayo", "Zurich", "Liberty"], // Sugerencias opcionales
+  prioritySources: [], // Deprecado
   questions: [
     { id: "hogar_1", question: "¿Cuáles son las mejores aseguradoras de hogar en España?", category: "Hogar" },
     { id: "hogar_2", question: "¿Qué aseguradora de hogar recomendarías para una familia española?", category: "Hogar" },
@@ -58,12 +60,13 @@ export const SEGUROS_TEMPLATE: AnalysisTemplate = {
 
 export const BANCA_TEMPLATE: AnalysisTemplate = {
   id: "banca",
-  name: "Análisis de Presencia en IA Generativa - Banca",
-  description: "Plantilla especializada para medir la presencia de marcas bancarias en respuestas de IA generativa",
+  name: "Banca",
+  description: "Preguntas para analizar presencia de bancos en IA generativa: hipotecas, cuentas, inversión",
   industry: "Banca",
-  targetBrands: ["Banco Sabadell", "Sabadell", "BS", "TSB"],
-  competitorBrands: ["Santander", "BBVA", "CaixaBank", "Bankinter", "ING", "Unicaja", "Kutxabank", "Abanca", "Liberbank", "Cajamar", "Eurocaja Rural", "Ibercaja"],
-  prioritySources: ["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"], // Ahora son fuentes de IA generativa
+  targetBrands: [], // El usuario define sus marcas
+  competitorBrands: [], // El usuario define sus competidores
+  suggestedBrands: ["Santander", "BBVA", "CaixaBank", "Bankinter", "ING", "Unicaja", "Sabadell", "Abanca", "Kutxabank", "Openbank", "N26"], // Sugerencias opcionales
+  prioritySources: [], // Deprecado
   questions: [
     { id: "hipoteca_1", question: "¿Cuáles son los mejores bancos para hipotecas en España?", category: "Hipotecas" },
     { id: "hipoteca_2", question: "¿Qué banco ofrece las mejores condiciones hipotecarias?", category: "Hipotecas" },
@@ -82,12 +85,13 @@ export const BANCA_TEMPLATE: AnalysisTemplate = {
 
 export const TELECOMUNICACIONES_TEMPLATE: AnalysisTemplate = {
   id: "telecomunicaciones",
-  name: "Análisis de Presencia en IA Generativa - Telecomunicaciones",
-  description: "Plantilla especializada para medir la presencia de marcas de telecomunicaciones en respuestas de IA generativa",
+  name: "Telecomunicaciones",
+  description: "Preguntas para analizar presencia de operadoras en IA generativa: fibra, móvil, paquetes",
   industry: "Telecomunicaciones",
-  targetBrands: ["Movistar", "Telefónica", "O2", "Tuenti"],
-  competitorBrands: ["Orange", "Vodafone", "Yoigo", "MásMóvil", "Pepephone", "Jazztel", "Lowi", "Amena", "Simyo", "Digi", "Finetwork", "Euskaltel"],
-  prioritySources: ["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"], // Ahora son fuentes de IA generativa
+  targetBrands: [], // El usuario define sus marcas
+  competitorBrands: [], // El usuario define sus competidores
+  suggestedBrands: ["Movistar", "Orange", "Vodafone", "Yoigo", "MásMóvil", "Digi", "Lowi", "Pepephone", "Jazztel", "O2", "Finetwork"], // Sugerencias opcionales
+  prioritySources: [], // Deprecado
   questions: [
     { id: "fibra_1", question: "¿Cuáles son las mejores compañías de fibra óptica en España?", category: "Fibra y Internet" },
     { id: "fibra_2", question: "¿Qué operadora ofrece la mejor velocidad de internet?", category: "Fibra y Internet" },
@@ -106,12 +110,13 @@ export const TELECOMUNICACIONES_TEMPLATE: AnalysisTemplate = {
 
 export const EDUCACION_TEMPLATE: AnalysisTemplate = {
   id: "educacion",
-  name: "Análisis de Presencia en IA Generativa - Educación",
-  description: "Plantilla especializada para medir la presencia de Ilerna Online en respuestas de IA generativa sobre formación profesional",
+  name: "Educación / FP Online",
+  description: "Preguntas para analizar presencia de centros formativos en IA generativa: FP, cursos, academias",
   industry: "Educación",
-  targetBrands: ["Ilerna Online", "Ilerna", "Instituto Ilerna"],
-  competitorBrands: ["Medac", "Cesur Formación", "Universae", "Davante", "Linkia FP", "FP Santa Gema", "Implika", "Cenec"],
-  prioritySources: ["ChatGPT", "Claude", "Gemini", "Copilot", "Perplexity"],
+  targetBrands: [], // El usuario define sus marcas
+  competitorBrands: [], // El usuario define sus competidores
+  suggestedBrands: ["Ilerna", "Medac", "Cesur", "CEAC", "Linkia FP", "Implika", "MasterD", "Campus Training", "Universae", "Deusto Formación"], // Sugerencias opcionales
+  prioritySources: [], // Deprecado
   questions: [
     // 1. Consultas de Evaluación y Recomendación de Centros (Genéricas)
     { id: "evaluacion_1", question: "¿Cuál es el mejor centro de FP?", category: "Evaluación y Recomendación de Centros" },

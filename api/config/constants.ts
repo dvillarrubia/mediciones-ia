@@ -1,6 +1,330 @@
 /**
- * Constantes de configuraci�n para el an�lisis de marca en seguros
+ * Constantes de configuración para el análisis de marca
  */
+
+// ==========================================
+// MODELOS DE IA DISPONIBLES
+// ==========================================
+
+export interface AIModelInfo {
+  id: string;
+  name: string;
+  provider: 'openai' | 'anthropic' | 'google';
+  description: string;
+  strengths: string[];
+  contextWindow: string;
+  pricing: string;
+  recommended?: boolean;
+  requiresApiKey: string;
+}
+
+export const AI_MODELS: AIModelInfo[] = [
+  // OpenAI Models
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    provider: 'openai',
+    description: 'Modelo flagship de OpenAI. Multimodal (texto, imagen, audio). El más versátil y potente.',
+    strengths: ['Razonamiento avanzado', 'Multimodal', 'Análisis de imágenes', 'Respuestas detalladas'],
+    contextWindow: '128K tokens',
+    pricing: '$2.50 / $10 por 1M tokens',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    provider: 'openai',
+    description: 'Versión económica y rápida de GPT-4o. Ideal para tareas simples con buen rendimiento.',
+    strengths: ['Muy económico', 'Rápido', 'Buen balance costo/calidad'],
+    contextWindow: '128K tokens',
+    pricing: '$0.15 / $0.60 por 1M tokens',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'gpt-4-turbo',
+    name: 'GPT-4 Turbo',
+    provider: 'openai',
+    description: 'Modelo optimizado para velocidad. Solo texto, muy eficiente.',
+    strengths: ['Alta velocidad', 'Costo reducido', 'Contexto largo'],
+    contextWindow: '128K tokens',
+    pricing: 'Más económico que GPT-4',
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+
+  // Anthropic Claude Models
+  {
+    id: 'claude-sonnet-4-5-20250929',
+    name: 'Claude Sonnet 4.5',
+    provider: 'anthropic',
+    description: 'El modelo más capaz de Anthropic para coding y agentes. Excelente razonamiento.',
+    strengths: ['Mejor para código', 'Razonamiento profundo', 'Respuestas estructuradas', 'Contexto 1M'],
+    contextWindow: '200K tokens (1M con beta)',
+    pricing: '$3 / $15 por 1M tokens',
+    recommended: true,
+    requiresApiKey: 'ANTHROPIC_API_KEY'
+  },
+  {
+    id: 'claude-opus-4-1-20250805',
+    name: 'Claude Opus 4.1',
+    provider: 'anthropic',
+    description: 'Modelo flagship de Anthropic. Máxima calidad para tareas complejas.',
+    strengths: ['Máxima calidad', 'Tareas complejas', 'Análisis profundo'],
+    contextWindow: '200K tokens',
+    pricing: '$15 / $75 por 1M tokens',
+    requiresApiKey: 'ANTHROPIC_API_KEY'
+  },
+  {
+    id: 'claude-haiku-4-5-20251015',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    description: 'Modelo rápido y económico de Claude. Ideal para respuestas rápidas.',
+    strengths: ['Muy rápido', 'Económico', 'Baja latencia'],
+    contextWindow: '200K tokens',
+    pricing: '$1 / $5 por 1M tokens',
+    requiresApiKey: 'ANTHROPIC_API_KEY'
+  },
+
+  // Google Gemini Models
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'google',
+    description: 'Modelo más potente de Google con razonamiento adaptivo y "Deep Think".',
+    strengths: ['Razonamiento adaptivo', 'Excelente en matemáticas', 'Multimodal'],
+    contextWindow: '1M tokens',
+    pricing: 'Competitivo',
+    recommended: true,
+    requiresApiKey: 'GOOGLE_AI_API_KEY'
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    description: 'Modelo rápido y estable de Google. Buen balance velocidad/calidad.',
+    strengths: ['Rápido', 'Estable', 'Multimodal'],
+    contextWindow: '1M tokens',
+    pricing: 'Económico',
+    requiresApiKey: 'GOOGLE_AI_API_KEY'
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    provider: 'google',
+    description: 'Modelo con herramientas nativas y contexto extenso.',
+    strengths: ['Herramientas nativas', 'Contexto 1M', 'Velocidad'],
+    contextWindow: '1M tokens',
+    pricing: 'Económico',
+    requiresApiKey: 'GOOGLE_AI_API_KEY'
+  }
+] as const;
+
+// ==========================================
+// PAÍSES DISPONIBLES PARA ANÁLISIS
+// ==========================================
+
+export interface CountryInfo {
+  code: string;
+  name: string;
+  flag: string;
+  language: string;
+  locale: string;
+  timezone: string;
+  description: string;
+  marketContext: string;
+}
+
+export const COUNTRIES: CountryInfo[] = [
+  {
+    code: 'ES',
+    name: 'España',
+    flag: '🇪🇸',
+    language: 'Español',
+    locale: 'es-ES',
+    timezone: 'Europe/Madrid',
+    description: 'Mercado español. Las preguntas se contextualizarán para el mercado ibérico.',
+    marketContext: 'en España, considerando el mercado español y las empresas que operan en el territorio nacional'
+  },
+  {
+    code: 'MX',
+    name: 'México',
+    flag: '🇲🇽',
+    language: 'Español',
+    locale: 'es-MX',
+    timezone: 'America/Mexico_City',
+    description: 'Mercado mexicano. Análisis enfocado en el mercado latinoamericano más grande.',
+    marketContext: 'en México, considerando el mercado mexicano y las empresas que operan en territorio nacional'
+  },
+  {
+    code: 'AR',
+    name: 'Argentina',
+    flag: '🇦🇷',
+    language: 'Español',
+    locale: 'es-AR',
+    timezone: 'America/Buenos_Aires',
+    description: 'Mercado argentino. Contexto del Cono Sur.',
+    marketContext: 'en Argentina, considerando el mercado argentino y las empresas que operan en el país'
+  },
+  {
+    code: 'CO',
+    name: 'Colombia',
+    flag: '🇨🇴',
+    language: 'Español',
+    locale: 'es-CO',
+    timezone: 'America/Bogota',
+    description: 'Mercado colombiano. Hub de negocios en la región andina.',
+    marketContext: 'en Colombia, considerando el mercado colombiano y las empresas que operan en el país'
+  },
+  {
+    code: 'CL',
+    name: 'Chile',
+    flag: '🇨🇱',
+    language: 'Español',
+    locale: 'es-CL',
+    timezone: 'America/Santiago',
+    description: 'Mercado chileno. Economía estable y desarrollada de Latinoamérica.',
+    marketContext: 'en Chile, considerando el mercado chileno y las empresas que operan en el país'
+  },
+  {
+    code: 'PE',
+    name: 'Perú',
+    flag: '🇵🇪',
+    language: 'Español',
+    locale: 'es-PE',
+    timezone: 'America/Lima',
+    description: 'Mercado peruano. Economía en crecimiento.',
+    marketContext: 'en Perú, considerando el mercado peruano y las empresas que operan en el país'
+  },
+  {
+    code: 'EC',
+    name: 'Ecuador',
+    flag: '🇪🇨',
+    language: 'Español',
+    locale: 'es-EC',
+    timezone: 'America/Guayaquil',
+    description: 'Mercado ecuatoriano. Economía dolarizada con sectores en expansión.',
+    marketContext: 'en Ecuador, considerando el mercado ecuatoriano y las empresas que operan en el país'
+  },
+  {
+    code: 'US',
+    name: 'Estados Unidos',
+    flag: '🇺🇸',
+    language: 'Inglés',
+    locale: 'en-US',
+    timezone: 'America/New_York',
+    description: 'Mercado estadounidense. El mercado más grande del mundo.',
+    marketContext: 'in the United States, considering the American market and companies operating in the country'
+  },
+  {
+    code: 'US-ES',
+    name: 'Estados Unidos (Hispano)',
+    flag: '🇺🇸',
+    language: 'Español',
+    locale: 'es-US',
+    timezone: 'America/New_York',
+    description: 'Mercado hispano en EE.UU. Más de 60 millones de hispanohablantes.',
+    marketContext: 'en Estados Unidos para el mercado hispano, considerando las preferencias de la comunidad latina'
+  },
+  {
+    code: 'BR',
+    name: 'Brasil',
+    flag: '🇧🇷',
+    language: 'Portugués',
+    locale: 'pt-BR',
+    timezone: 'America/Sao_Paulo',
+    description: 'Mercado brasileño. El mayor mercado de Latinoamérica.',
+    marketContext: 'no Brasil, considerando o mercado brasileiro e as empresas que operam no país'
+  },
+  {
+    code: 'PT',
+    name: 'Portugal',
+    flag: '🇵🇹',
+    language: 'Portugués',
+    locale: 'pt-PT',
+    timezone: 'Europe/Lisbon',
+    description: 'Mercado portugués. Conexión con mercado ibérico y lusófono.',
+    marketContext: 'em Portugal, considerando o mercado português e as empresas que operam no país'
+  },
+  {
+    code: 'GB',
+    name: 'Reino Unido',
+    flag: '🇬🇧',
+    language: 'Inglés',
+    locale: 'en-GB',
+    timezone: 'Europe/London',
+    description: 'Mercado británico. Uno de los mercados financieros más importantes.',
+    marketContext: 'in the United Kingdom, considering the British market and companies operating in the country'
+  },
+  {
+    code: 'DE',
+    name: 'Alemania',
+    flag: '🇩🇪',
+    language: 'Alemán',
+    locale: 'de-DE',
+    timezone: 'Europe/Berlin',
+    description: 'Mercado alemán. La economía más grande de Europa.',
+    marketContext: 'in Deutschland, unter Berücksichtigung des deutschen Marktes und der im Land tätigen Unternehmen'
+  },
+  {
+    code: 'FR',
+    name: 'Francia',
+    flag: '🇫🇷',
+    language: 'Francés',
+    locale: 'fr-FR',
+    timezone: 'Europe/Paris',
+    description: 'Mercado francés. Segunda economía de la Eurozona.',
+    marketContext: 'en France, en considérant le marché français et les entreprises opérant dans le pays'
+  },
+  {
+    code: 'IT',
+    name: 'Italia',
+    flag: '🇮🇹',
+    language: 'Italiano',
+    locale: 'it-IT',
+    timezone: 'Europe/Rome',
+    description: 'Mercado italiano. Importante economía del sur de Europa.',
+    marketContext: 'in Italia, considerando il mercato italiano e le aziende che operano nel paese'
+  },
+  {
+    code: 'LATAM',
+    name: 'Latinoamérica (General)',
+    flag: '🌎',
+    language: 'Español',
+    locale: 'es-419',
+    timezone: 'America/Mexico_City',
+    description: 'Análisis general para toda Latinoamérica. Visión regional.',
+    marketContext: 'en Latinoamérica, considerando el mercado latinoamericano en general y las empresas que operan en la región'
+  },
+  {
+    code: 'GLOBAL',
+    name: 'Global',
+    flag: '🌍',
+    language: 'Inglés',
+    locale: 'en',
+    timezone: 'UTC',
+    description: 'Análisis global sin contexto geográfico específico.',
+    marketContext: 'globally, considering international markets and multinational companies'
+  }
+] as const;
+
+// Helper para obtener modelo por ID
+export const getModelById = (modelId: string): AIModelInfo | undefined => {
+  return AI_MODELS.find(m => m.id === modelId);
+};
+
+// Helper para obtener país por código
+export const getCountryByCode = (code: string): CountryInfo | undefined => {
+  return COUNTRIES.find(c => c.code === code);
+};
+
+// Modelos por defecto
+export const DEFAULT_MODEL = 'gpt-4o-mini';
+export const DEFAULT_COUNTRY = 'ES';
+
+// ==========================================
+// CONFIGURACIÓN LEGACY (mantener compatibilidad)
+// ==========================================
 
 // Marcas objetivo de Occident/Catalana Occidente
 export const TARGET_BRANDS = [

@@ -6,9 +6,66 @@ import OpenAIService from '../services/openaiService.js';
 import { QuestionCategory } from '../config/constants.js';
 import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
+import { pdfService } from '../services/pdfService.js';
 
 const router = Router();
 let openaiService: OpenAIService;
+
+/**
+ * POST /api/analysis/test-config
+ * Endpoint de prueba para verificar la configuración de modelos y país
+ * NO ejecuta análisis real, solo muestra qué modelos se usarían
+ */
+router.post('/test-config', async (req: Request, res: Response) => {
+  try {
+    const {
+      selectedModel,
+      countryCode,
+      countryContext,
+      countryLanguage
+    } = req.body;
+
+    // Determinar modelo de generación
+    const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+    const generationModel = openaiModels.includes(selectedModel) ? selectedModel : 'gpt-4o';
+    const analysisModel = 'gpt-4o-mini'; // Siempre fijo para análisis
+
+    const testResult = {
+      success: true,
+      config: {
+        selectedModel: selectedModel || 'no especificado',
+        countryCode: countryCode || 'ES',
+        countryContext: countryContext || 'en España',
+        countryLanguage: countryLanguage || 'Español'
+      },
+      modelsToBeUsed: {
+        generation: {
+          model: generationModel,
+          purpose: 'Generar respuestas simulando cómo respondería la IA a las preguntas del usuario',
+          description: 'Este es el modelo que el usuario seleccionó para generar las respuestas'
+        },
+        analysis: {
+          model: analysisModel,
+          purpose: 'Analizar las respuestas generadas para detectar menciones de marca',
+          description: 'Este modelo es fijo (económico) para reducir costos en el análisis'
+        }
+      },
+      explanation: `FLUJO: 1) Generación con ${generationModel} (elegido por usuario) → 2) Análisis con ${analysisModel} (fijo económico). País: ${countryCode || 'ES'}`
+    };
+
+    console.log('\n📊 TEST DE CONFIGURACIÓN:');
+    console.log(JSON.stringify(testResult, null, 2));
+
+    res.json(testResult);
+
+  } catch (error) {
+    console.error('Error en test de configuración:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al verificar configuración'
+    });
+  }
+});
 
 /**
  * POST /api/analysis/execute
@@ -16,7 +73,24 @@ let openaiService: OpenAIService;
  */
 router.post('/execute', async (req: Request, res: Response) => {
   try {
-    const { categories, maxSources = 6, configuration, userApiKeys, projectId } = req.body;
+    const {
+      categories,
+      maxSources = 6,
+      configuration,
+      userApiKeys,
+      projectId,
+      // Nuevos parámetros
+      selectedModel,
+      countryCode,
+      countryContext,
+      countryLanguage
+    } = req.body;
+
+    // Log de parámetros de modelo y país
+    console.log('📊 Parámetros de análisis:');
+    console.log(`   🤖 Modelo seleccionado: ${selectedModel || 'default'}`);
+    console.log(`   🌍 País: ${countryCode || 'ES'}`);
+    console.log(`   🗣️ Idioma: ${countryLanguage || 'Español'}`);
 
     // Initialize OpenAI service with user API keys if provided
     if (userApiKeys && (userApiKeys.openai || userApiKeys.anthropic || userApiKeys.google)) {
@@ -55,14 +129,23 @@ router.post('/execute', async (req: Request, res: Response) => {
     console.log(`📝 Preguntas: ${configuration.questions.length}`);
     console.log(`🤖 Modelos: ${configuration.aiModels?.join(', ') || 'ChatGPT'}`);
 
+    // Extender la configuración con modelo y país
+    const extendedConfiguration = {
+      ...configuration,
+      selectedModel: selectedModel || 'gpt-4o-mini',
+      countryCode: countryCode || 'ES',
+      countryContext: countryContext || 'en España, considerando el mercado español',
+      countryLanguage: countryLanguage || 'Español'
+    };
+
     let result;
-    
+
     if (isMultiModelAnalysis) {
       // Ejecutar análisis multi-modelo con sentimientos y comparación
-      result = await openaiService.executeMultiModelAnalysis(configuration.questions, configuration);
+      result = await openaiService.executeMultiModelAnalysis(configuration.questions, extendedConfiguration);
     } else {
       // Ejecutar análisis estándar mejorado
-      result = await openaiService.executeAnalysisWithConfiguration(configuration.questions, configuration);
+      result = await openaiService.executeAnalysisWithConfiguration(configuration.questions, extendedConfiguration);
     }
 
     // Guardar análisis en base de datos
@@ -75,7 +158,10 @@ router.post('/execute', async (req: Request, res: Response) => {
         configuration: {
           name: configuration.name,
           brand: configuration.targetBrand || configuration.name,
-          competitors: configuration.competitors || [],
+          targetBrand: configuration.targetBrand || configuration.name,
+          competitors: configuration.competitorBrands || configuration.competitors || [],
+          competitorBrands: configuration.competitorBrands || configuration.competitors || [],
+          industry: configuration.industry || 'General',
           templateId: configuration.templateId || 'custom',
           questionsCount: configuration.questions.length
         },
@@ -352,6 +438,51 @@ message: error instanceof Error ? error.message : 'Error desconocido'
 });
 
 /**
+ * POST /api/analysis/report/pdf
+ * Genera un informe profesional en formato PDF
+ */
+router.post('/report/pdf', async (req: Request, res: Response) => {
+  try {
+    const { analysisResult, configuration } = req.body;
+
+    if (!analysisResult) {
+      return res.status(400).json({
+        error: 'Se requiere analysisResult para generar el informe PDF'
+      });
+    }
+
+    console.log('📄 Generando informe PDF profesional...');
+
+    // Generar PDF
+    const pdfBuffer = await pdfService.generateAnalysisPDF(analysisResult, configuration || {
+      name: 'Análisis',
+      targetBrand: analysisResult.brandSummary?.targetBrands?.[0]?.brand || 'Marca',
+      competitorBrands: analysisResult.brandSummary?.competitors?.map((c: any) => c.brand) || [],
+      industry: 'General'
+    });
+
+    // Nombre del archivo
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `informe_analisis_${analysisResult.analysisId || timestamp}.pdf`;
+
+    console.log(`✅ PDF generado: ${filename} (${pdfBuffer.length} bytes)`);
+
+    // Enviar el archivo como respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Error generando informe PDF:', error);
+    res.status(500).json({
+      error: 'Error generando informe PDF',
+      message: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
  * GET /api/analysis/history
  * Obtiene el historial de análisis realizados
  */
@@ -536,6 +667,32 @@ router.delete('/saved/:id', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Error eliminando análisis',
+      message: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+});
+
+/**
+ * PATCH /api/analysis/saved/:id/config
+ * Actualiza la configuración de un análisis existente
+ */
+router.patch('/saved/:id/config', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const configUpdates = req.body;
+
+    await databaseService.updateAnalysisConfiguration(id, configUpdates);
+
+    res.json({
+      success: true,
+      message: 'Configuración actualizada correctamente'
+    });
+
+  } catch (error) {
+    console.error('Error actualizando configuración:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error actualizando configuración',
       message: error instanceof Error ? error.message : 'Error desconocido'
     });
   }
