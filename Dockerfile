@@ -25,8 +25,22 @@ RUN npm run build
 # ===========================================
 FROM node:20-alpine AS production
 
-# Instalar dependencias del sistema necesarias para sqlite3
-RUN apk add --no-cache python3 make g++ sqlite
+# Instalar dependencias del sistema necesarias para sqlite3 y puppeteer
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    sqlite \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Variables de entorno para Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 WORKDIR /app
 
@@ -43,8 +57,8 @@ COPY tsconfig.json ./
 # Copiar frontend compilado desde el builder
 COPY --from=builder /app/dist ./dist
 
-# Crear directorio para datos persistentes (SQLite)
-RUN mkdir -p /app/data
+# Crear directorios para datos persistentes
+RUN mkdir -p /app/api/data/analyses /app/api/data/configurations /app/api/data/projects
 
 # Variables de entorno por defecto
 ENV NODE_ENV=production

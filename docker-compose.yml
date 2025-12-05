@@ -20,8 +20,8 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
     volumes:
-      # Persistir base de datos SQLite
-      - sqlite_data:/app/data
+      # Persistir datos de análisis (JSON files)
+      - mediciones_data:/app/api/data
       # Persistir logs (opcional)
       - ./logs:/app/logs
     networks:
@@ -54,7 +54,7 @@ services:
       - with-nginx
 
 volumes:
-  sqlite_data:
+  mediciones_data:
     driver: local
 
 networks:
