@@ -33,26 +33,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # ===========================================
-  # Nginx Reverse Proxy (opcional, si no usas Traefik)
-  # ===========================================
-  nginx:
-    image: nginx:alpine
-    container_name: mediciones-ia-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
-    networks:
-      - mediciones-network
-    profiles:
-      - with-nginx
-
 volumes:
   mediciones_data:
     driver: local
