@@ -10,6 +10,7 @@ interface BrandMention {
   mentioned: boolean;
   frequency: number;
   context: string;
+  sentiment?: string;
   evidence?: string[];
 }
 
@@ -22,6 +23,7 @@ interface QuestionAnalysis {
   confidenceScore: number;
   brandMentions: BrandMention[];
   sources?: any[];
+  multiModelAnalysis?: any[];
 }
 
 interface AnalysisResult {
@@ -39,8 +41,10 @@ interface AnalysisResult {
 
 interface Configuration {
   name: string;
-  targetBrand: string;
-  competitorBrands: string[];
+  targetBrand?: string;
+  brand?: string;
+  competitorBrands?: string[];
+  competitors?: string[];
   industry?: string;
 }
 
