@@ -862,8 +862,13 @@ const Analysis = () => {
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-medium text-gray-900 mb-2">Fuentes</h3>
               <p className="text-sm text-gray-600">
-                {selectedConfig.prioritySources.slice(0, 2).join(', ')}
-                {selectedConfig.prioritySources.length > 2 && ` +${selectedConfig.prioritySources.length - 2} más`}
+                {selectedConfig.prioritySources?.length > 0
+                  ? <>
+                      {selectedConfig.prioritySources.slice(0, 2).join(', ')}
+                      {selectedConfig.prioritySources.length > 2 && ` +${selectedConfig.prioritySources.length - 2} más`}
+                    </>
+                  : 'IA Generativa'
+                }
               </p>
             </div>
           </div>

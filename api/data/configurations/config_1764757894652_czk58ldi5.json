@@ -1,0 +1,243 @@
+{
+  "name": "Análisis de Presencia en IA - Banco Pichincha",
+  "description": "Estudio sobre cómo aparece Banco Pichincha en búsquedas de IA generativa",
+  "targetBrand": "Banco Pichincha",
+  "competitorBrands": [
+    "Banco Guayaquil",
+    "Produbanco",
+    "Banco del Pacífico"
+  ],
+  "prioritySources": [
+    "ChatGPT",
+    "Claude",
+    "Gemini"
+  ],
+  "aiModels": [
+    "chatgpt"
+  ],
+  "questions": [
+    {
+      "id": "q5",
+      "question": "Qué es el Avance de Efectivo y Efectivo Express",
+      "category": "Productos y servicios"
+    },
+    {
+      "id": "q6",
+      "question": "¿Es obligatorio el seguro de desgravamen en tarjetas de credito?",
+      "category": "Productos y servicios"
+    },
+    {
+      "id": "q7",
+      "question": "¿Qué es el plan de recompensas Pichincha?",
+      "category": "Programas de beneficios"
+    },
+    {
+      "id": "q8",
+      "question": "¿Qué es el plan de recompensas?",
+      "category": "Programas de beneficios"
+    },
+    {
+      "id": "q9",
+      "question": "¿Cómo abrir una cuenta en Ecuador?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q10",
+      "question": "¿Cómo puedo abrir una cuenta transaccional desde mi App Banca Móvil?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q11",
+      "question": "¿Qué es una cuenta bancaria y que tipos de cuentas existen?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q12",
+      "question": "¿Qué significa una cuenta de ahorros?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q13",
+      "question": "¿Cuánto dinero puedo tener en una cuenta de ahorros en Ecuador?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q14",
+      "question": "¿Cuánto dinero puedo tener en el banco sin declarar en Ecuador?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q15",
+      "question": "¿Qué pasa si dejo mi cuenta de ahorro en cero?",
+      "category": "Cuentas bancarias"
+    },
+    {
+      "id": "q16",
+      "question": "¿Qué tipos de créditos ofrece Banco Pichincha y cuál es el más adecuado para mí?",
+      "category": "Créditos y préstamos"
+    },
+    {
+      "id": "q17",
+      "question": "¿Qué tipos de créditos existen?",
+      "category": "Créditos y préstamos"
+    },
+    {
+      "id": "q18",
+      "question": "¿Cómo puedo saber si califico para un préstamo?",
+      "category": "Créditos y préstamos"
+    },
+    {
+      "id": "q19",
+      "question": "¿Cómo puedo denunciar una cuenta en Banco Pichincha?",
+      "category": "Seguridad y bloqueos"
+    },
+    {
+      "id": "q20",
+      "question": "¿Cómo bloqueo mi cuenta de banco si me robaron mi celular?",
+      "category": "Seguridad y bloqueos"
+    },
+    {
+      "id": "q21",
+      "question": "¿Cómo se puede bloquear una cuenta bancaria?",
+      "category": "Seguridad y bloqueos"
+    },
+    {
+      "id": "q22",
+      "question": "¿Cómo bloquear una tarjeta de débito en línea?",
+      "category": "Seguridad y bloqueos"
+    },
+    {
+      "id": "q23",
+      "question": "¿Cómo bloquear la tarjeta del banco de Pichincha?",
+      "category": "Seguridad y bloqueos"
+    },
+    {
+      "id": "q24",
+      "question": "¿Qué es una central de riesgos y como saber si estoy en una?",
+      "category": "Central de riesgos"
+    },
+    {
+      "id": "q25",
+      "question": "¿Qué es la central de riesgos de Ecuador?",
+      "category": "Central de riesgos"
+    },
+    {
+      "id": "q26",
+      "question": "¿Cómo saber si estoy en la central de riesgo con número de cédula?",
+      "category": "Central de riesgos"
+    },
+    {
+      "id": "q27",
+      "question": "¿Qué diferencia hay entre banca móvil y banca web?",
+      "category": "Banca digital"
+    },
+    {
+      "id": "q28",
+      "question": "¿Cómo activar Banca Web del Banco Pichincha?",
+      "category": "Banca digital"
+    },
+    {
+      "id": "q29",
+      "question": "¿Qué es la banca por celular?",
+      "category": "Banca digital"
+    },
+    {
+      "id": "q30",
+      "question": "¿Cómo enviar dinero a Ecuador de forma segura?",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q31",
+      "question": "¿Cuál es el mejor banco para enviar dinero a Ecuador?",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q32",
+      "question": "¿Cómo enviar dinero desde Estados Unidos a Ecuador con el Banco Pichincha?",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q33",
+      "question": "¿Cómo hacer giros y remesas en Ecuador?",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q34",
+      "question": "Tipos de cambio al enviar dinero desde los Estados Unidos a Ecuador",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q35",
+      "question": "Consejos para enviar dinero a Ecuador",
+      "category": "Remesas y transferencias"
+    },
+    {
+      "id": "q36",
+      "question": "¿Cómo se hace para pagar la matrícula vehicular?",
+      "category": "Operaciones bancarias"
+    },
+    {
+      "id": "q37",
+      "question": "como endosar un cheque",
+      "category": "Operaciones bancarias"
+    },
+    {
+      "id": "q38",
+      "question": "¿Cuál es el código SWIFT del Banco Pichincha?",
+      "category": "Operaciones bancarias"
+    },
+    {
+      "id": "q39",
+      "question": "Qué es un certificado bancario y cómo obtenerlo",
+      "category": "Operaciones bancarias"
+    },
+    {
+      "id": "q40",
+      "question": "¿Qué es una retención judicial y cómo funciona en Ecuador?",
+      "category": "Información financiera"
+    },
+    {
+      "id": "q41",
+      "question": "¿Qué es el rol de pagos?",
+      "category": "Información financiera"
+    },
+    {
+      "id": "q42",
+      "question": "¿cómo calcular el décimo tercer sueldo?",
+      "category": "Información financiera"
+    },
+    {
+      "id": "q43",
+      "question": "¿Cuál es el banco más seguro de Ecuador?",
+      "category": "Evaluación y recomendación"
+    },
+    {
+      "id": "q44",
+      "question": "¿Cuál es el banco más solvente del Ecuador?",
+      "category": "Evaluación y recomendación"
+    },
+    {
+      "id": "q45",
+      "question": "¿Cuál es el mejor banco del Ecuador para ahorrar?",
+      "category": "Evaluación y recomendación"
+    },
+    {
+      "id": "q46",
+      "question": "¿Cuál es el banco con mejor atención al cliente en Ecuador?",
+      "category": "Evaluación y recomendación"
+    },
+    {
+      "id": "q47",
+      "question": "¿Qué banco es el mejor para ahorrar en Ecuador?",
+      "category": "Evaluación y recomendación"
+    },
+    {
+      "id": "q48",
+      "question": "¿Cuál es el mejor banco para abrir una cuenta?",
+      "category": "Evaluación y recomendación"
+    }
+  ],
+  "id": "config_1764757894652_czk58ldi5",
+  "createdAt": "2025-12-03T10:31:34.652Z",
+  "updatedAt": "2025-12-03T10:31:34.652Z"
+}

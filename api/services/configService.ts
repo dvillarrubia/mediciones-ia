@@ -183,11 +183,6 @@ class ConfigService {
       });
     }
 
-    // Validar fuentes prioritarias
-    if (!config.prioritySources || config.prioritySources.length === 0) {
-      errors.push('Al menos una fuente prioritaria es requerida');
-    }
-
     if (errors.length > 0) {
       throw new Error(`Errores de validación: ${errors.join(', ')}`);
     }

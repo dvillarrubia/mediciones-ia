@@ -26,7 +26,7 @@ router.post('/test-config', async (req: Request, res: Response) => {
     } = req.body;
 
     // Determinar modelo de generación
-    const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+    const openaiModels = ['gpt-5.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
     const generationModel = openaiModels.includes(selectedModel) ? selectedModel : 'gpt-4o';
     const analysisModel = 'gpt-4o-mini'; // Siempre fijo para análisis
 
@@ -132,7 +132,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     // Extender la configuración con modelo y país
     const extendedConfiguration = {
       ...configuration,
-      selectedModel: selectedModel || 'gpt-4o-mini',
+      selectedModel: selectedModel || 'gpt-5.1',
       countryCode: countryCode || 'ES',
       countryContext: countryContext || 'en España, considerando el mercado español',
       countryLanguage: countryLanguage || 'Español'

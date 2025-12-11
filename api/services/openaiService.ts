@@ -403,20 +403,16 @@ class OpenAIService {
   }
 
   /**
-   * Obtiene el modelo de generación a usar basado en la configuración
+   * Obtiene el modelo de generación basado en la selección del usuario
    */
   private getGenerationModel(configuration: any): string {
-    // Si hay un modelo seleccionado en la configuración, usarlo
     if (configuration.selectedModel) {
-      // Solo usar modelos de OpenAI para generación (por ahora)
-      const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
-      if (openaiModels.includes(configuration.selectedModel)) {
-        return configuration.selectedModel;
-      }
-      // Si es un modelo de otro proveedor, usar el modelo por defecto de OpenAI
-      console.log(`⚠️ Modelo ${configuration.selectedModel} no es de OpenAI, usando ${this.GENERATION_MODEL}`);
+      console.log(`🤖 Modelo de generación seleccionado: ${configuration.selectedModel}`);
+      return configuration.selectedModel;
     }
-    return this.GENERATION_MODEL;
+    // Fallback si no hay selección
+    console.log('⚠️ No hay modelo seleccionado, usando gpt-4o por defecto');
+    return 'gpt-4o';
   }
 
   /**
@@ -1801,11 +1797,56 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
 }
 
 /**
+ * Verifica si la API key está disponible para un modelo específico
+ */
+private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; error?: string } {
+  switch (modelPersona) {
+    case 'chatgpt':
+      return { valid: true };
+
+    case 'claude':
+      const anthropicKey = this.userApiKeys?.anthropic || process.env.ANTHROPIC_API_KEY;
+      if (!anthropicKey) {
+        return { valid: false, error: 'API de Claude (Anthropic) no configurada. Configure ANTHROPIC_API_KEY.' };
+      }
+      return { valid: true };
+
+    case 'gemini':
+      const googleKey = this.userApiKeys?.google || process.env.GOOGLE_API_KEY;
+      if (!googleKey) {
+        return { valid: false, error: 'API de Gemini (Google) no configurada. Configure GOOGLE_API_KEY.' };
+      }
+      return { valid: true };
+
+    case 'perplexity':
+      const perplexityKey = process.env.PERPLEXITY_API_KEY;
+      if (!perplexityKey) {
+        return { valid: false, error: 'API de Perplexity no configurada. Configure PERPLEXITY_API_KEY.' };
+      }
+      return { valid: true };
+
+    default:
+      return { valid: false, error: `Modelo desconocido: ${modelPersona}` };
+  }
+}
+
+/**
  * Analiza con una persona de IA específica
  */
 private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPersona, configuration: any): Promise<MultiModelAnalysis> {
   const questionId = questionData.id || `q_${Date.now()}`;
-  
+
+  // Validar API key para el modelo
+  const apiValidation = this.validateApiKeyForModel(modelPersona);
+  if (!apiValidation.valid) {
+    throw new Error(apiValidation.error);
+  }
+
+  // Solo ChatGPT usa GPT-4.1, los demás requieren sus propias APIs
+  if (modelPersona !== 'chatgpt') {
+    throw new Error(`API de ${modelPersona} no está activada. Solo ChatGPT está disponible.`);
+  }
+
   // PASO 1: Generar respuesta con la persona del modelo específico
   const generativePrompt = this.buildPersonaGenerativePrompt(questionData.question, modelPersona, configuration);
 
