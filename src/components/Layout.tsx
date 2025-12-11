@@ -1,7 +1,8 @@
 import { ReactNode, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, Search, Settings, Menu, X, Upload, Brain } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut, LogIn } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
+import { useAuthStore } from '../store/authStore';
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,7 +10,14 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -61,6 +69,38 @@ const Layout = ({ children }: LayoutProps) => {
               );
             })}
           </nav>
+          {/* Sección de usuario móvil */}
+          <div className="border-t border-gray-200 p-4">
+            {isAuthenticated && user ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setSidebarOpen(false)}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+              >
+                <LogIn className="h-4 w-4" />
+                Iniciar sesión
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -93,6 +133,42 @@ const Layout = ({ children }: LayoutProps) => {
               );
             })}
           </nav>
+          {/* Sección de usuario desktop */}
+          <div className="border-t border-gray-200 p-4">
+            {isAuthenticated && user ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  to="/login"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Iniciar sesión
+                </Link>
+                <p className="text-xs text-center text-gray-400">
+                  Modo demo activo
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

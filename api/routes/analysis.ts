@@ -1,5 +1,6 @@
 /**
  * Rutas para análisis de marca
+ * Soporta multi-tenant: cada usuario ve solo sus análisis
  */
 import { Router, Request, Response } from 'express';
 import OpenAIService from '../services/openaiService.js';
@@ -7,9 +8,14 @@ import { QuestionCategory } from '../config/constants.js';
 import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { authService } from '../services/authService.js';
 
 const router = Router();
 let openaiService: OpenAIService;
+
+// Aplicar autenticación opcional a todas las rutas
+router.use(optionalAuth);
 
 /**
  * POST /api/analysis/test-config
@@ -92,9 +98,23 @@ router.post('/execute', async (req: Request, res: Response) => {
     console.log(`   🌍 País: ${countryCode || 'ES'}`);
     console.log(`   🗣️ Idioma: ${countryLanguage || 'Español'}`);
 
+    // Obtener API keys del usuario autenticado si existen
+    let apiKeysToUse = userApiKeys;
+    if (req.userId && !userApiKeys) {
+      try {
+        const storedKeys = await authService.getApiKeys(req.userId);
+        if (Object.keys(storedKeys).length > 0) {
+          apiKeysToUse = storedKeys;
+          console.log('🔑 Using stored API keys for user:', req.userId);
+        }
+      } catch (err) {
+        console.log('⚠️ Could not retrieve stored API keys:', err);
+      }
+    }
+
     // Initialize OpenAI service with user API keys if provided
-    if (userApiKeys && (userApiKeys.openai || userApiKeys.anthropic || userApiKeys.google)) {
-      openaiService = new OpenAIService(userApiKeys);
+    if (apiKeysToUse && (apiKeysToUse.openai || apiKeysToUse.anthropic || apiKeysToUse.google)) {
+      openaiService = new OpenAIService(apiKeysToUse);
       console.log('🔑 Using user-provided API keys');
     } else if (!openaiService) {
       openaiService = new OpenAIService();
@@ -173,8 +193,8 @@ router.post('/execute', async (req: Request, res: Response) => {
         }
       };
 
-      await databaseService.saveAnalysis(savedAnalysis);
-      console.log(`✅ Análisis guardado en base de datos con ID: ${analysisId}${projectId ? ` (Proyecto: ${projectId})` : ''}`);
+      await databaseService.saveAnalysis(savedAnalysis, req.userId);
+      console.log(`✅ Análisis guardado en base de datos con ID: ${analysisId}${projectId ? ` (Proyecto: ${projectId})` : ''}${req.userId ? ` (Usuario: ${req.userId})` : ''}`);
     } catch (saveError) {
       console.error('❌ Error al guardar análisis en base de datos:', saveError);
       // No detenemos la respuesta si falla el guardado
@@ -204,9 +224,22 @@ router.post('/multi-model', async (req: Request, res: Response) => {
   try {
     const { questions, configuration, userApiKeys, projectId } = req.body;
 
+    // Obtener API keys del usuario autenticado si existen
+    let apiKeysToUse = userApiKeys;
+    if (req.userId && !userApiKeys) {
+      try {
+        const storedKeys = await authService.getApiKeys(req.userId);
+        if (Object.keys(storedKeys).length > 0) {
+          apiKeysToUse = storedKeys;
+        }
+      } catch (err) {
+        console.log('⚠️ Could not retrieve stored API keys:', err);
+      }
+    }
+
     // Initialize OpenAI service with user API keys if provided
-    if (userApiKeys && (userApiKeys.openai || userApiKeys.anthropic || userApiKeys.google)) {
-      openaiService = new OpenAIService(userApiKeys);
+    if (apiKeysToUse && (apiKeysToUse.openai || apiKeysToUse.anthropic || apiKeysToUse.google)) {
+      openaiService = new OpenAIService(apiKeysToUse);
       console.log('🔑 Using user-provided API keys for multi-model');
     } else if (!openaiService) {
       openaiService = new OpenAIService();
@@ -256,8 +289,8 @@ router.post('/multi-model', async (req: Request, res: Response) => {
         }
       };
 
-      await databaseService.saveAnalysis(savedAnalysis);
-      console.log(`✅ Análisis multi-modelo guardado en base de datos con ID: ${analysisId}${projectId ? ` (Proyecto: ${projectId})` : ''}`);
+      await databaseService.saveAnalysis(savedAnalysis, req.userId);
+      console.log(`✅ Análisis multi-modelo guardado en base de datos con ID: ${analysisId}${projectId ? ` (Proyecto: ${projectId})` : ''}${req.userId ? ` (Usuario: ${req.userId})` : ''}`);
     } catch (saveError) {
       console.error('❌ Error al guardar análisis multi-modelo en base de datos:', saveError);
       // No detenemos la respuesta si falla el guardado
@@ -489,7 +522,7 @@ router.post('/report/pdf', async (req: Request, res: Response) => {
 router.get('/history', async (req: Request, res: Response) => {
 try {
 const limit = parseInt(req.query.limit as string) || 50;
-const analyses = await databaseService.getAllAnalyses(limit);
+const analyses = await databaseService.getAllAnalyses(limit, undefined, req.userId);
 
 // Transformar los datos al formato esperado por el frontend
 const history = analyses.map(analysis => ({
@@ -570,9 +603,9 @@ router.get('/saved', async (req: Request, res: Response) => {
 
     let analyses;
     if (brand) {
-      analyses = await databaseService.getAnalysesByBrand(brand);
+      analyses = await databaseService.getAnalysesByBrand(brand, req.userId);
     } else {
-      analyses = await databaseService.getAllAnalyses(limit, projectId);
+      analyses = await databaseService.getAllAnalyses(limit, projectId, req.userId);
     }
 
     // Transformar los datos al formato esperado por el frontend
@@ -614,7 +647,7 @@ router.get('/saved/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const analysis = await databaseService.getAnalysis(id);
+    const analysis = await databaseService.getAnalysis(id, req.userId);
 
     if (!analysis) {
       return res.status(404).json({
@@ -645,7 +678,7 @@ router.delete('/saved/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const analysis = await databaseService.getAnalysis(id);
+    const analysis = await databaseService.getAnalysis(id, req.userId);
 
     if (!analysis) {
       return res.status(404).json({
@@ -655,7 +688,7 @@ router.delete('/saved/:id', async (req: Request, res: Response) => {
       });
     }
 
-    await databaseService.deleteAnalysis(id);
+    await databaseService.deleteAnalysis(id, req.userId);
 
     res.json({
       success: true,
@@ -681,7 +714,7 @@ router.patch('/saved/:id/config', async (req: Request, res: Response) => {
     const { id } = req.params;
     const configUpdates = req.body;
 
-    await databaseService.updateAnalysisConfiguration(id, configUpdates);
+    await databaseService.updateAnalysisConfiguration(id, configUpdates, req.userId);
 
     res.json({
       success: true,

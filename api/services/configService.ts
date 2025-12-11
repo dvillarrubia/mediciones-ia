@@ -1,5 +1,6 @@
 /**
  * Servicio para gestión de configuraciones personalizadas
+ * Soporta multi-tenant: cada usuario tiene sus propias configuraciones
  */
 import fs from 'fs/promises';
 import path from 'path';
@@ -9,8 +10,8 @@ import { PREDEFINED_TEMPLATES, type AnalysisTemplate, type CustomConfiguration }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Directorio para almacenar configuraciones personalizadas
-const CONFIGS_DIR = path.join(__dirname, '..', 'data', 'configurations');
+// Directorio base para configuraciones
+const CONFIGS_BASE_DIR = path.join(__dirname, '..', 'data', 'configurations');
 
 class ConfigService {
   constructor() {
@@ -18,13 +19,25 @@ class ConfigService {
   }
 
   /**
+   * Obtener directorio de configuraciones para un usuario
+   * Si no hay userId, usa el directorio global
+   */
+  private getConfigsDir(userId?: string): string {
+    if (userId) {
+      return path.join(CONFIGS_BASE_DIR, userId);
+    }
+    return CONFIGS_BASE_DIR;
+  }
+
+  /**
    * Asegurar que el directorio de configuraciones existe
    */
-  private async ensureConfigsDirectory(): Promise<void> {
+  private async ensureConfigsDirectory(userId?: string): Promise<void> {
+    const dir = this.getConfigsDir(userId);
     try {
-      await fs.access(CONFIGS_DIR);
+      await fs.access(dir);
     } catch {
-      await fs.mkdir(CONFIGS_DIR, { recursive: true });
+      await fs.mkdir(dir, { recursive: true });
     }
   }
 
@@ -43,18 +56,21 @@ class ConfigService {
   }
 
   /**
-   * Obtener todas las configuraciones personalizadas
+   * Obtener todas las configuraciones personalizadas de un usuario
    */
-  async getCustomConfigurations(): Promise<CustomConfiguration[]> {
+  async getCustomConfigurations(userId?: string): Promise<CustomConfiguration[]> {
+    await this.ensureConfigsDirectory(userId);
+    const configsDir = this.getConfigsDir(userId);
+
     try {
-      const files = await fs.readdir(CONFIGS_DIR);
+      const files = await fs.readdir(configsDir);
       const jsonFiles = files.filter(file => file.endsWith('.json'));
-      
+
       const configurations: CustomConfiguration[] = [];
-      
+
       for (const file of jsonFiles) {
         try {
-          const filePath = path.join(CONFIGS_DIR, file);
+          const filePath = path.join(configsDir, file);
           const content = await fs.readFile(filePath, 'utf-8');
           const config = JSON.parse(content) as CustomConfiguration;
           configurations.push(config);
@@ -62,8 +78,8 @@ class ConfigService {
           console.error(`Error loading configuration ${file}:`, error);
         }
       }
-      
-      return configurations.sort((a, b) => 
+
+      return configurations.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } catch (error) {
@@ -75,11 +91,24 @@ class ConfigService {
   /**
    * Obtener una configuración personalizada por ID
    */
-  async getCustomConfiguration(id: string): Promise<CustomConfiguration | null> {
+  async getCustomConfiguration(id: string, userId?: string): Promise<CustomConfiguration | null> {
+    await this.ensureConfigsDirectory(userId);
+    const configsDir = this.getConfigsDir(userId);
+
     try {
-      const filePath = path.join(CONFIGS_DIR, `${id}.json`);
-      const content = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(content) as CustomConfiguration;
+      // Buscar el archivo que contenga el ID
+      const files = await fs.readdir(configsDir);
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const filePath = path.join(configsDir, file);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const config = JSON.parse(content) as CustomConfiguration;
+          if (config.id === id) {
+            return config;
+          }
+        }
+      }
+      return null;
     } catch (error) {
       return null;
     }
@@ -88,10 +117,16 @@ class ConfigService {
   /**
    * Crear una nueva configuración personalizada
    */
-  async createCustomConfiguration(config: Omit<CustomConfiguration, 'id' | 'createdAt' | 'updatedAt'>): Promise<CustomConfiguration> {
+  async createCustomConfiguration(
+    config: Omit<CustomConfiguration, 'id' | 'createdAt' | 'updatedAt'>,
+    userId?: string
+  ): Promise<CustomConfiguration> {
+    await this.ensureConfigsDirectory(userId);
+    const configsDir = this.getConfigsDir(userId);
+
     const id = this.generateId();
     const now = new Date().toISOString();
-    
+
     const newConfig: CustomConfiguration = {
       ...config,
       id,
@@ -100,18 +135,26 @@ class ConfigService {
     };
 
     await this.validateConfiguration(newConfig);
-    
-    const filePath = path.join(CONFIGS_DIR, `${id}.json`);
+
+    const filePath = path.join(configsDir, `${id}.json`);
     await fs.writeFile(filePath, JSON.stringify(newConfig, null, 2), 'utf-8');
-    
+
+    console.log(`Configuración creada: ${id} para usuario: ${userId || 'global'}`);
     return newConfig;
   }
 
   /**
    * Actualizar una configuración personalizada existente
    */
-  async updateCustomConfiguration(id: string, updates: Partial<Omit<CustomConfiguration, 'id' | 'createdAt'>>): Promise<CustomConfiguration | null> {
-    const existing = await this.getCustomConfiguration(id);
+  async updateCustomConfiguration(
+    id: string,
+    updates: Partial<Omit<CustomConfiguration, 'id' | 'createdAt'>>,
+    userId?: string
+  ): Promise<CustomConfiguration | null> {
+    await this.ensureConfigsDirectory(userId);
+    const configsDir = this.getConfigsDir(userId);
+
+    const existing = await this.getCustomConfiguration(id, userId);
     if (!existing) {
       return null;
     }
@@ -125,20 +168,24 @@ class ConfigService {
     };
 
     await this.validateConfiguration(updatedConfig);
-    
-    const filePath = path.join(CONFIGS_DIR, `${id}.json`);
+
+    const filePath = path.join(configsDir, `${id}.json`);
     await fs.writeFile(filePath, JSON.stringify(updatedConfig, null, 2), 'utf-8');
-    
+
     return updatedConfig;
   }
 
   /**
    * Eliminar una configuración personalizada
    */
-  async deleteCustomConfiguration(id: string): Promise<boolean> {
+  async deleteCustomConfiguration(id: string, userId?: string): Promise<boolean> {
+    await this.ensureConfigsDirectory(userId);
+    const configsDir = this.getConfigsDir(userId);
+
     try {
-      const filePath = path.join(CONFIGS_DIR, `${id}.json`);
+      const filePath = path.join(configsDir, `${id}.json`);
       await fs.unlink(filePath);
+      console.log(`Configuración eliminada: ${id} para usuario: ${userId || 'global'}`);
       return true;
     } catch (error) {
       return false;
@@ -198,19 +245,28 @@ class ConfigService {
   /**
    * Obtener configuración por tipo (plantilla predefinida o personalizada)
    */
-  async getConfiguration(type: 'template' | 'custom', id: string): Promise<AnalysisTemplate | CustomConfiguration | null> {
+  async getConfiguration(
+    type: 'template' | 'custom',
+    id: string,
+    userId?: string
+  ): Promise<AnalysisTemplate | CustomConfiguration | null> {
     if (type === 'template') {
       return this.getPredefinedTemplate(id);
     } else {
-      return this.getCustomConfiguration(id);
+      return this.getCustomConfiguration(id, userId);
     }
   }
 
   /**
    * Duplicar una configuración (crear copia personalizada de una plantilla)
    */
-  async duplicateConfiguration(sourceType: 'template' | 'custom', sourceId: string, newName: string): Promise<CustomConfiguration | null> {
-    const sourceConfig = await this.getConfiguration(sourceType, sourceId);
+  async duplicateConfiguration(
+    sourceType: 'template' | 'custom',
+    sourceId: string,
+    newName: string,
+    userId?: string
+  ): Promise<CustomConfiguration | null> {
+    const sourceConfig = await this.getConfiguration(sourceType, sourceId, userId);
     if (!sourceConfig) {
       return null;
     }
@@ -233,7 +289,42 @@ class ConfigService {
       prioritySources: [...sourceConfig.prioritySources]
     };
 
-    return this.createCustomConfiguration(newConfig);
+    return this.createCustomConfiguration(newConfig, userId);
+  }
+
+  /**
+   * Migrar configuraciones globales a un usuario
+   */
+  async migrateConfigurationsToUser(userId: string): Promise<number> {
+    await this.ensureConfigsDirectory(userId);
+
+    const globalConfigs = await this.getCustomConfigurations();
+    const userConfigsDir = this.getConfigsDir(userId);
+    let migrated = 0;
+
+    for (const config of globalConfigs) {
+      try {
+        const filePath = path.join(userConfigsDir, `${config.id}.json`);
+        await fs.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
+        migrated++;
+      } catch (error) {
+        console.error(`Error migrando configuración ${config.id}:`, error);
+      }
+    }
+
+    console.log(`Migradas ${migrated} configuraciones al usuario ${userId}`);
+    return migrated;
+  }
+
+  /**
+   * Obtener estadísticas de configuraciones para un usuario
+   */
+  async getConfigurationStats(userId?: string): Promise<{ customCount: number; templateCount: number }> {
+    const customConfigs = await this.getCustomConfigurations(userId);
+    return {
+      customCount: customConfigs.length,
+      templateCount: PREDEFINED_TEMPLATES.length
+    };
   }
 }
 

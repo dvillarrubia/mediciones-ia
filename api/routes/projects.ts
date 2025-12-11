@@ -1,19 +1,26 @@
 /**
  * Rutas para gestión de proyectos
+ * Soporta multi-tenant: cada usuario ve solo sus proyectos
  */
 import { Router, Request, Response } from 'express';
 import { databaseService } from '../services/databaseService.js';
+import { optionalAuth } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
+// Aplicar autenticación opcional a todas las rutas
+// Si hay usuario autenticado, filtra por userId
+// Si no, muestra datos globales (compatibilidad hacia atrás)
+router.use(optionalAuth);
+
 /**
  * GET /api/projects
- * Obtener todos los proyectos
+ * Obtener todos los proyectos del usuario
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const projects = await databaseService.getAllProjects();
+    const projects = await databaseService.getAllProjects(req.userId);
     res.json({
       success: true,
       data: projects
@@ -34,7 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const project = await databaseService.getProject(id);
+    const project = await databaseService.getProject(id, req.userId);
 
     if (!project) {
       return res.status(404).json({
@@ -71,11 +78,14 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const project = await databaseService.createProject({
-      id: uuidv4(),
-      name: name.trim(),
-      description: description?.trim() || undefined
-    });
+    const project = await databaseService.createProject(
+      {
+        id: uuidv4(),
+        name: name.trim(),
+        description: description?.trim() || undefined
+      },
+      req.userId
+    );
 
     res.status(201).json({
       success: true,
@@ -99,7 +109,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    const existingProject = await databaseService.getProject(id);
+    const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
       return res.status(404).json({
         success: false,
@@ -111,7 +121,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
 
-    const updatedProject = await databaseService.updateProject(id, updates);
+    const updatedProject = await databaseService.updateProject(id, updates, req.userId);
 
     res.json({
       success: true,
@@ -134,7 +144,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const existingProject = await databaseService.getProject(id);
+    const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
       return res.status(404).json({
         success: false,
@@ -142,7 +152,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    await databaseService.deleteProject(id);
+    await databaseService.deleteProject(id, req.userId);
 
     res.json({
       success: true,
@@ -153,6 +163,41 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Error al eliminar proyecto'
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/stats
+ * Obtener estadísticas de un proyecto
+ */
+router.get('/:id/stats', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const project = await databaseService.getProject(id, req.userId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Proyecto no encontrado'
+      });
+    }
+
+    const analyses = await databaseService.getAllAnalyses(1000, id, req.userId);
+
+    res.json({
+      success: true,
+      data: {
+        project,
+        analysisCount: analyses.length,
+        lastAnalysis: analyses.length > 0 ? analyses[0].timestamp : null
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener estadísticas:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al obtener estadísticas'
     });
   }
 });

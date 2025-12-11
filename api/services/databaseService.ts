@@ -6,6 +6,7 @@ import fs from 'fs';
 
 export interface Project {
   id: string;
+  userId?: string; // Multi-tenant: propietario del proyecto
   name: string;
   description?: string;
   createdAt: string;
@@ -14,6 +15,7 @@ export interface Project {
 
 export interface SavedAnalysis {
   id: string;
+  userId?: string; // Multi-tenant: propietario del análisis
   projectId?: string;
   timestamp: string;
   configuration: {
@@ -33,10 +35,11 @@ export interface SavedAnalysis {
 class DatabaseService {
   private db: Database | null = null;
   private dbPath: string;
+  private initialized: Promise<void>;
 
   constructor() {
     this.dbPath = path.join(process.cwd(), 'data', 'analysis.db');
-    this.initializeDatabase();
+    this.initialized = this.initializeDatabase();
   }
 
   private async initializeDatabase(): Promise<void> {
@@ -46,81 +49,116 @@ class DatabaseService {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    this.db = new sqlite3.Database(this.dbPath, (err) => {
-      if (err) {
-        console.error('Error al abrir la base de datos:', err);
-        return;
-      }
-      console.log('Base de datos SQLite conectada');
-      this.createTables();
+    return new Promise((resolve, reject) => {
+      this.db = new sqlite3.Database(this.dbPath, (err) => {
+        if (err) {
+          console.error('Error al abrir la base de datos:', err);
+          reject(err);
+          return;
+        }
+        console.log('Base de datos SQLite conectada');
+        this.createTables().then(resolve).catch(reject);
+      });
     });
   }
 
-  private createTables(): void {
-    // Tabla de proyectos
-    const createProjectsTable = `
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-
-    // Tabla de análisis con project_id
-    const createAnalysisTable = `
-      CREATE TABLE IF NOT EXISTS analysis (
-        id TEXT PRIMARY KEY,
-        project_id TEXT,
-        timestamp TEXT NOT NULL,
-        brand TEXT NOT NULL,
-        competitors TEXT NOT NULL,
-        template_id TEXT NOT NULL,
-        questions_count INTEGER NOT NULL,
-        configuration TEXT NOT NULL,
-        results TEXT NOT NULL,
-        metadata TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects(id)
-      )
-    `;
-
-    // Agregar columna project_id si no existe (para migración)
-    const addProjectIdColumn = `
-      ALTER TABLE analysis ADD COLUMN project_id TEXT REFERENCES projects(id)
-    `;
-
-    this.db?.run(createProjectsTable, (err) => {
-      if (err) {
-        console.error('Error al crear tabla de proyectos:', err);
-      } else {
-        console.log('Tabla de proyectos creada/verificada');
+  private async createTables(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
       }
-    });
 
-    this.db?.run(createAnalysisTable, (err) => {
-      if (err) {
-        console.error('Error al crear la tabla de análisis:', err);
-      } else {
-        console.log('Tabla de análisis creada/verificada');
-      }
-    });
+      // Tabla de proyectos con user_id para multi-tenant
+      const createProjectsTable = `
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          name TEXT NOT NULL,
+          description TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `;
 
-    // Intentar agregar la columna project_id (ignorar error si ya existe)
-    this.db?.run(addProjectIdColumn, (err) => {
-      if (err && !err.message.includes('duplicate column')) {
-        // Solo loguear si no es error de columna duplicada
-        if (!err.message.includes('duplicate')) {
-          console.log('Columna project_id ya existe o error:', err.message);
-        }
-      }
+      // Tabla de análisis con user_id para multi-tenant
+      const createAnalysisTable = `
+        CREATE TABLE IF NOT EXISTS analysis (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          project_id TEXT,
+          timestamp TEXT NOT NULL,
+          brand TEXT NOT NULL,
+          competitors TEXT NOT NULL,
+          template_id TEXT NOT NULL,
+          questions_count INTEGER NOT NULL,
+          configuration TEXT NOT NULL,
+          results TEXT NOT NULL,
+          metadata TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+      `;
+
+      this.db.serialize(() => {
+        this.db!.run(createProjectsTable, (err) => {
+          if (err) {
+            console.error('Error al crear tabla de proyectos:', err);
+          } else {
+            console.log('Tabla de proyectos creada/verificada');
+          }
+        });
+
+        this.db!.run(createAnalysisTable, (err) => {
+          if (err) {
+            console.error('Error al crear la tabla de análisis:', err);
+          } else {
+            console.log('Tabla de análisis creada/verificada');
+          }
+        });
+
+        // Migraciones: añadir columnas user_id si no existen
+        this.db!.run('ALTER TABLE projects ADD COLUMN user_id TEXT REFERENCES users(id)', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            // Ignorar si ya existe
+          }
+        });
+
+        this.db!.run('ALTER TABLE analysis ADD COLUMN user_id TEXT REFERENCES users(id)', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            // Ignorar si ya existe
+          }
+        });
+
+        // Añadir project_id si no existe (migración anterior)
+        this.db!.run('ALTER TABLE analysis ADD COLUMN project_id TEXT REFERENCES projects(id)', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            // Ignorar si ya existe
+          }
+        });
+
+        // Crear índices para optimización multi-tenant
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis(user_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_project_id ON analysis(project_id)', () => {
+          console.log('DatabaseService: Índices multi-tenant creados/verificados');
+          resolve();
+        });
+      });
     });
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    await this.initialized;
   }
 
   // ==================== MÉTODOS DE PROYECTOS ====================
 
-  async createProject(project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<Project> {
+  async createProject(project: Omit<Project, 'createdAt' | 'updatedAt'>, userId?: string): Promise<Project> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -129,20 +167,21 @@ class DatabaseService {
 
       const now = new Date().toISOString();
       const query = `
-        INSERT INTO projects (id, name, description, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO projects (id, user_id, name, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
       `;
 
-      const params = [project.id, project.name, project.description || null, now, now];
+      const params = [project.id, userId || null, project.name, project.description || null, now, now];
 
       this.db.run(query, params, (err) => {
         if (err) {
           console.error('Error al crear proyecto:', err);
           reject(err);
         } else {
-          console.log(`Proyecto creado con ID: ${project.id}`);
+          console.log(`Proyecto creado con ID: ${project.id} para usuario: ${userId || 'global'}`);
           resolve({
             ...project,
+            userId,
             createdAt: now,
             updatedAt: now
           });
@@ -151,22 +190,36 @@ class DatabaseService {
     });
   }
 
-  async getAllProjects(): Promise<Project[]> {
+  async getAllProjects(userId?: string): Promise<Project[]> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = 'SELECT * FROM projects ORDER BY created_at DESC';
+      let query: string;
+      let params: any[];
 
-      this.db.all(query, [], (err, rows: any[]) => {
+      if (userId) {
+        // Multi-tenant: solo proyectos del usuario
+        query = 'SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC';
+        params = [userId];
+      } else {
+        // Sin usuario: proyectos globales (user_id IS NULL)
+        query = 'SELECT * FROM projects WHERE user_id IS NULL ORDER BY created_at DESC';
+        params = [];
+      }
+
+      this.db.all(query, params, (err, rows: any[]) => {
         if (err) {
           console.error('Error al obtener proyectos:', err);
           reject(err);
         } else {
           const projects: Project[] = rows.map(row => ({
             id: row.id,
+            userId: row.user_id || undefined,
             name: row.name,
             description: row.description,
             createdAt: row.created_at,
@@ -178,16 +231,28 @@ class DatabaseService {
     });
   }
 
-  async getProject(id: string): Promise<Project | null> {
+  async getProject(id: string, userId?: string): Promise<Project | null> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = 'SELECT * FROM projects WHERE id = ?';
+      let query: string;
+      let params: any[];
 
-      this.db.get(query, [id], (err, row: any) => {
+      if (userId) {
+        // Multi-tenant: verificar que pertenece al usuario
+        query = 'SELECT * FROM projects WHERE id = ? AND user_id = ?';
+        params = [id, userId];
+      } else {
+        query = 'SELECT * FROM projects WHERE id = ? AND user_id IS NULL';
+        params = [id];
+      }
+
+      this.db.get(query, params, (err, row: any) => {
         if (err) {
           console.error('Error al obtener proyecto:', err);
           reject(err);
@@ -196,6 +261,7 @@ class DatabaseService {
         } else {
           resolve({
             id: row.id,
+            userId: row.user_id || undefined,
             name: row.name,
             description: row.description,
             createdAt: row.created_at,
@@ -206,7 +272,9 @@ class DatabaseService {
     });
   }
 
-  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description'>>): Promise<Project | null> {
+  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description'>>, userId?: string): Promise<Project | null> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -228,21 +296,29 @@ class DatabaseService {
 
       params.push(id);
 
-      const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
+      let query: string;
+      if (userId) {
+        query = `UPDATE projects SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`;
+        params.push(userId);
+      } else {
+        query = `UPDATE projects SET ${fields.join(', ')} WHERE id = ? AND user_id IS NULL`;
+      }
 
       this.db.run(query, params, async (err) => {
         if (err) {
           console.error('Error al actualizar proyecto:', err);
           reject(err);
         } else {
-          const updated = await this.getProject(id);
+          const updated = await this.getProject(id, userId);
           resolve(updated);
         }
       });
     });
   }
 
-  async deleteProject(id: string): Promise<void> {
+  async deleteProject(id: string, userId?: string): Promise<void> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -250,9 +326,18 @@ class DatabaseService {
       }
 
       // Primero desvinculamos los análisis del proyecto
-      const unlinkQuery = 'UPDATE analysis SET project_id = NULL WHERE project_id = ?';
+      let unlinkQuery: string;
+      let unlinkParams: any[];
 
-      this.db.run(unlinkQuery, [id], (err) => {
+      if (userId) {
+        unlinkQuery = 'UPDATE analysis SET project_id = NULL WHERE project_id = ? AND user_id = ?';
+        unlinkParams = [id, userId];
+      } else {
+        unlinkQuery = 'UPDATE analysis SET project_id = NULL WHERE project_id = ? AND user_id IS NULL';
+        unlinkParams = [id];
+      }
+
+      this.db.run(unlinkQuery, unlinkParams, (err) => {
         if (err) {
           console.error('Error al desvincular análisis:', err);
           reject(err);
@@ -260,9 +345,18 @@ class DatabaseService {
         }
 
         // Luego eliminamos el proyecto
-        const deleteQuery = 'DELETE FROM projects WHERE id = ?';
+        let deleteQuery: string;
+        let deleteParams: any[];
 
-        this.db?.run(deleteQuery, [id], (err) => {
+        if (userId) {
+          deleteQuery = 'DELETE FROM projects WHERE id = ? AND user_id = ?';
+          deleteParams = [id, userId];
+        } else {
+          deleteQuery = 'DELETE FROM projects WHERE id = ? AND user_id IS NULL';
+          deleteParams = [id];
+        }
+
+        this.db?.run(deleteQuery, deleteParams, (err) => {
           if (err) {
             console.error('Error al eliminar proyecto:', err);
             reject(err);
@@ -277,7 +371,9 @@ class DatabaseService {
 
   // ==================== MÉTODOS DE ANÁLISIS ====================
 
-  async saveAnalysis(analysis: SavedAnalysis): Promise<void> {
+  async saveAnalysis(analysis: SavedAnalysis, userId?: string): Promise<void> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -295,13 +391,14 @@ class DatabaseService {
 
       const query = `
         INSERT OR REPLACE INTO analysis (
-          id, project_id, timestamp, brand, competitors, template_id, questions_count,
+          id, user_id, project_id, timestamp, brand, competitors, template_id, questions_count,
           configuration, results, metadata
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const params = [
         id,
+        userId || null,
         projectId || null,
         timestamp,
         configuration.brand,
@@ -318,23 +415,34 @@ class DatabaseService {
           console.error('Error al guardar análisis:', err);
           reject(err);
         } else {
-          console.log(`Análisis guardado con ID: ${id}`);
+          console.log(`Análisis guardado con ID: ${id} para usuario: ${userId || 'global'}`);
           resolve();
         }
       });
     });
   }
 
-  async getAnalysis(id: string): Promise<SavedAnalysis | null> {
+  async getAnalysis(id: string, userId?: string): Promise<SavedAnalysis | null> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = 'SELECT * FROM analysis WHERE id = ?';
+      let query: string;
+      let params: any[];
 
-      this.db.get(query, [id], (err, row: any) => {
+      if (userId) {
+        query = 'SELECT * FROM analysis WHERE id = ? AND user_id = ?';
+        params = [id, userId];
+      } else {
+        query = 'SELECT * FROM analysis WHERE id = ? AND user_id IS NULL';
+        params = [id];
+      }
+
+      this.db.get(query, params, (err, row: any) => {
         if (err) {
           console.error('Error al recuperar análisis:', err);
           reject(err);
@@ -344,6 +452,7 @@ class DatabaseService {
           try {
             const analysis: SavedAnalysis = {
               id: row.id,
+              userId: row.user_id || undefined,
               projectId: row.project_id || undefined,
               timestamp: row.timestamp,
               configuration: JSON.parse(row.configuration),
@@ -360,7 +469,9 @@ class DatabaseService {
     });
   }
 
-  async getAllAnalyses(limit: number = 50, projectId?: string): Promise<SavedAnalysis[]> {
+  async getAllAnalyses(limit: number = 50, projectId?: string, userId?: string): Promise<SavedAnalysis[]> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -370,21 +481,44 @@ class DatabaseService {
       let query: string;
       let params: any[];
 
-      if (projectId) {
-        query = `
-          SELECT * FROM analysis
-          WHERE project_id = ?
-          ORDER BY created_at DESC
-          LIMIT ?
-        `;
-        params = [projectId, limit];
+      if (userId) {
+        // Multi-tenant: solo análisis del usuario
+        if (projectId) {
+          query = `
+            SELECT * FROM analysis
+            WHERE user_id = ? AND project_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+          `;
+          params = [userId, projectId, limit];
+        } else {
+          query = `
+            SELECT * FROM analysis
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+          `;
+          params = [userId, limit];
+        }
       } else {
-        query = `
-          SELECT * FROM analysis
-          ORDER BY created_at DESC
-          LIMIT ?
-        `;
-        params = [limit];
+        // Sin usuario: análisis globales
+        if (projectId) {
+          query = `
+            SELECT * FROM analysis
+            WHERE user_id IS NULL AND project_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+          `;
+          params = [projectId, limit];
+        } else {
+          query = `
+            SELECT * FROM analysis
+            WHERE user_id IS NULL
+            ORDER BY created_at DESC
+            LIMIT ?
+          `;
+          params = [limit];
+        }
       }
 
       this.db.all(query, params, (err, rows: any[]) => {
@@ -395,6 +529,7 @@ class DatabaseService {
           try {
             const analyses: SavedAnalysis[] = rows.map(row => ({
               id: row.id,
+              userId: row.user_id || undefined,
               projectId: row.project_id || undefined,
               timestamp: row.timestamp,
               configuration: JSON.parse(row.configuration),
@@ -411,16 +546,27 @@ class DatabaseService {
     });
   }
 
-  async updateAnalysisProject(analysisId: string, projectId: string | null): Promise<void> {
+  async updateAnalysisProject(analysisId: string, projectId: string | null, userId?: string): Promise<void> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = 'UPDATE analysis SET project_id = ? WHERE id = ?';
+      let query: string;
+      let params: any[];
 
-      this.db.run(query, [projectId, analysisId], (err) => {
+      if (userId) {
+        query = 'UPDATE analysis SET project_id = ? WHERE id = ? AND user_id = ?';
+        params = [projectId, analysisId, userId];
+      } else {
+        query = 'UPDATE analysis SET project_id = ? WHERE id = ? AND user_id IS NULL';
+        params = [projectId, analysisId];
+      }
+
+      this.db.run(query, params, (err) => {
         if (err) {
           console.error('Error al actualizar proyecto del análisis:', err);
           reject(err);
@@ -432,16 +578,27 @@ class DatabaseService {
     });
   }
 
-  async deleteAnalysis(id: string): Promise<void> {
+  async deleteAnalysis(id: string, userId?: string): Promise<void> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = 'DELETE FROM analysis WHERE id = ?';
-      
-      this.db.run(query, [id], function(err) {
+      let query: string;
+      let params: any[];
+
+      if (userId) {
+        query = 'DELETE FROM analysis WHERE id = ? AND user_id = ?';
+        params = [id, userId];
+      } else {
+        query = 'DELETE FROM analysis WHERE id = ? AND user_id IS NULL';
+        params = [id];
+      }
+
+      this.db.run(query, params, function(err) {
         if (err) {
           console.error('Error al eliminar análisis:', err);
           reject(err);
@@ -453,7 +610,9 @@ class DatabaseService {
     });
   }
 
-  async updateAnalysisConfiguration(id: string, configUpdates: any): Promise<void> {
+  async updateAnalysisConfiguration(id: string, configUpdates: any, userId?: string): Promise<void> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
@@ -461,9 +620,18 @@ class DatabaseService {
       }
 
       // Primero obtenemos la configuración actual
-      const selectQuery = 'SELECT configuration FROM analysis WHERE id = ?';
+      let selectQuery: string;
+      let selectParams: any[];
 
-      this.db.get(selectQuery, [id], (err, row: any) => {
+      if (userId) {
+        selectQuery = 'SELECT configuration FROM analysis WHERE id = ? AND user_id = ?';
+        selectParams = [id, userId];
+      } else {
+        selectQuery = 'SELECT configuration FROM analysis WHERE id = ? AND user_id IS NULL';
+        selectParams = [id];
+      }
+
+      this.db.get(selectQuery, selectParams, (err, row: any) => {
         if (err) {
           console.error('Error al obtener análisis:', err);
           reject(err);
@@ -480,9 +648,18 @@ class DatabaseService {
         const updatedConfig = { ...currentConfig, ...configUpdates };
 
         // Actualizamos en la base de datos
-        const updateQuery = 'UPDATE analysis SET configuration = ? WHERE id = ?';
+        let updateQuery: string;
+        let updateParams: any[];
 
-        this.db.run(updateQuery, [JSON.stringify(updatedConfig), id], function(updateErr) {
+        if (userId) {
+          updateQuery = 'UPDATE analysis SET configuration = ? WHERE id = ? AND user_id = ?';
+          updateParams = [JSON.stringify(updatedConfig), id, userId];
+        } else {
+          updateQuery = 'UPDATE analysis SET configuration = ? WHERE id = ? AND user_id IS NULL';
+          updateParams = [JSON.stringify(updatedConfig), id];
+        }
+
+        this.db!.run(updateQuery, updateParams, function(updateErr) {
           if (updateErr) {
             console.error('Error al actualizar configuración:', updateErr);
             reject(updateErr);
@@ -495,20 +672,35 @@ class DatabaseService {
     });
   }
 
-  async getAnalysesByBrand(brand: string): Promise<SavedAnalysis[]> {
+  async getAnalysesByBrand(brand: string, userId?: string): Promise<SavedAnalysis[]> {
+    await this.ensureInitialized();
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
         return;
       }
 
-      const query = `
-        SELECT * FROM analysis 
-        WHERE brand = ? 
-        ORDER BY created_at DESC
-      `;
+      let query: string;
+      let params: any[];
 
-      this.db.all(query, [brand], (err, rows: any[]) => {
+      if (userId) {
+        query = `
+          SELECT * FROM analysis
+          WHERE brand = ? AND user_id = ?
+          ORDER BY created_at DESC
+        `;
+        params = [brand, userId];
+      } else {
+        query = `
+          SELECT * FROM analysis
+          WHERE brand = ? AND user_id IS NULL
+          ORDER BY created_at DESC
+        `;
+        params = [brand];
+      }
+
+      this.db.all(query, params, (err, rows: any[]) => {
         if (err) {
           console.error('Error al recuperar análisis por marca:', err);
           reject(err);
@@ -516,6 +708,8 @@ class DatabaseService {
           try {
             const analyses: SavedAnalysis[] = rows.map(row => ({
               id: row.id,
+              userId: row.user_id || undefined,
+              projectId: row.project_id || undefined,
               timestamp: row.timestamp,
               configuration: JSON.parse(row.configuration),
               results: JSON.parse(row.results),
@@ -528,6 +722,88 @@ class DatabaseService {
           }
         }
       });
+    });
+  }
+
+  // ==================== MÉTODOS DE MIGRACIÓN ====================
+
+  /**
+   * Migrar datos existentes a un usuario específico (útil para migración inicial)
+   */
+  async migrateDataToUser(userId: string): Promise<{ projects: number; analyses: number }> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Base de datos no inicializada'));
+        return;
+      }
+
+      let projectsUpdated = 0;
+      let analysesUpdated = 0;
+
+      this.db.serialize(() => {
+        // Migrar proyectos sin usuario asignado
+        this.db!.run(
+          'UPDATE projects SET user_id = ? WHERE user_id IS NULL',
+          [userId],
+          function(err) {
+            if (err) {
+              console.error('Error migrando proyectos:', err);
+            } else {
+              projectsUpdated = this.changes;
+            }
+          }
+        );
+
+        // Migrar análisis sin usuario asignado
+        this.db!.run(
+          'UPDATE analysis SET user_id = ? WHERE user_id IS NULL',
+          [userId],
+          function(err) {
+            if (err) {
+              console.error('Error migrando análisis:', err);
+              reject(err);
+            } else {
+              analysesUpdated = this.changes;
+              console.log(`Migración completada: ${projectsUpdated} proyectos, ${analysesUpdated} análisis`);
+              resolve({ projects: projectsUpdated, analyses: analysesUpdated });
+            }
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * Obtener estadísticas para un usuario
+   */
+  async getUserStats(userId: string): Promise<{ projectCount: number; analysisCount: number }> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Base de datos no inicializada'));
+        return;
+      }
+
+      this.db.get(
+        `SELECT
+          (SELECT COUNT(*) FROM projects WHERE user_id = ?) as projectCount,
+          (SELECT COUNT(*) FROM analysis WHERE user_id = ?) as analysisCount
+        `,
+        [userId, userId],
+        (err, row: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({
+              projectCount: row?.projectCount || 0,
+              analysisCount: row?.analysisCount || 0
+            });
+          }
+        }
+      );
     });
   }
 
