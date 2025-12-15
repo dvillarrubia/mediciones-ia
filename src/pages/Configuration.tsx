@@ -196,6 +196,7 @@ const Configuration: React.FC = () => {
       competitors: [],
       newCompetitor: '',
       questions,
+      selectedModel: '',
       aiModels: ['chatgpt']
     });
     setIsCreating(true);
@@ -216,6 +217,7 @@ const Configuration: React.FC = () => {
         category: q.category,
         enabled: true
       })),
+      selectedModel: '',
       aiModels: config.aiModels || ['chatgpt']
     });
     setIsCreating(true);
@@ -232,6 +234,7 @@ const Configuration: React.FC = () => {
       competitors: [],
       newCompetitor: '',
       questions: [],
+      selectedModel: '',
       aiModels: ['chatgpt']
     });
   };
