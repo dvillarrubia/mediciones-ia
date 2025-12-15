@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ocultar badge de Trae (plugin externo) */
+#trae-badge-plugin,
+.trae-badge {
+  display: none !important;
+}
+
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   line-height: 1.5;

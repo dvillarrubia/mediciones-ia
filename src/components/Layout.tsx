@@ -1,6 +1,6 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut, LogIn } from 'lucide-react';
+import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
 import { useAuthStore } from '../store/authStore';
 
@@ -14,10 +14,22 @@ const Layout = ({ children }: LayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuthStore();
 
+  // Redirigir a login si no está autenticado
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
+
+  // Si no está autenticado, no mostrar nada (se redirige)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -71,7 +83,7 @@ const Layout = ({ children }: LayoutProps) => {
           </nav>
           {/* Sección de usuario móvil */}
           <div className="border-t border-gray-200 p-4">
-            {isAuthenticated && user ? (
+            {user && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
@@ -90,15 +102,6 @@ const Layout = ({ children }: LayoutProps) => {
                   Cerrar sesión
                 </button>
               </div>
-            ) : (
-              <Link
-                to="/login"
-                onClick={() => setSidebarOpen(false)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-              >
-                <LogIn className="h-4 w-4" />
-                Iniciar sesión
-              </Link>
             )}
           </div>
         </div>
@@ -135,7 +138,7 @@ const Layout = ({ children }: LayoutProps) => {
           </nav>
           {/* Sección de usuario desktop */}
           <div className="border-t border-gray-200 p-4">
-            {isAuthenticated && user ? (
+            {isAuthenticated && user && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
@@ -153,19 +156,6 @@ const Layout = ({ children }: LayoutProps) => {
                   <LogOut className="h-4 w-4" />
                   Cerrar sesión
                 </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Link
-                  to="/login"
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Iniciar sesión
-                </Link>
-                <p className="text-xs text-center text-gray-400">
-                  Modo demo activo
-                </p>
               </div>
             )}
           </div>

@@ -150,15 +150,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Acceso sin cuenta */}
-        <div className="text-center">
-          <Link
-            to="/"
-            className="text-sm text-slate-500 hover:text-slate-400"
-          >
-            Continuar sin cuenta (modo demo)
-          </Link>
-        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import Comparator from './pages/Comparator';
 import IntelligenceHub from './pages/IntelligenceHub';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Admin from './pages/Admin';
 import { useAuthStore } from './store/authStore';
 
 // Componente para verificar autenticación al cargar
@@ -34,6 +35,7 @@ export default function App() {
           {/* Rutas públicas de autenticación */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/admin" element={<Admin />} />
 
           {/* Rutas principales con Layout */}
           <Route path="/*" element={

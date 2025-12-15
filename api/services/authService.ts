@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { adminService } from './adminService.js';
 
 export interface User {
   id: string;
@@ -156,28 +157,31 @@ class AuthService {
   async register(input: CreateUserInput): Promise<AuthResponse> {
     await this.ensureInitialized();
 
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(input.email)) {
+      throw new Error('Email inválido');
+    }
+
+    // Validar whitelist de dominios/emails usando adminService
+    const registrationCheck = await adminService.canRegister(input.email);
+    if (!registrationCheck.allowed) {
+      throw new Error(registrationCheck.reason || 'El registro no está permitido.');
+    }
+
+    // Validar password (mínimo 6 caracteres)
+    if (input.password.length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    // Validar nombre
+    if (!input.name || input.name.trim().length < 2) {
+      throw new Error('El nombre debe tener al menos 2 caracteres');
+    }
+
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Base de datos no inicializada'));
-        return;
-      }
-
-      // Validar email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(input.email)) {
-        reject(new Error('Email inválido'));
-        return;
-      }
-
-      // Validar password (mínimo 6 caracteres)
-      if (input.password.length < 6) {
-        reject(new Error('La contraseña debe tener al menos 6 caracteres'));
-        return;
-      }
-
-      // Validar nombre
-      if (!input.name || input.name.trim().length < 2) {
-        reject(new Error('El nombre debe tener al menos 2 caracteres'));
         return;
       }
 

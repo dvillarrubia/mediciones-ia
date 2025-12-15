@@ -459,3 +459,36 @@ export type CompetitorBrand = typeof COMPETITOR_BRANDS[number];
 export type PrioritySource = typeof PRIORITY_SOURCES[number];
 export type SentimentType = typeof SENTIMENT_TYPES[number];
 export type QuestionCategory = keyof typeof ANALYSIS_QUESTIONS;
+
+// ==========================================
+// CONFIGURACIÓN DE AUTENTICACIÓN
+// ==========================================
+
+/**
+ * Whitelist de dominios permitidos para registro (valores iniciales)
+ * Se gestionan desde el panel de admin, estos son solo defaults
+ */
+export const ALLOWED_EMAIL_DOMAINS: string[] = [];
+
+/**
+ * Whitelist de emails específicos permitidos (valores iniciales)
+ * Se gestionan desde el panel de admin, estos son solo defaults
+ */
+export const ALLOWED_EMAILS: string[] = [
+  'david@seobide.com', // Admin inicial
+];
+
+/**
+ * Si es true, solo los emails/dominios en whitelist pueden registrarse
+ * Si es false, cualquier email puede registrarse
+ */
+export const RESTRICT_REGISTRATION = true;
+
+/**
+ * Credenciales del panel de administración
+ * URL: /admin
+ */
+export const ADMIN_CREDENTIALS = {
+  email: 'david@seobide.com',
+  password: 'Gonz2293*'
+};
