@@ -85,7 +85,8 @@ const Configuration: React.FC = () => {
     competitors: [] as string[],
     newCompetitor: '',
     questions: [] as AnalysisQuestion[],
-    selectedModel: '' as string
+    selectedModel: '' as string,
+    aiModels: ['chatgpt'] as string[]
   });
 
   // API Keys state
