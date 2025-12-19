@@ -3,6 +3,14 @@
  */
 import ExcelJS from 'exceljs';
 
+interface SourceCited {
+  name: string;
+  type: string;
+  url: string | null;
+  context: string;
+  credibility: string;
+}
+
 interface AnalysisResult {
   analysisId: string;
   timestamp: string;
@@ -27,6 +35,7 @@ interface AnalysisResult {
       sentiment?: string;
       context?: string;
     }>;
+    sourcesCited?: SourceCited[];
   }>;
 }
 
@@ -55,6 +64,7 @@ class ExcelService {
     await this.createSummarySheet(workbook, analysis, configuration);
     await this.createBrandDetailsSheet(workbook, analysis, configuration);
     await this.createQuestionDetailsSheet(workbook, analysis);
+    await this.createSourcesCitedSheet(workbook, analysis);
     await this.createRawDataSheet(workbook, analysis);
 
     // Generar buffer
@@ -285,7 +295,76 @@ class ExcelService {
   }
 
   /**
-   * Hoja 4: Datos en Bruto (JSON)
+   * Hoja 4: Fuentes Citadas por el LLM
+   */
+  private async createSourcesCitedSheet(
+    workbook: ExcelJS.Workbook,
+    analysis: AnalysisResult
+  ) {
+    const sheet = workbook.addWorksheet('Fuentes Citadas', {
+      views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
+    });
+
+    // Headers
+    sheet.getRow(1).values = [
+      'Pregunta',
+      'Fuente',
+      'Tipo',
+      'URL',
+      'Credibilidad',
+      'Contexto'
+    ];
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1F4788' }
+    };
+
+    // Datos
+    let row = 2;
+    analysis.questions.forEach(question => {
+      if (question.sourcesCited && question.sourcesCited.length > 0) {
+        question.sourcesCited.forEach(source => {
+          sheet.getRow(row).values = [
+            question.question.substring(0, 100) + (question.question.length > 100 ? '...' : ''),
+            source.name,
+            source.type,
+            source.url || 'N/A',
+            source.credibility,
+            source.context || ''
+          ];
+
+          // Color de credibilidad
+          const credCell = sheet.getCell(`E${row}`);
+          if (source.credibility === 'high') {
+            credCell.font = { color: { argb: 'FF008000' } };
+          } else if (source.credibility === 'low') {
+            credCell.font = { color: { argb: 'FFFF0000' } };
+          }
+
+          row++;
+        });
+      }
+    });
+
+    // Si no hay fuentes citadas
+    if (row === 2) {
+      sheet.getRow(2).values = ['No se encontraron fuentes citadas en las respuestas del LLM', '', '', '', '', ''];
+      sheet.mergeCells('A2:F2');
+    }
+
+    // Ajustar anchos
+    sheet.getColumn(1).width = 50;
+    sheet.getColumn(2).width = 30;
+    sheet.getColumn(3).width = 15;
+    sheet.getColumn(4).width = 40;
+    sheet.getColumn(5).width = 15;
+    sheet.getColumn(6).width = 50;
+  }
+
+  /**
+   * Hoja 5: Datos en Bruto (JSON)
    */
   private async createRawDataSheet(
     workbook: ExcelJS.Workbook,

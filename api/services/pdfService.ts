@@ -14,6 +14,14 @@ interface BrandMention {
   evidence?: string[];
 }
 
+interface SourceCited {
+  name: string;
+  type: string;
+  url: string | null;
+  context: string;
+  credibility: string;
+}
+
 interface QuestionAnalysis {
   questionId: string;
   question: string;
@@ -22,6 +30,7 @@ interface QuestionAnalysis {
   sentiment: string;
   confidenceScore: number;
   brandMentions: BrandMention[];
+  sourcesCited?: SourceCited[];
   sources?: any[];
   multiModelAnalysis?: any[];
 }
@@ -851,6 +860,16 @@ class PDFService {
                   <strong>Marcas mencionadas:</strong>
                   ${q.brandMentions.filter(b => b?.mentioned).map(b => `
                     <span class="brand-chip">${b?.brand || 'N/A'} (${b?.frequency || 0})</span>
+                  `).join('')}
+                </div>
+              ` : ''}
+              ${q?.sourcesCited && q.sourcesCited.length > 0 ? `
+                <div class="question-brands" style="margin-top: 8px;">
+                  <strong>Fuentes citadas por el LLM:</strong>
+                  ${q.sourcesCited.map(s => `
+                    <span class="brand-chip" style="background: ${s?.credibility === 'high' ? '#dcfce7' : s?.credibility === 'low' ? '#fee2e2' : '#f3f4f6'}; color: ${s?.credibility === 'high' ? '#166534' : s?.credibility === 'low' ? '#991b1b' : '#4b5563'};">
+                      ${s?.name || 'N/A'} (${s?.type || 'other'})
+                    </span>
                   `).join('')}
                 </div>
               ` : ''}

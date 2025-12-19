@@ -1,8 +1,10 @@
 /**
- * Servicio para integración con OpenAI API
+ * Servicio para integración con múltiples proveedores de IA (OpenAI, Anthropic, Google)
  */
 import OpenAI from 'openai';
-import { TARGET_BRANDS, COMPETITOR_BRANDS, PRIORITY_SOURCES, ANALYSIS_QUESTIONS, type QuestionCategory, type SentimentType } from '../config/constants.js';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { TARGET_BRANDS, COMPETITOR_BRANDS, PRIORITY_SOURCES, ANALYSIS_QUESTIONS, getModelById, type QuestionCategory, type SentimentType } from '../config/constants.js';
 import { cacheService } from './cacheService.js';
 
 // Nuevos tipos para análisis más sofisticado
@@ -22,6 +24,7 @@ export interface MultiModelAnalysis {
   modelPersona: AIModelPersona;
   response: string;
   brandMentions: BrandMention[];
+  sourcesCited?: SourceCited[];
   overallSentiment: DetailedSentiment;
   contextualAnalysis: ContextualAnalysis[];
   confidenceScore: number;
@@ -52,6 +55,14 @@ export interface BrandMention {
   };
 }
 
+export interface SourceCited {
+  name: string;
+  type: 'website' | 'study' | 'organization' | 'media' | 'government' | 'other';
+  url: string | null;
+  context: string;
+  credibility: 'high' | 'medium' | 'low';
+}
+
 export interface QuestionAnalysis {
   questionId: string;
   question: string;
@@ -59,6 +70,7 @@ export interface QuestionAnalysis {
   summary: string;
   sources: AnalysisSource[];
   brandMentions: BrandMention[];
+  sourcesCited?: SourceCited[];  // Fuentes citadas por el LLM en su respuesta
   sentiment: SentimentType;
   confidenceScore: number;
   // Nuevos campos para análisis multi-modelo
@@ -120,35 +132,48 @@ class OpenAIService {
 
   // Configuración de modelos (OPTIMIZADO PARA CALIDAD Y COSTO)
   private readonly GENERATION_MODEL = "gpt-4o"; // Modelo principal para GENERAR respuestas de IA (calidad)
-  private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Modelo económico para ANALIZAR menciones (costo)
+  private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Modelo económico para ANALIZAR menciones (costo) - SIEMPRE OpenAI
   private readonly DEFAULT_MODEL = "gpt-4o"; // Fallback por compatibilidad
+
+  // Clientes para múltiples proveedores
+  private anthropicClient: Anthropic | null = null;
+  private googleClient: GoogleGenerativeAI | null = null;
 
   constructor(userApiKeys?: { openai?: string; anthropic?: string; google?: string }) {
     this.userApiKeys = userApiKeys;
 
-    // Usar API key del usuario o del sistema
-    const apiKey = userApiKeys?.openai || process.env.OPENAI_API_KEY;
+    console.log('🔧 AIService constructor - Inicializando proveedores:');
 
-    // Debug: Log API key status
-    console.log('🔧 OpenAIService constructor:')
-    console.log('- Using user API key:', !!userApiKeys?.openai)
-    console.log('- API key exists:', !!apiKey)
-    console.log('- API key length:', apiKey?.length || 0)
-    console.log('- API key starts with sk-:', apiKey?.startsWith('sk-') || false)
-
-    if (!apiKey) {
-      throw new Error('No API key available. Please provide a user API key or set OPENAI_API_KEY environment variable')
+    // Inicializar cliente OpenAI (requerido para fase 2 de análisis)
+    const openaiKey = userApiKeys?.openai || process.env.OPENAI_API_KEY;
+    if (openaiKey) {
+      this.client = new OpenAI({ apiKey: openaiKey });
+      console.log('✅ OpenAI client initialized');
+    } else {
+      console.warn('⚠️ No OpenAI API key - análisis de menciones no funcionará');
+      this.client = null as any; // Se validará antes de usar
     }
 
-    this.client = new OpenAI({
-      apiKey: apiKey,
-    });
+    // Inicializar cliente Anthropic (opcional)
+    const anthropicKey = userApiKeys?.anthropic || process.env.ANTHROPIC_API_KEY;
+    if (anthropicKey) {
+      this.anthropicClient = new Anthropic({ apiKey: anthropicKey });
+      console.log('✅ Anthropic client initialized');
+    } else {
+      console.log('ℹ️ No Anthropic API key configured');
+    }
 
-    console.log('✅ OpenAI client initialized successfully')
-    console.log(`⚙️ Configuración: Concurrencia=${this.CONCURRENT_REQUESTS}, Cache=${this.ENABLE_CACHE}`)
-    console.log(`🤖 Modelos configurados:`)
-    console.log(`   - Generación de respuestas: ${this.GENERATION_MODEL} (calidad)`)
-    console.log(`   - Análisis de menciones: ${this.ANALYSIS_MODEL} (económico)`)
+    // Inicializar cliente Google (opcional)
+    const googleKey = userApiKeys?.google || process.env.GOOGLE_AI_API_KEY;
+    if (googleKey) {
+      this.googleClient = new GoogleGenerativeAI(googleKey);
+      console.log('✅ Google AI client initialized');
+    } else {
+      console.log('ℹ️ No Google AI API key configured');
+    }
+
+    console.log(`⚙️ Configuración: Concurrencia=${this.CONCURRENT_REQUESTS}, Cache=${this.ENABLE_CACHE}`);
+    console.log(`🤖 Modelo de análisis (fase 2): ${this.ANALYSIS_MODEL} (siempre OpenAI)`);
   }
 
   /**
@@ -416,6 +441,112 @@ class OpenAIService {
   }
 
   /**
+   * Genera contenido usando el proveedor correcto según el modelo seleccionado
+   * FASE 1: Usa el modelo que el usuario eligió (sin fallback)
+   */
+  private async generateContentWithProvider(question: string, modelId: string): Promise<string> {
+    const modelInfo = getModelById(modelId);
+
+    if (!modelInfo) {
+      throw new Error(`Modelo no encontrado: ${modelId}. Verifica que el modelo esté configurado correctamente.`);
+    }
+
+    const provider = modelInfo.provider;
+    console.log(`🎯 Generando contenido con ${modelInfo.name} (${provider})`);
+
+    switch (provider) {
+      case 'openai':
+        return await this.generateWithOpenAI(question, modelId);
+
+      case 'anthropic':
+        return await this.generateWithAnthropic(question, modelId);
+
+      case 'google':
+        return await this.generateWithGoogle(question, modelId);
+
+      default:
+        throw new Error(`Proveedor no soportado: ${provider}`);
+    }
+  }
+
+  /**
+   * Genera contenido con OpenAI
+   */
+  private async generateWithOpenAI(question: string, modelId: string): Promise<string> {
+    if (!this.client) {
+      throw new Error('No hay API key de OpenAI configurada. Por favor, añade tu API key de OpenAI para usar este modelo.');
+    }
+
+    const response = await Promise.race([
+      this.client.chat.completions.create({
+        model: modelId,
+        messages: [{ role: 'user', content: question }],
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 60 segundos')), 60000)
+      )
+    ]) as any;
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('OpenAI devolvió una respuesta vacía');
+    }
+    return content;
+  }
+
+  /**
+   * Genera contenido con Anthropic (Claude)
+   */
+  private async generateWithAnthropic(question: string, modelId: string): Promise<string> {
+    if (!this.anthropicClient) {
+      throw new Error('No hay API key de Anthropic configurada. Por favor, añade tu API key de Anthropic para usar modelos Claude.');
+    }
+
+    const response = await Promise.race([
+      this.anthropicClient.messages.create({
+        model: modelId,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: question }],
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: Anthropic tardó más de 60 segundos')), 60000)
+      )
+    ]) as any;
+
+    const content = response.content[0]?.text;
+    if (!content) {
+      throw new Error('Anthropic devolvió una respuesta vacía');
+    }
+    return content;
+  }
+
+  /**
+   * Genera contenido con Google (Gemini)
+   */
+  private async generateWithGoogle(question: string, modelId: string): Promise<string> {
+    if (!this.googleClient) {
+      throw new Error('No hay API key de Google AI configurada. Por favor, añade tu API key de Google para usar modelos Gemini.');
+    }
+
+    const model = this.googleClient.getGenerativeModel({ model: modelId });
+
+    const response = await Promise.race([
+      model.generateContent(question),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: Google AI tardó más de 60 segundos')), 60000)
+      )
+    ]) as any;
+
+    const content = response.response?.text();
+    if (!content) {
+      throw new Error('Google AI devolvió una respuesta vacía');
+    }
+    return content;
+  }
+
+  /**
    * Construye el mensaje del sistema con contexto de país
    */
   private buildSystemMessage(configuration: any): string {
@@ -478,35 +609,12 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
           }
         }
 
-        // Si no está en caché, llamar a OpenAI
+        // Si no está en caché, llamar al proveedor correspondiente
         if (!generatedContent) {
-          // Construir mensaje del sistema con contexto de país
-          const systemMessage = this.buildSystemMessage(configuration);
-
-          const generativeResponse = await Promise.race([
-            this.client.chat.completions.create({
-              model: generationModel, // Usar modelo SELECCIONADO por el usuario
-              messages: [
-                {
-                  role: 'system',
-                  content: systemMessage
-                },
-                {
-                  role: 'user',
-                  content: questionData.question
-                }
-              ],
-              temperature: 0.7,
-              max_tokens: 2000,
-            }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Timeout: OpenAI request took longer than 60 seconds')), 60000)
-            )
-          ]) as any;
+          // Usar el proveedor correcto según el modelo seleccionado (OpenAI, Anthropic, o Google)
+          generatedContent = await this.generateContentWithProvider(questionData.question, generationModel);
 
           const responseTime = Date.now() - startTime;
-          generatedContent = generativeResponse.choices[0]?.message?.content || '';
-
           console.log(`📨 [${questionId}] Respuesta generativa recibida en ${responseTime}ms (${generatedContent.length} caracteres)`);
 
           // Guardar en caché con clave que incluye país y modelo
@@ -661,25 +769,32 @@ INSTRUCCIONES:
 4. Determina la frecuencia y relevancia de cada mención
 5. Proporciona evidencia textual específica de las menciones
 6. Ten en cuenta el contexto geográfico (${countryContext}) al evaluar la relevancia
+7. IMPORTANTE: Extrae TODAS las fuentes, referencias, estudios, sitios web, organizaciones o entidades que el LLM menciona o en las que parece basar su respuesta (ej: "según OCU", "de acuerdo con Rastreator", URLs mencionadas, estudios citados, etc.)
 
 FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
 {
   "summary": "Resumen del análisis de menciones en la respuesta generativa (50-100 palabras)",
-  "generatedContent": "${generatedContent.substring(0, 2000)}...",
   "brandMentions": [
     {
       "brand": "Nombre de la marca",
-      "mentioned": true/false,
-      "frequency": número_de_menciones,
-      "context": "positive/negative/neutral",
-      "evidence": ["cita textual exacta 1", "cita textual exacta 2"],
-      "relevance": "high/medium/low"
+      "mentioned": true,
+      "frequency": 1,
+      "context": "positive",
+      "evidence": ["cita textual exacta"],
+      "relevance": "high"
     }
   ],
-  "sentiment": "positive/negative/neutral",
-  "confidenceScore": 0.0-1.0,
-  "analysisType": "generative_response",
-  "marketContext": "${countryContext}"
+  "sourcesCited": [
+    {
+      "name": "Nombre de la fuente",
+      "type": "website",
+      "url": null,
+      "context": "Cita de cómo se referencia",
+      "credibility": "medium"
+    }
+  ],
+  "sentiment": "positive",
+  "confidenceScore": 0.85
 }`;
   }
 
@@ -733,6 +848,15 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         evidence: Array.isArray(mention.evidence) ? mention.evidence : []
       }));
 
+      // Procesar fuentes citadas por el LLM
+      const sourcesCited: SourceCited[] = (parsedData.sourcesCited || []).map((source: any) => ({
+        name: source.name || 'Fuente desconocida',
+        type: source.type || 'other',
+        url: source.url || null,
+        context: source.context || '',
+        credibility: source.credibility || 'medium'
+      }));
+
       const result: QuestionAnalysis = {
         questionId: questionId,
         question: questionData.question,
@@ -740,11 +864,12 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         summary: parsedData.summary || 'Análisis de respuesta generativa completado',
         sources: [syntheticSource], // Una sola "fuente" que representa el contenido generativo
         brandMentions: brandMentions,
+        sourcesCited: sourcesCited, // Fuentes citadas por el LLM
         sentiment: parsedData.sentiment || 'neutral',
         confidenceScore: parsedData.confidenceScore || 0.5
       };
 
-      console.log(`✅ [${questionId}] Análisis generativo parseado: ${brandMentions.length} menciones de marca encontradas`);
+      console.log(`✅ [${questionId}] Análisis generativo parseado: ${brandMentions.length} menciones de marca, ${sourcesCited.length} fuentes citadas`);
       return result;
 
     } catch (error) {
@@ -889,6 +1014,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
           return processedSource;
         }),
         brandMentions: parsed.brandMentions || [],
+        sourcesCited: parsed.sourcesCited || [],
         sentiment: parsed.sentiment || 'neutral',
         confidenceScore: Math.min(Math.max(parsed.confidenceScore || 0.75, 0.7), 0.95) // Mejorar confianza mínima
       };
@@ -960,6 +1086,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
           fullContent: source.fullContent || response || '' // Guardar contenido completo
         })),
         brandMentions: parsed.brandMentions || [],
+        sourcesCited: parsed.sourcesCited || [],
         sentiment: parsed.sentiment || 'neutral',
         confidenceScore: Math.min(Math.max(parsed.confidenceScore || 0.75, 0.7), 0.95) // Mejorar confianza mínima
       };
@@ -996,7 +1123,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
    */
   private createErrorAnalysis(questionData: any): QuestionAnalysis {
     console.log(`🔧 [${questionData.id}] Creando análisis de error para pregunta: "${questionData.question}"`);
-    
+
     return {
       questionId: questionData.id,
       question: questionData.question,
@@ -1004,6 +1131,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
       summary: 'Error al procesar el análisis. El sistema no pudo generar una respuesta válida para esta pregunta. Por favor, inténtalo de nuevo más tarde o contacta con soporte técnico.',
       sources: [],
       brandMentions: [],
+      sourcesCited: [],
       sentiment: 'neutral' as SentimentType,
       confidenceScore: 0.0
     };
@@ -1525,6 +1653,24 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
         }
       }
 
+      // Fuentes citadas por el LLM
+      if (q.sourcesCited && q.sourcesCited.length > 0) {
+        markdown += `#### 📖 Fuentes Citadas por el LLM\n\n`;
+        q.sourcesCited.forEach(source => {
+          const credIcon = source.credibility === 'high' ? '🟢' : source.credibility === 'medium' ? '🟡' : '🔴';
+          const typeIcon = source.type === 'website' ? '🌐' : source.type === 'study' ? '📊' : source.type === 'organization' ? '🏛️' : source.type === 'media' ? '📰' : source.type === 'government' ? '🏛️' : '📄';
+          markdown += `- ${typeIcon} **${source.name}** ${credIcon}\n`;
+          markdown += `  - Tipo: ${source.type}\n`;
+          if (source.url) {
+            markdown += `  - URL: ${source.url}\n`;
+          }
+          if (source.context) {
+            markdown += `  - Contexto: "${source.context}"\n`;
+          }
+        });
+        markdown += `\n`;
+      }
+
       // Fuentes consultadas
       if (q.sources.length > 0) {
         markdown += `#### 📚 Fuentes Consultadas\n\n`;
@@ -1599,7 +1745,8 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
           isPriority: source.isPriority,
           trustScore: source.isPriority ? 0.9 : 0.6
         })),
-        brandMentions: q.brandMentions
+        brandMentions: q.brandMentions,
+        sourcesCited: q.sourcesCited || [] // Fuentes citadas por el LLM en su respuesta
       }))
     };
 
@@ -2062,6 +2209,18 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
       `=== ${r.modelPersona.toUpperCase()} ===\n\n${r.response}\n\n`
     ).join('\n');
 
+    // Consolidar fuentes citadas de todos los modelos
+    const allSourcesCited: SourceCited[] = [];
+    multiModelResults.forEach(r => {
+      if (r.sourcesCited && Array.isArray(r.sourcesCited)) {
+        allSourcesCited.push(...r.sourcesCited);
+      }
+    });
+    // Eliminar duplicados por nombre
+    const uniqueSourcesCited = allSourcesCited.filter((source, index, self) =>
+      index === self.findIndex(s => s.name.toLowerCase() === source.name.toLowerCase())
+    );
+
     return {
       questionId: questionData.id,
       question: questionData.question,
@@ -2076,6 +2235,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
         fullContent: allResponses // Guardar todas las respuestas completas
       }],
       brandMentions: Array.from(brandMap.values()),
+      sourcesCited: uniqueSourcesCited,
       sentiment: this.calculateOverallSentiment(overallSentiments),
       confidenceScore: avgConfidence,
       multiModelAnalysis: multiModelResults,

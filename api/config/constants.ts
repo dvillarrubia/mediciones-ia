@@ -21,17 +21,6 @@ export interface AIModelInfo {
 export const AI_MODELS: AIModelInfo[] = [
   // OpenAI Models
   {
-    id: 'gpt-5.1',
-    name: 'GPT-5.1',
-    provider: 'openai',
-    description: 'Modelo más reciente de OpenAI. Máxima calidad y precisión en análisis.',
-    strengths: ['Última generación', 'Máxima precisión', 'Mejor razonamiento', 'Análisis avanzado'],
-    contextWindow: '128K tokens',
-    pricing: 'Premium',
-    recommended: true,
-    requiresApiKey: 'OPENAI_API_KEY'
-  },
-  {
     id: 'gpt-4o',
     name: 'GPT-4o',
     provider: 'openai',
@@ -330,7 +319,7 @@ export const getCountryByCode = (code: string): CountryInfo | undefined => {
 };
 
 // Modelos por defecto
-export const DEFAULT_MODEL = 'gpt-5.1';
+export const DEFAULT_MODEL = 'gpt-4o';
 export const DEFAULT_COUNTRY = 'ES';
 
 // ==========================================
