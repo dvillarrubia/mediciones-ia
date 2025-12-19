@@ -11,18 +11,26 @@ interface SourceCited {
   credibility: string;
 }
 
+interface BrandInfo {
+  brand: string;
+  mentioned: boolean;
+  frequency: number;
+  averageConfidence?: number;
+  confidence?: number;
+  sentiment?: string;
+  context?: string;
+  contexts?: string[];
+  evidence?: string[];
+}
+
 interface AnalysisResult {
   analysisId: string;
   timestamp: string;
   overallConfidence: number;
-  brandSummary: Array<{
-    brand: string;
-    mentioned: boolean;
-    frequency: number;
-    averageConfidence: number;
-    sentiment?: string;
-    contexts: string[];
-  }>;
+  brandSummary: {
+    targetBrands?: BrandInfo[];
+    competitors?: BrandInfo[];
+  } | BrandInfo[]; // Soporta ambos formatos
   questions: Array<{
     questionId: string;
     question: string;
@@ -46,6 +54,24 @@ interface ExcelConfiguration {
 }
 
 class ExcelService {
+  /**
+   * Normaliza brandSummary a un array plano de marcas
+   */
+  private normalizeBrandSummary(brandSummary: AnalysisResult['brandSummary']): BrandInfo[] {
+    if (Array.isArray(brandSummary)) {
+      return brandSummary;
+    }
+    // Es un objeto con targetBrands y competitors
+    const allBrands: BrandInfo[] = [];
+    if (brandSummary.targetBrands) {
+      allBrands.push(...brandSummary.targetBrands);
+    }
+    if (brandSummary.competitors) {
+      allBrands.push(...brandSummary.competitors);
+    }
+    return allBrands;
+  }
+
   /**
    * Genera un archivo Excel completo con múltiples hojas
    */
@@ -118,21 +144,23 @@ class ExcelService {
     row++;
 
     // Datos de marcas (top 10)
-    const topBrands = analysis.brandSummary
+    const allBrands = this.normalizeBrandSummary(analysis.brandSummary);
+    const topBrands = allBrands
       .filter(b => b.mentioned)
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, 10);
 
-    const totalMentions = analysis.brandSummary.reduce((sum, b) => sum + b.frequency, 0);
+    const totalMentions = allBrands.reduce((sum, b) => sum + b.frequency, 0);
 
     topBrands.forEach(brand => {
       const percentage = totalMentions > 0 ? (brand.frequency / totalMentions) * 100 : 0;
+      const confidence = brand.averageConfidence ?? brand.confidence ?? 0;
       sheet.getRow(row).values = [
         brand.brand,
         brand.frequency,
         `${percentage.toFixed(1)}%`,
-        `${(brand.averageConfidence * 100).toFixed(1)}%`,
-        brand.sentiment || 'N/A'
+        `${(confidence * 100).toFixed(1)}%`,
+        brand.sentiment || brand.context || 'N/A'
       ];
 
       // Color de sentimiento
@@ -184,16 +212,19 @@ class ExcelService {
 
     // Datos
     let row = 2;
-    const sortedBrands = analysis.brandSummary.sort((a, b) => b.frequency - a.frequency);
+    const allBrands = this.normalizeBrandSummary(analysis.brandSummary);
+    const sortedBrands = [...allBrands].sort((a, b) => b.frequency - a.frequency);
 
     sortedBrands.forEach(brand => {
+      const confidence = brand.averageConfidence ?? brand.confidence ?? 0;
+      const contexts = brand.contexts || brand.evidence || [];
       sheet.getRow(row).values = [
         brand.brand,
         brand.mentioned ? 'Sí' : 'No',
         brand.frequency,
-        `${(brand.averageConfidence * 100).toFixed(1)}%`,
-        brand.sentiment || 'N/A',
-        brand.contexts.join(', ')
+        `${(confidence * 100).toFixed(1)}%`,
+        brand.sentiment || brand.context || 'N/A',
+        Array.isArray(contexts) ? contexts.join(', ') : String(contexts)
       ];
 
       // Color si es marca objetivo
