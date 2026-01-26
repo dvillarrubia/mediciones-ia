@@ -4,39 +4,30 @@
 
 ## Estado del proyecto
 
-### Cambios completados y listos para commit:
+### Cambios completados:
 
-1. **`api/config/constants.ts`** - Modelos de IA corregidos
-   - ELIMINADOS modelos ficticios `gpt-5.1` y `gpt-5.2` (no existen en OpenAI)
-   - DEFAULT_MODEL cambiado a `gpt-4o`
-   - Modelos disponibles: gpt-4o (recomendado), gpt-4o-mini, gpt-4-turbo
-   - Soporte para Claude (Anthropic) y Gemini (Google) - requieren API keys
+1. **Multi-proveedor IA** (commit anterior)
+   - Soporte para OpenAI, Anthropic (Claude), Google (Gemini)
+   - Router `generateContentWithProvider()` selecciona proveedor según modelo
 
-2. **`api/routes/analysis.ts`** - Correcciones en valores por defecto
-   - Fallback de modelo cambiado de `gpt-5.1` a `gpt-4o`
-   - Lista de modelos OpenAI actualizada
+2. **Extracción de sourcesCited** (commit anterior)
+   - Funcionalidad que detecta fuentes que el LLM menciona en sus respuestas
+   - Interfaz `SourceCited` con: name, type, url, context, credibility
 
-3. **`api/services/openaiService.ts`** - Soporte Multi-Proveedor de IA
-   - Soporte para 3 proveedores: OpenAI, Anthropic (Claude), Google (Gemini)
-   - Nuevos clientes: `anthropicClient` y `googleClient`
-   - Métodos: `generateWithOpenAI()`, `generateWithAnthropic()`, `generateWithGoogle()`
-   - Router: `generateContentWithProvider()` elige proveedor según modelo
-   - **Funcionalidad `sourcesCited`** - extrae fuentes que el LLM menciona en sus respuestas
-   - Nueva interfaz `SourceCited` con: name, type, url, context, credibility
+3. **Exportación Excel con Fuentes Citadas** (commit actual)
+   - Nueva hoja "Fuentes Citadas" con color coding por credibilidad
+   - Fix: `normalizeBrandSummary()` para soportar nuevo formato de brandSummary
 
-4. **`api/services/excelService.ts`** - Nueva hoja "Fuentes Citadas"
-   - Nueva hoja en Excel con: Pregunta, Fuente, Tipo, URL, Credibilidad, Contexto
-   - Color coding según credibilidad (verde=alta, rojo=baja)
-
-5. **`api/services/pdfService.ts`** - Fuentes Citadas en PDF
+4. **Exportación PDF con Fuentes Citadas** (funcionando)
    - Sección "Fuentes citadas por el LLM" con chips coloreados
+   - PDF de 6 páginas generado correctamente
 
 ## Estado actual
 
-- **Análisis funcionando correctamente** con modelo `gpt-4o-mini`
-- **Extracción de sourcesCited verificada** - detecta fuentes como Trustpilot, El País, etc.
-- Servidor corriendo en puerto 3003
-- Frontend en puerto 5173
+- **Análisis funcionando** con modelo `gpt-4o-mini`
+- **Exportaciones Excel y PDF verificadas**
+- Branch `main` con 2 commits adelante de origin
+- Servidor en puerto 3003, Frontend en puerto 5173
 
 ## Comandos útiles
 
@@ -50,14 +41,16 @@ curl -s http://localhost:3003/api/analysis/saved
 # Ejecutar análisis
 curl -X POST http://localhost:3003/api/analysis/execute -H "Content-Type: application/json" -d @test-analysis.json
 
-# Ver modelos disponibles
-curl -s http://localhost:3003/api/templates/ai-models
+# Exportar a Excel (POST con analysisResult en body)
+curl -X POST http://localhost:3003/api/analysis/report/excel -H "Content-Type: application/json" -d '{"analysisResult": {...}, "configuration": {...}}'
+
+# Exportar a PDF
+curl -X POST http://localhost:3003/api/analysis/report/pdf -H "Content-Type: application/json" -d '{"analysisResult": {...}, "configuration": {...}}'
 ```
 
 ## Archivos de prueba
 - `D:/mediciones_IA/test-analysis.json` - JSON para probar análisis
 
 ## Próximos pasos
-1. Hacer commit de los cambios
-2. Probar exportación Excel con fuentes citadas
-3. Probar exportación PDF con fuentes citadas
+1. Push de los cambios al repositorio remoto
+2. Verificar que el frontend consume correctamente los endpoints de exportación
