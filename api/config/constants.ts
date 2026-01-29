@@ -19,16 +19,91 @@ export interface AIModelInfo {
 }
 
 export const AI_MODELS: AIModelInfo[] = [
-  // OpenAI Models
+  // OpenAI Models - GPT-5 Series (Latest)
+  {
+    id: 'gpt-5.1',
+    name: 'GPT-5.1',
+    provider: 'openai',
+    description: 'Último modelo de OpenAI. Razonamiento avanzado, contexto largo y mejor rendimiento.',
+    strengths: ['Razonamiento superior', 'Contexto extenso', 'Mejor rendimiento', 'Recomendado por OpenAI'],
+    contextWindow: '256K tokens',
+    pricing: 'Competitivo (menor que GPT-4o)',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'gpt-5.2',
+    name: 'GPT-5.2',
+    provider: 'openai',
+    description: 'Versión más reciente. Respuestas más inteligentes y precisas.',
+    strengths: ['Máxima precisión', 'Respuestas inteligentes', 'Última versión'],
+    contextWindow: '256K tokens',
+    pricing: 'Premium',
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  // OpenAI Models - Search (con búsqueda web)
+  {
+    id: 'gpt-5-search-api',
+    name: 'GPT-5 Search',
+    provider: 'openai',
+    description: 'GPT-5 con búsqueda web integrada. El más potente para información actualizada.',
+    strengths: ['Búsqueda web avanzada', 'GPT-5', 'Información en tiempo real', 'Máxima calidad'],
+    contextWindow: '256K tokens',
+    pricing: 'Premium + búsquedas',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'gpt-4o-search-preview',
+    name: 'GPT-4o Search',
+    provider: 'openai',
+    description: 'Modelo con capacidad de búsqueda web integrada. Ideal para información actualizada.',
+    strengths: ['Búsqueda web', 'Información actualizada', 'Fuentes en tiempo real'],
+    contextWindow: '128K tokens',
+    pricing: '$2.50 / $10 + $30 por 1K búsquedas',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'gpt-4o-mini-search-preview',
+    name: 'GPT-4o Mini Search',
+    provider: 'openai',
+    description: 'Versión económica con búsqueda web. Balance entre costo y actualidad.',
+    strengths: ['Búsqueda web', 'Económico', 'Información actualizada'],
+    contextWindow: '128K tokens',
+    pricing: '$0.15 / $0.60 + $25 por 1K búsquedas',
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  // OpenAI Models - Reasoning (o-series)
+  {
+    id: 'o3',
+    name: 'o3 (Razonamiento)',
+    provider: 'openai',
+    description: 'Modelo de razonamiento avanzado. Excelente para problemas complejos y análisis profundo.',
+    strengths: ['Razonamiento profundo', 'Problemas complejos', 'Análisis detallado'],
+    contextWindow: '200K tokens',
+    pricing: 'Premium',
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  {
+    id: 'o3-mini',
+    name: 'o3-mini (Razonamiento)',
+    provider: 'openai',
+    description: 'Versión compacta del modelo de razonamiento. Buen balance costo/capacidad.',
+    strengths: ['Razonamiento', 'Económico', 'Rápido'],
+    contextWindow: '200K tokens',
+    pricing: 'Moderado',
+    requiresApiKey: 'OPENAI_API_KEY'
+  },
+  // OpenAI Models - GPT-4 Series (Legacy pero funcionales)
   {
     id: 'gpt-4o',
     name: 'GPT-4o',
     provider: 'openai',
-    description: 'Modelo flagship de OpenAI. Multimodal (texto, imagen, audio). El más versátil y potente.',
-    strengths: ['Razonamiento avanzado', 'Multimodal', 'Análisis de imágenes', 'Respuestas detalladas'],
+    description: 'Modelo multimodal de OpenAI. Texto, imagen y audio. Muy versátil.',
+    strengths: ['Multimodal', 'Análisis de imágenes', 'Respuestas detalladas'],
     contextWindow: '128K tokens',
     pricing: '$2.50 / $10 por 1M tokens',
-    recommended: true,
     requiresApiKey: 'OPENAI_API_KEY'
   },
   {
@@ -39,7 +114,6 @@ export const AI_MODELS: AIModelInfo[] = [
     strengths: ['Muy económico', 'Rápido', 'Buen balance costo/calidad'],
     contextWindow: '128K tokens',
     pricing: '$0.15 / $0.60 por 1M tokens',
-    recommended: true,
     requiresApiKey: 'OPENAI_API_KEY'
   },
   {
@@ -319,7 +393,7 @@ export const getCountryByCode = (code: string): CountryInfo | undefined => {
 };
 
 // Modelos por defecto
-export const DEFAULT_MODEL = 'gpt-4o';
+export const DEFAULT_MODEL = 'gpt-5.1';
 export const DEFAULT_COUNTRY = 'ES';
 
 // ==========================================

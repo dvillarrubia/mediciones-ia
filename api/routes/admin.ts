@@ -175,4 +175,137 @@ router.delete('/users/:userId', requireAdminAuth, async (req: Request, res: Resp
   }
 });
 
+// ==================== GESTIÓN DE MODELOS DE IA ====================
+
+/**
+ * Obtener todos los modelos de IA
+ * GET /api/admin/ai-models
+ */
+router.get('/ai-models', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const models = await adminService.getAllAIModels();
+    res.json({ models });
+  } catch (error: any) {
+    console.error('Error obteniendo modelos:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener modelos' });
+  }
+});
+
+/**
+ * Añadir un nuevo modelo de IA
+ * POST /api/admin/ai-models
+ */
+router.post('/ai-models', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const model = req.body;
+
+    if (!model.id || !model.name || !model.provider) {
+      res.status(400).json({ error: 'Campos requeridos: id, name, provider' });
+      return;
+    }
+
+    await adminService.addAIModel({
+      id: model.id,
+      name: model.name,
+      provider: model.provider,
+      description: model.description || '',
+      strengths: model.strengths || [],
+      contextWindow: model.contextWindow || '',
+      pricing: model.pricing || '',
+      recommended: model.recommended || false,
+      enabled: model.enabled !== false,
+      requiresApiKey: model.requiresApiKey || 'OPENAI_API_KEY'
+    });
+
+    res.json({ success: true, message: `Modelo ${model.name} añadido` });
+  } catch (error: any) {
+    console.error('Error añadiendo modelo:', error);
+    res.status(500).json({ error: error.message || 'Error al añadir modelo' });
+  }
+});
+
+/**
+ * Actualizar un modelo de IA
+ * PUT /api/admin/ai-models/:modelId
+ */
+router.put('/ai-models/:modelId', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { modelId } = req.params;
+    const updates = req.body;
+
+    await adminService.updateAIModel(modelId, updates);
+    res.json({ success: true, message: `Modelo ${modelId} actualizado` });
+  } catch (error: any) {
+    console.error('Error actualizando modelo:', error);
+    res.status(500).json({ error: error.message || 'Error al actualizar modelo' });
+  }
+});
+
+/**
+ * Eliminar un modelo de IA
+ * DELETE /api/admin/ai-models/:modelId
+ */
+router.delete('/ai-models/:modelId', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { modelId } = req.params;
+    await adminService.deleteAIModel(modelId);
+    res.json({ success: true, message: `Modelo ${modelId} eliminado` });
+  } catch (error: any) {
+    console.error('Error eliminando modelo:', error);
+    res.status(500).json({ error: error.message || 'Error al eliminar modelo' });
+  }
+});
+
+/**
+ * Activar/desactivar un modelo de IA
+ * PATCH /api/admin/ai-models/:modelId/toggle
+ */
+router.patch('/ai-models/:modelId/toggle', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { modelId } = req.params;
+    const { enabled } = req.body;
+
+    await adminService.toggleAIModel(modelId, enabled);
+    res.json({ success: true, enabled });
+  } catch (error: any) {
+    console.error('Error cambiando estado del modelo:', error);
+    res.status(500).json({ error: error.message || 'Error al cambiar estado' });
+  }
+});
+
+/**
+ * Sincronizar modelos desde constants.ts
+ * POST /api/admin/ai-models/sync
+ */
+router.post('/ai-models/sync', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await adminService.syncAIModelsFromConstants();
+    res.json({ success: true, ...result, message: `${result.added} modelos nuevos añadidos` });
+  } catch (error: any) {
+    console.error('Error sincronizando modelos:', error);
+    res.status(500).json({ error: error.message || 'Error al sincronizar' });
+  }
+});
+
+/**
+ * Reordenar modelos de IA
+ * POST /api/admin/ai-models/reorder
+ */
+router.post('/ai-models/reorder', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { modelIds } = req.body;
+
+    if (!Array.isArray(modelIds)) {
+      res.status(400).json({ error: 'Se requiere un array de IDs' });
+      return;
+    }
+
+    await adminService.reorderAIModels(modelIds);
+    res.json({ success: true, message: 'Orden actualizado' });
+  } catch (error: any) {
+    console.error('Error reordenando modelos:', error);
+    res.status(500).json({ error: error.message || 'Error al reordenar' });
+  }
+});
+
 export default router;

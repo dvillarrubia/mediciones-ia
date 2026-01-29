@@ -15,6 +15,7 @@ import {
   getModelById,
   getCountryByCode
 } from '../config/constants.js';
+import { adminService } from '../services/adminService.js';
 
 const router = Router();
 const configService = new ConfigService();
@@ -26,30 +27,49 @@ const configService = new ConfigService();
 /**
  * GET /api/templates/ai-models
  * Obtener todos los modelos de IA disponibles con información detallada
+ * Usa modelos habilitados de la base de datos (gestionables desde admin)
  */
-router.get('/ai-models', (req: Request, res: Response) => {
+router.get('/ai-models', async (req: Request, res: Response) => {
   try {
+    // Obtener modelos habilitados desde la base de datos
+    let models = await adminService.getEnabledAIModels();
+
+    // Fallback a constants.ts si no hay modelos en BD
+    if (models.length === 0) {
+      models = AI_MODELS as any[];
+    }
+
     // Agrupar modelos por proveedor
     const modelsByProvider = {
-      openai: AI_MODELS.filter(m => m.provider === 'openai'),
-      anthropic: AI_MODELS.filter(m => m.provider === 'anthropic'),
-      google: AI_MODELS.filter(m => m.provider === 'google')
+      openai: models.filter(m => m.provider === 'openai'),
+      anthropic: models.filter(m => m.provider === 'anthropic'),
+      google: models.filter(m => m.provider === 'google')
     };
 
     res.json({
       success: true,
       data: {
-        models: AI_MODELS,
+        models,
         byProvider: modelsByProvider,
         defaultModel: DEFAULT_MODEL,
-        recommended: AI_MODELS.filter(m => m.recommended)
+        recommended: models.filter(m => m.recommended)
       }
     });
   } catch (error) {
     console.error('Error al obtener modelos de IA:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor'
+    // Fallback a constants.ts en caso de error
+    res.json({
+      success: true,
+      data: {
+        models: AI_MODELS,
+        byProvider: {
+          openai: AI_MODELS.filter(m => m.provider === 'openai'),
+          anthropic: AI_MODELS.filter(m => m.provider === 'anthropic'),
+          google: AI_MODELS.filter(m => m.provider === 'google')
+        },
+        defaultModel: DEFAULT_MODEL,
+        recommended: AI_MODELS.filter(m => m.recommended)
+      }
     });
   }
 });

@@ -6,7 +6,7 @@ import sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAILS, RESTRICT_REGISTRATION } from '../config/constants.js';
+import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAILS, RESTRICT_REGISTRATION, AI_MODELS, type AIModelInfo } from '../config/constants.js';
 
 export interface WhitelistConfig {
   emails: string[];
@@ -19,6 +19,11 @@ export interface UserInfo {
   email: string;
   name: string;
   createdAt: string;
+}
+
+export interface ManagedAIModel extends AIModelInfo {
+  enabled: boolean;
+  order: number;
 }
 
 class AdminService {
@@ -76,12 +81,35 @@ class AdminService {
         )
       `;
 
+      // Tabla de modelos de IA gestionables
+      const createAIModelsTable = `
+        CREATE TABLE IF NOT EXISTS ai_models (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          description TEXT,
+          strengths TEXT,
+          context_window TEXT,
+          pricing TEXT,
+          recommended INTEGER DEFAULT 0,
+          enabled INTEGER DEFAULT 1,
+          requires_api_key TEXT,
+          sort_order INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+
       this.db.run(createWhitelistTable, (err) => {
         if (err) console.error('Error creando tabla whitelist_config:', err);
       });
 
       this.db.run(createSettingsTable, (err) => {
         if (err) console.error('Error creando tabla admin_settings:', err);
+      });
+
+      this.db.run(createAIModelsTable, (err) => {
+        if (err) console.error('Error creando tabla ai_models:', err);
 
         // Inicializar con valores de constants.ts si no existen
         this.initializeDefaults().then(resolve).catch(reject);
@@ -152,8 +180,75 @@ class AdminService {
           this.db!.run(
             `INSERT OR IGNORE INTO admin_settings (key, value) VALUES (?, ?)`,
             ['restrict_registration', RESTRICT_REGISTRATION ? 'true' : 'false'],
-            () => resolve()
+            () => {
+              // Inicializar modelos de IA
+              this.initializeAIModels().then(() => resolve()).catch(reject);
+            }
           );
+        }
+      });
+    });
+  }
+
+  /**
+   * Inicializar modelos de IA desde constants.ts si no existen
+   */
+  private async initializeAIModels(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      // Verificar si ya hay modelos
+      this.db.get('SELECT COUNT(*) as count FROM ai_models', (err, row: any) => {
+        if (err) {
+          // Si la tabla no existe aún, resolver sin hacer nada
+          if (err.message.includes('no such table')) {
+            resolve();
+            return;
+          }
+          reject(err);
+          return;
+        }
+
+        if (row.count === 0) {
+          // Insertar modelos desde constants.ts
+          let pending = AI_MODELS.length;
+          if (pending === 0) {
+            resolve();
+            return;
+          }
+
+          AI_MODELS.forEach((model, index) => {
+            this.db!.run(
+              `INSERT OR IGNORE INTO ai_models
+               (id, name, provider, description, strengths, context_window, pricing, recommended, enabled, requires_api_key, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                model.id,
+                model.name,
+                model.provider,
+                model.description,
+                JSON.stringify(model.strengths),
+                model.contextWindow,
+                model.pricing,
+                model.recommended ? 1 : 0,
+                1, // enabled por defecto
+                model.requiresApiKey,
+                index
+              ],
+              () => {
+                pending--;
+                if (pending <= 0) {
+                  console.log('✅ Modelos de IA inicializados en base de datos');
+                  resolve();
+                }
+              }
+            );
+          });
+        } else {
+          resolve();
         }
       });
     });
@@ -417,6 +512,271 @@ class AdminService {
         else resolve();
       });
     });
+  }
+
+  // ==================== GESTIÓN DE MODELOS DE IA ====================
+
+  /**
+   * Obtener todos los modelos de IA
+   */
+  async getAllAIModels(): Promise<ManagedAIModel[]> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      this.db.all(
+        'SELECT * FROM ai_models ORDER BY sort_order ASC, name ASC',
+        (err, rows: any[]) => {
+          if (err) {
+            // Si la tabla no existe, devolver modelos de constants
+            if (err.message.includes('no such table')) {
+              resolve(AI_MODELS.map((m, i) => ({ ...m, enabled: true, order: i })));
+              return;
+            }
+            reject(err);
+            return;
+          }
+
+          const models: ManagedAIModel[] = (rows || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            provider: row.provider as 'openai' | 'anthropic' | 'google',
+            description: row.description || '',
+            strengths: row.strengths ? JSON.parse(row.strengths) : [],
+            contextWindow: row.context_window || '',
+            pricing: row.pricing || '',
+            recommended: row.recommended === 1,
+            enabled: row.enabled === 1,
+            requiresApiKey: row.requires_api_key || '',
+            order: row.sort_order || 0
+          }));
+
+          resolve(models);
+        }
+      );
+    });
+  }
+
+  /**
+   * Obtener solo modelos habilitados (para uso en la aplicación)
+   */
+  async getEnabledAIModels(): Promise<AIModelInfo[]> {
+    const allModels = await this.getAllAIModels();
+    return allModels
+      .filter(m => m.enabled)
+      .map(({ enabled, order, ...model }) => model);
+  }
+
+  /**
+   * Añadir un nuevo modelo de IA
+   */
+  async addAIModel(model: Omit<ManagedAIModel, 'order'>): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      // Obtener el siguiente orden
+      this.db.get('SELECT MAX(sort_order) as maxOrder FROM ai_models', (err, row: any) => {
+        const nextOrder = (row?.maxOrder || 0) + 1;
+
+        this.db!.run(
+          `INSERT INTO ai_models
+           (id, name, provider, description, strengths, context_window, pricing, recommended, enabled, requires_api_key, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            model.id,
+            model.name,
+            model.provider,
+            model.description,
+            JSON.stringify(model.strengths),
+            model.contextWindow,
+            model.pricing,
+            model.recommended ? 1 : 0,
+            model.enabled ? 1 : 0,
+            model.requiresApiKey,
+            nextOrder
+          ],
+          (err) => {
+            if (err) reject(err);
+            else {
+              console.log(`✅ Modelo de IA añadido: ${model.name}`);
+              resolve();
+            }
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * Actualizar un modelo de IA
+   */
+  async updateAIModel(modelId: string, updates: Partial<ManagedAIModel>): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (updates.name !== undefined) {
+        fields.push('name = ?');
+        values.push(updates.name);
+      }
+      if (updates.provider !== undefined) {
+        fields.push('provider = ?');
+        values.push(updates.provider);
+      }
+      if (updates.description !== undefined) {
+        fields.push('description = ?');
+        values.push(updates.description);
+      }
+      if (updates.strengths !== undefined) {
+        fields.push('strengths = ?');
+        values.push(JSON.stringify(updates.strengths));
+      }
+      if (updates.contextWindow !== undefined) {
+        fields.push('context_window = ?');
+        values.push(updates.contextWindow);
+      }
+      if (updates.pricing !== undefined) {
+        fields.push('pricing = ?');
+        values.push(updates.pricing);
+      }
+      if (updates.recommended !== undefined) {
+        fields.push('recommended = ?');
+        values.push(updates.recommended ? 1 : 0);
+      }
+      if (updates.enabled !== undefined) {
+        fields.push('enabled = ?');
+        values.push(updates.enabled ? 1 : 0);
+      }
+      if (updates.requiresApiKey !== undefined) {
+        fields.push('requires_api_key = ?');
+        values.push(updates.requiresApiKey);
+      }
+      if (updates.order !== undefined) {
+        fields.push('sort_order = ?');
+        values.push(updates.order);
+      }
+
+      if (fields.length === 0) {
+        resolve();
+        return;
+      }
+
+      fields.push("updated_at = datetime('now')");
+      values.push(modelId);
+
+      this.db.run(
+        `UPDATE ai_models SET ${fields.join(', ')} WHERE id = ?`,
+        values,
+        (err) => {
+          if (err) reject(err);
+          else {
+            console.log(`✅ Modelo de IA actualizado: ${modelId}`);
+            resolve();
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Eliminar un modelo de IA
+   */
+  async deleteAIModel(modelId: string): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      this.db.run('DELETE FROM ai_models WHERE id = ?', [modelId], (err) => {
+        if (err) reject(err);
+        else {
+          console.log(`✅ Modelo de IA eliminado: ${modelId}`);
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Activar/desactivar un modelo de IA
+   */
+  async toggleAIModel(modelId: string, enabled: boolean): Promise<void> {
+    return this.updateAIModel(modelId, { enabled });
+  }
+
+  /**
+   * Reordenar modelos de IA
+   */
+  async reorderAIModels(modelIds: string[]): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      let pending = modelIds.length;
+      if (pending === 0) {
+        resolve();
+        return;
+      }
+
+      modelIds.forEach((id, index) => {
+        this.db!.run(
+          'UPDATE ai_models SET sort_order = ? WHERE id = ?',
+          [index, id],
+          () => {
+            pending--;
+            if (pending <= 0) resolve();
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * Sincronizar modelos desde constants.ts (añadir nuevos que no existan)
+   */
+  async syncAIModelsFromConstants(): Promise<{ added: number; existing: number }> {
+    await this.ensureInitialized();
+
+    const existingModels = await this.getAllAIModels();
+    const existingIds = new Set(existingModels.map(m => m.id));
+
+    let added = 0;
+    let existing = 0;
+
+    for (const model of AI_MODELS) {
+      if (existingIds.has(model.id)) {
+        existing++;
+      } else {
+        await this.addAIModel({ ...model, enabled: true });
+        added++;
+      }
+    }
+
+    console.log(`🔄 Sincronización de modelos: ${added} añadidos, ${existing} existentes`);
+    return { added, existing };
   }
 }
 
