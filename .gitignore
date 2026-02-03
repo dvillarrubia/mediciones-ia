@@ -47,4 +47,16 @@ Desktop.ini
 # Temporary files
 tmp/
 temp/
-*.tmpCREDENCIALES_PRODUCCION.md
+*.tmp
+
+# Archivos sensibles y temporales del proyecto
+CREDENCIALES_PRODUCCION.md
+analyses_dump.json
+temp_analysis.json
+nul
+
+# Claude settings locales
+.claude/settings.local.json
+
+# Configuraciones temporales
+api/data/configurations/config_*.json
