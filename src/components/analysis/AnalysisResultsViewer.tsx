@@ -2,17 +2,14 @@ import React, { useState } from 'react';
 import {
   FileText,
   Download,
-  Share2,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   TrendingUp,
   Target,
-  Users,
   AlertCircle,
   CheckCircle,
   Info,
-  BookOpen,
   Sparkles
 } from 'lucide-react';
 
@@ -30,10 +27,8 @@ interface BrandMention {
   frequency: number;
   context: string;
   evidence: string[];
-  // Campos para tracking de aparición y descubrimiento
-  appearanceOrder?: number;      // Orden de aparición en la respuesta (1=primero)
-  isDiscovered?: boolean;        // true si NO estaba en la lista configurada
-  // Nuevos campos para análisis mejorado
+  appearanceOrder?: number;
+  isDiscovered?: boolean;
   detailedSentiment?: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
   contextualAnalysis?: {
     sentiment: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
@@ -47,6 +42,7 @@ interface BrandMention {
 interface MultiModelAnalysis {
   modelPersona: 'chatgpt' | 'claude' | 'gemini' | 'perplexity';
   generatedContent: string;
+  response?: string;
   brandMentions: BrandMention[];
   overallSentiment: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
   contextualInsights: string;
@@ -61,7 +57,6 @@ interface QuestionAnalysis {
   brandMentions: BrandMention[];
   sentiment: string;
   confidenceScore: number;
-  // Nuevos campos para análisis multi-modelo
   multiModelAnalysis?: MultiModelAnalysis[];
   detailedSentiment?: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
   contextualInsights?: string;
@@ -86,7 +81,7 @@ interface AnalysisResult {
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
-    otherCompetitors?: BrandMention[];  // Competidores descubiertos por la IA
+    otherCompetitors?: BrandMention[];
   };
   brandSummaryByType?: {
     all: {
@@ -106,7 +101,7 @@ interface AnalysisResult {
 
 interface AnalysisResultsViewerProps {
   analysisResult: AnalysisResult | null | undefined;
-  onDownload: (format: 'markdown' | 'json') => void;
+  onDownload: (format: 'pdf' | 'excel') => void;
   onDownloadTable?: () => void;
   configurationName?: string;
 }
@@ -119,26 +114,15 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview']));
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const [brandViewMode, setBrandViewMode] = useState<'all' | 'generic' | 'specific'>('all');
 
-  // Debug logging
-  console.log('AnalysisResultsViewer - analysisResult recibido:', analysisResult);
-  console.log('AnalysisResultsViewer - tipo de analysisResult:', typeof analysisResult);
-  console.log('AnalysisResultsViewer - es null?', analysisResult === null);
-  console.log('AnalysisResultsViewer - es undefined?', analysisResult === undefined);
-  console.log('AnalysisResultsViewer - tiene analysisId?', analysisResult?.analysisId);
-  console.log('AnalysisResultsViewer - tiene questions?', analysisResult?.questions);
-
-  // Early return if analysisResult is null or undefined
   if (!analysisResult) {
-    console.log('AnalysisResultsViewer - Mostrando mensaje de no resultados porque analysisResult es falsy');
     return (
       <div className="bg-white shadow rounded-lg p-6">
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No hay resultados disponibles</h3>
-            <p className="text-gray-500">Los datos del análisis no están disponibles o no se han cargado correctamente.</p>
+            <p className="text-gray-500">Los datos del analisis no estan disponibles o no se han cargado correctamente.</p>
           </div>
         </div>
       </div>
@@ -157,23 +141,8 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
 
   const tabs = [
     { id: 'overview', label: 'Resumen Ejecutivo', icon: TrendingUp },
-    { id: 'questions', label: 'Análisis por Pregunta', icon: FileText },
-    { id: 'brands', label: 'Menciones de Marca', icon: Target },
-    { id: 'sources', label: 'Respuestas IA Analizadas', icon: ExternalLink },
-    { id: 'models', label: 'Comparación de Modelos', icon: Users }
+    { id: 'questions', label: 'Analisis por Pregunta', icon: FileText },
   ];
-
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600';
-    if (confidence >= 0.6) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getConfidenceLabel = (confidence: number) => {
-    if (confidence >= 0.8) return 'Alta';
-    if (confidence >= 0.6) return 'Media';
-    return 'Baja';
-  };
 
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment?.toLowerCase()) {
@@ -209,74 +178,31 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
     }
   };
 
-  const getModelPersonaIcon = (persona: string) => {
-    switch (persona) {
-      case 'chatgpt':
-        return '🤖';
-      case 'claude':
-        return '🧠';
-      case 'gemini':
-        return '💎';
-      case 'perplexity':
-        return '🔍';
-      default:
-        return '🤖';
-    }
-  };
-
-  const getModelPersonaName = (persona: string) => {
-    switch (persona) {
-      case 'chatgpt':
-        return 'ChatGPT';
-      case 'claude':
-        return 'Claude';
-      case 'gemini':
-        return 'Gemini';
-      case 'perplexity':
-        return 'Perplexity';
-      default:
-        return persona;
-    }
-  };
-
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-white">Resultados del Análisis</h2>
+            <h2 className="text-xl font-semibold text-white">Resultados del Analisis</h2>
             <p className="text-blue-100 text-sm mt-1">
-              ID: {analysisResult?.analysisId || 'N/A'} • {analysisResult?.timestamp ? new Date(analysisResult.timestamp).toLocaleString() : 'N/A'}
+              ID: {analysisResult?.analysisId || 'N/A'} - {analysisResult?.timestamp ? new Date(analysisResult.timestamp).toLocaleString() : 'N/A'}
             </p>
           </div>
           <div className="flex space-x-2">
             <button
-              onClick={() => onDownload('markdown')}
+              onClick={() => onDownload('pdf')}
               className="flex items-center px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 transition-colors text-sm"
             >
               <Download className="h-4 w-4 mr-2" />
-              Markdown
+              PDF
             </button>
             <button
-              onClick={() => onDownload('json')}
+              onClick={() => onDownloadTable ? onDownloadTable() : onDownload('excel')}
               className="flex items-center px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 transition-colors text-sm"
             >
               <Download className="h-4 w-4 mr-2" />
-              JSON
-            </button>
-            {onDownloadTable && (
-              <button
-                onClick={onDownloadTable}
-                className="flex items-center px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 transition-colors text-sm"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Tabla (CSV)
-              </button>
-            )}
-            <button className="flex items-center px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 transition-colors text-sm">
-              <Share2 className="h-4 w-4 mr-2" />
-              Compartir
+              Excel
             </button>
           </div>
         </div>
@@ -287,10 +213,10 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
         <div className="flex items-center">
           <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
           <span className="text-green-700 font-medium">
-            Análisis completado exitosamente
+            Analisis completado exitosamente
           </span>
           {configurationName && (
-            <span className="text-green-600 ml-2">• Configuración: {configurationName}</span>
+            <span className="text-green-600 ml-2">- Configuracion: {configurationName}</span>
           )}
         </div>
       </div>
@@ -303,7 +229,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -322,8 +248,8 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
       <div className="p-6">
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Métricas principales */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Metricas principales - Solo 2 cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-blue-50 rounded-lg p-4">
                 <div className="flex items-center">
                   <FileText className="h-8 w-8 text-blue-600 mr-3" />
@@ -335,19 +261,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-green-50 rounded-lg p-4">
-                <div className="flex items-center">
-                  <ExternalLink className="h-8 w-8 text-green-600 mr-3" />
-                  <div>
-                    <h3 className="font-medium text-green-900">Respuestas IA</h3>
-                    <p className="text-2xl font-bold text-green-700">
-                      {analysisResult?.totalSources || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
+
               <div className="bg-purple-50 rounded-lg p-4">
                 <div className="flex items-center">
                   <Target className="h-8 w-8 text-purple-600 mr-3" />
@@ -359,58 +273,46 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-orange-50 rounded-lg p-4">
-                <div className="flex items-center">
-                  <TrendingUp className="h-8 w-8 text-orange-600 mr-3" />
-                  <div>
-                    <h3 className="font-medium text-orange-900">Confianza</h3>
-                    <p className="text-2xl font-bold text-orange-700">
-                      {Math.round((analysisResult?.overallConfidence || 0) * 100)}%
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Resumen ejecutivo */}
             <div className="bg-gray-50 rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
                 <Info className="h-5 w-5 text-blue-600 mr-2" />
-                Resumen del Análisis de IA Generativa
+                Resumen del Analisis de IA Generativa
               </h3>
               <div className="prose prose-sm max-w-none">
                 <p className="text-gray-700 mb-4">
-                  Este análisis evalúa la presencia de tu marca en las respuestas generadas por inteligencia artificial. 
-                  Se han analizado <strong>{analysisResult?.questions?.length || 0} preguntas</strong> relevantes para tu sector, 
+                  Este analisis evalua la presencia de tu marca en las respuestas generadas por inteligencia artificial.
+                  Se han analizado <strong>{analysisResult?.questions?.length || 0} preguntas</strong> relevantes para tu sector,
                   obteniendo respuestas de modelos de IA y midiendo la frecuencia y contexto de las menciones de marca.
                 </p>
-                
+
                 {analysisResult?.brandSummary?.targetBrands && analysisResult.brandSummary.targetBrands.length > 0 && (
                   <div className="bg-white rounded-lg p-4 border">
                     <h4 className="font-medium text-gray-900 mb-2">Hallazgos Principales:</h4>
                     <ul className="list-disc list-inside space-y-1 text-gray-700">
                       {analysisResult.brandSummary.targetBrands.map((brand, idx) => (
                         <li key={idx}>
-                          <strong>{brand.brand}</strong>: {brand.frequency} menciones detectadas 
+                          <strong>{brand.brand}</strong>: {brand.frequency} menciones detectadas
                           {brand.context && ` con contexto ${getSentimentLabel(brand.context).toLowerCase()}`}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-                
+
                 <p className="text-gray-600 text-sm mt-4">
-                  <strong>Metodología:</strong> Cada pregunta fue enviada a un modelo de IA generativa actuando como experto en tu sector. 
-                  Las respuestas obtenidas fueron posteriormente analizadas para identificar menciones de marca, 
-                  frecuencia de aparición y contexto de las menciones.
+                  <strong>Metodologia:</strong> Cada pregunta fue enviada a un modelo de IA generativa actuando como experto en tu sector.
+                  Las respuestas obtenidas fueron posteriormente analizadas para identificar menciones de marca,
+                  frecuencia de aparicion y contexto de las menciones.
                 </p>
               </div>
             </div>
 
-            {/* Resumen de categorías */}
+            {/* Resumen de categorias */}
             <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="font-medium text-gray-900 mb-3">Categorías Analizadas</h3>
+              <h3 className="font-medium text-gray-900 mb-3">Categorias Analizadas</h3>
               <div className="flex flex-wrap gap-2">
                 {analysisResult?.categories?.map((category) => (
                   <span
@@ -420,31 +322,9 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                     {category}
                   </span>
                 )) || (
-                  <span className="text-gray-500 text-sm">No hay categorías disponibles</span>
+                  <span className="text-gray-500 text-sm">No hay categorias disponibles</span>
                 )}
               </div>
-            </div>
-
-            {/* Indicador de calidad del análisis */}
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-gray-900">Calidad del Análisis</h3>
-                <span className={`font-medium ${getConfidenceColor(analysisResult?.overallConfidence || 0)}`}>
-                  {getConfidenceLabel(analysisResult?.overallConfidence || 0)}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className={`h-3 rounded-full transition-all duration-300 ${
-                    (analysisResult?.overallConfidence || 0) >= 0.8 ? 'bg-green-500' :
-                    (analysisResult?.overallConfidence || 0) >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${(analysisResult?.overallConfidence || 0) * 100}%` }}
-                />
-              </div>
-              <p className="text-sm text-gray-600 mt-2">
-                Confianza promedio: {Math.round((analysisResult?.overallConfidence || 0) * 100)}%
-              </p>
             </div>
           </div>
         )}
@@ -453,13 +333,13 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900">
-                Análisis Detallado por Pregunta
+                Analisis Detallado por Pregunta
               </h3>
               <span className="text-sm text-gray-500">
                 {analysisResult?.questions?.length || 0} preguntas analizadas
               </span>
             </div>
-            
+
             {analysisResult?.questions?.map((question, index) => (
               <div key={question.questionId} className="border rounded-lg">
                 <button
@@ -477,14 +357,6 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1 ml-12">{question.question}</p>
-                    <div className="flex items-center mt-2 ml-12">
-                      <span className="text-xs text-gray-500 mr-4">
-                        Confianza: {Math.round(question.confidenceScore * 100)}%
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {question.sources.length} fuentes
-                      </span>
-                    </div>
                   </div>
                   {expandedSections.has(`question-${question.questionId}`) ? (
                     <ChevronDown className="h-5 w-5 text-gray-400" />
@@ -492,782 +364,140 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   )}
                 </button>
-                
+
                 {expandedSections.has(`question-${question.questionId}`) && (
-                  <div className="border-t p-4">
-                    <div className="mb-4">
-                      <h5 className="font-medium text-gray-900 mb-2">Respuesta de IA Analizada</h5>
-                      <p className="text-gray-700 text-sm leading-relaxed">{question.summary}</p>
+                  <div className="border-t p-4 space-y-4">
+                    {/* Seccion 1: Respuesta Completa de ChatGPT */}
+                    <div>
+                      <h5 className="font-medium text-gray-900 mb-2 flex items-center">
+                        Respuesta Completa de ChatGPT
+                      </h5>
+                      <div className="bg-gray-50 rounded-lg p-4 border text-sm text-gray-700 max-h-64 overflow-y-auto whitespace-pre-wrap">
+                        {question.multiModelAnalysis?.[0]?.response || question.summary || 'Respuesta no disponible'}
+                      </div>
                     </div>
 
-                    {/* Análisis Multi-Modelo */}
-                    {question.multiModelAnalysis && question.multiModelAnalysis.length > 0 && (
-                      <div className="mb-4">
+                    {/* Seccion 2: Ranking por Orden de Aparicion */}
+                    {question.brandMentions?.filter(m => m.mentioned).length > 0 && (
+                      <div>
                         <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                          🤖 Análisis Multi-Modelo
-                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            {question.multiModelAnalysis.length} modelos
+                          Ranking por Orden de Aparicion
+                          <span className="ml-2 text-xs text-gray-500 font-normal">
+                            (posicion en la que aparece cada marca en la respuesta)
                           </span>
                         </h5>
-                        <div className="grid gap-3">
-                          {question.multiModelAnalysis.map((modelAnalysis, idx) => (
-                            <div key={idx} className="bg-gray-50 rounded-lg p-3 border">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center">
-                                  <span className="text-lg mr-2">{getModelPersonaIcon(modelAnalysis.modelPersona)}</span>
-                                  <span className="font-medium text-gray-900">{getModelPersonaName(modelAnalysis.modelPersona)}</span>
-                                </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(modelAnalysis.overallSentiment)}`}>
-                                  {getSentimentLabel(modelAnalysis.overallSentiment)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-700 mb-2">{modelAnalysis.contextualInsights}</p>
-                              <div className="text-xs text-gray-600">
-                                <strong>Menciones:</strong> {modelAnalysis.brandMentions.filter(m => m.mentioned).length} de {modelAnalysis.brandMentions.length} marcas
-                              </div>
-                            </div>
-                          ))}
+                        <div className="bg-gray-50 rounded-lg border overflow-hidden">
+                          <table className="min-w-full">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Pos.</th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Marca</th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Sentimiento</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {question.brandMentions
+                                .filter(m => m.mentioned)
+                                .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                                .map((brand, idx) => {
+                                  const position = brand.appearanceOrder || idx + 1;
+                                  const getMedalEmoji = (pos: number) => {
+                                    if (pos === 1) return '\u{1F947}';
+                                    if (pos === 2) return '\u{1F948}';
+                                    if (pos === 3) return '\u{1F949}';
+                                    return `#${pos}`;
+                                  };
+
+                                  const isTargetBrand = analysisResult?.brandSummary?.targetBrands?.some(t => t.brand === brand.brand);
+                                  const brandType = brand.isDiscovered ? 'Descubierto' : (isTargetBrand ? 'Objetivo' : 'Competidor');
+                                  const typeColorClass = brand.isDiscovered
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : (isTargetBrand ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800');
+
+                                  return (
+                                    <tr key={idx} className={idx === 0 ? 'bg-yellow-50' : 'bg-white'}>
+                                      <td className="px-4 py-2">
+                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold ${
+                                          idx === 0 ? 'bg-yellow-400 text-yellow-900' :
+                                          idx === 1 ? 'bg-gray-300 text-gray-800' :
+                                          idx === 2 ? 'bg-orange-300 text-orange-900' :
+                                          'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {getMedalEmoji(position)}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-2">
+                                        <span className="font-medium text-gray-900">{brand.brand}</span>
+                                        {brand.isDiscovered && (
+                                          <Sparkles className="h-3 w-3 text-purple-500 ml-1 inline" title="Descubierta por IA" />
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-2">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${typeColorClass}`}>
+                                          {brandType}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-2">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${getSentimentColor(brand.detailedSentiment || brand.context)}`}>
+                                          {getSentimentLabel(brand.detailedSentiment || brand.context)}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     )}
 
-                    {/* Análisis Contextual Detallado */}
-                    {question.contextualInsights && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-900 mb-2">💡 Insights Contextuales</h5>
-                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                          <p className="text-sm text-blue-800">{question.contextualInsights}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Análisis Competitivo */}
-                    {question.competitiveAnalysis && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-900 mb-2">⚔️ Análisis Competitivo</h5>
-                        <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
-                          <p className="text-sm text-orange-800 mb-2">{question.competitiveAnalysis.targetBrandPosition}</p>
-                          {question.competitiveAnalysis.competitorComparisons.length > 0 && (
-                            <div className="space-y-1">
-                              {question.competitiveAnalysis.competitorComparisons.map((comp, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-xs">
-                                  <span className="font-medium">{comp.competitor}:</span>
-                                  <span className={`px-2 py-1 rounded-full ${
-                                    comp.advantage === 'target' ? 'bg-green-100 text-green-800' :
-                                    comp.advantage === 'competitor' ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {comp.advantage === 'target' ? 'Ventaja nuestra' : 
-                                     comp.advantage === 'competitor' ? 'Ventaja competidor' : 'Neutral'}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Fuentes utilizadas por ChatGPT */}
-                    {question.sources.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-900 mb-2 flex items-center">
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          Fuentes utilizadas por ChatGPT
-                        </h5>
-                        <div className="space-y-2">
-                          {question.sources.map((source, sourceIndex) => (
-                            <div key={sourceIndex} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center mb-1">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mr-2 ${
-                                      source.isPriority ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                      {source.isPriority ? 'Fuente Prioritaria' : 'Fuente General'}
-                                    </span>
-                                    <span className="text-xs text-gray-500">{source.domain}</span>
-                                  </div>
-                                  <h6 className="font-medium text-blue-900 mb-1">{source.title}</h6>
-                                  <p className="text-sm text-blue-800 leading-relaxed">{source.snippet}</p>
-                                </div>
-                                {source.url && source.url !== 'generative-ai-response' && source.url !== 'ai-generated' && source.url !== 'ai-generated-response' && (
-                                  <a
-                                    href={source.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-3 text-blue-600 hover:text-blue-800"
-                                    title="Ver fuente original"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Brand Mentions */}
-                    {question.brandMentions.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Menciones de Marca Detectadas</h5>
-                        <div className="space-y-2">
-                          {question.brandMentions.map((mention, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-white border rounded-lg">
-                              <div className="flex-1">
-                                <span className="font-medium text-gray-900">{mention.brand}</span>
-                                <p className="text-sm text-gray-600 mt-1">{mention.context}</p>
-                                
-                                {/* Análisis Contextual Detallado de la Mención */}
-                                {mention.contextualAnalysis && (
-                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="font-medium">Análisis Detallado:</span>
-                                      <span className={`px-2 py-1 rounded-full ${getSentimentColor(mention.contextualAnalysis.sentiment)}`}>
-                                        {getSentimentLabel(mention.contextualAnalysis.sentiment)}
-                                      </span>
-                                    </div>
-                                    <p className="text-gray-700">{mention.contextualAnalysis.reasoning}</p>
-                                    <div className="mt-1 text-gray-600">
-                                      Confianza: {Math.round(mention.contextualAnalysis.confidence * 100)}%
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {mention.evidence.length > 0 && (
-                                  <div className="mt-2">
-                                    <p className="text-xs font-medium text-gray-700 mb-1">Evidencia:</p>
-                                    <ul className="text-xs text-gray-600 list-disc list-inside">
-                                      {mention.evidence.slice(0, 2).map((evidence, evidenceIdx) => (
-                                        <li key={evidenceIdx}>{evidence}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-2 ml-4">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {mention.frequency} menciones
-                                </span>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  mention.mentioned ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {mention.mentioned ? 'Mencionada' : 'No mencionada'}
-                                </span>
-                                {mention.detailedSentiment && (
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(mention.detailedSentiment)}`}>
-                                    {getSentimentLabel(mention.detailedSentiment)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {question.sources.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Respuesta IA Original</h5>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <div className="flex items-start">
-                            <div className="flex-1">
-                              <p className="text-sm text-blue-900 font-medium mb-1">
-                                Contenido generado por IA para: "{question.question}"
-                              </p>
-                              <p className="text-sm text-blue-800 leading-relaxed">
-                                {question.sources[0]?.snippet || 'Contenido no disponible'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'brands' && (
-          <div className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Resumen de Marcas</h3>
-
-                {/* Toggle para cambiar vista de comparativas */}
-                {analysisResult?.brandSummaryByType && (
-                  <div className="flex bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setBrandViewMode('all')}
-                      className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                        brandViewMode === 'all'
-                          ? 'bg-white text-gray-900 shadow'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Todas las preguntas
-                    </button>
-                    <button
-                      onClick={() => setBrandViewMode('generic')}
-                      className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                        brandViewMode === 'generic'
-                          ? 'bg-white text-gray-900 shadow'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Solo genéricas
-                    </button>
-                    <button
-                      onClick={() => setBrandViewMode('specific')}
-                      className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                        brandViewMode === 'specific'
-                          ? 'bg-white text-gray-900 shadow'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Solo específicas
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Descripción del modo seleccionado */}
-              {analysisResult?.brandSummaryByType && (
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    {brandViewMode === 'all' &&
-                      "Mostrando menciones en TODAS las preguntas (genéricas + específicas de marca)"}
-                    {brandViewMode === 'generic' &&
-                      "Mostrando solo menciones en preguntas que NO incluyen nombres de marca"}
-                    {brandViewMode === 'specific' &&
-                      "Mostrando solo menciones en preguntas que SÍ incluyen nombres de marca"}
-                  </p>
-                </div>
-              )}
-
-              {/* Obtener datos según el modo seleccionado */}
-              {(() => {
-                const brandData = analysisResult?.brandSummaryByType?.[brandViewMode] || analysisResult?.brandSummary;
-                const targetBrands = brandData?.targetBrands || [];
-                const competitors = brandData?.competitors || [];
-
-                return (
-                  <>
-                    {/* Marcas objetivo */}
-                    {targetBrands.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                    <Target className="h-5 w-5 text-blue-600 mr-2" />
-                    Marcas Objetivo
-                  </h4>
-                  <div className="grid gap-3">
-                    {targetBrands
-                      .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                      .map((brand, idx) => (
-                      <div key={idx} className="border border-blue-200 rounded-lg p-4 bg-white relative">
-                        {brand.appearanceOrder && (
-                          <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                            #{brand.appearanceOrder}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-medium text-gray-900 ml-4">{brand.brand}</h5>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-600">
-                              {brand.frequency} menciones
-                            </span>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getSentimentColor(brand.context)}`}>
-                              {getSentimentLabel(brand.context)}
-                            </span>
-                          </div>
-                        </div>
-                        {brand.evidence.length > 0 && (
-                          <div className="text-sm text-gray-600 ml-4">
-                            <p className="font-medium mb-1">Evidencia:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
-                                <li key={evidenceIdx}>{evidence}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                    )}
-
-                    {/* Competidores */}
-                    {competitors.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                    <Users className="h-5 w-5 text-orange-600 mr-2" />
-                    Competidores Configurados
-                  </h4>
-                  <div className="grid gap-3">
-                    {competitors
-                      .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                      .map((brand, idx) => (
-                      <div key={idx} className="border border-orange-200 rounded-lg p-4 bg-white relative">
-                        {brand.appearanceOrder && (
-                          <div className="absolute -top-2 -left-2 bg-orange-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                            #{brand.appearanceOrder}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-medium text-gray-900 ml-4">{brand.brand}</h5>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-600">
-                              {brand.frequency} menciones
-                            </span>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getSentimentColor(brand.context)}`}>
-                              {getSentimentLabel(brand.context)}
-                            </span>
-                          </div>
-                        </div>
-                        {brand.evidence.length > 0 && (
-                          <div className="text-sm text-gray-600 ml-4">
-                            <p className="font-medium mb-1">Evidencia:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
-                                <li key={evidenceIdx}>{evidence}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                    )}
-
-                    {/* Competidores Emergentes (descubiertos por IA) */}
-                    {(analysisResult?.brandSummary?.otherCompetitors?.length ?? 0) > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                    <Sparkles className="h-5 w-5 text-purple-600 mr-2" />
-                    Competidores Emergentes
-                    <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                      Descubiertos por IA
-                    </span>
-                  </h4>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-purple-800">
-                      Estas marcas fueron mencionadas por la IA pero no estaban en tu configuración original.
-                      Considera agregarlas a tu lista de competidores para futuros analisis.
-                    </p>
-                  </div>
-                  <div className="grid gap-3">
-                    {analysisResult?.brandSummary?.otherCompetitors
-                      ?.sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                      .map((brand, idx) => (
-                      <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-white relative">
-                        {brand.appearanceOrder && (
-                          <div className="absolute -top-2 -left-2 bg-purple-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                            #{brand.appearanceOrder}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center ml-4">
-                            <h5 className="font-medium text-gray-900">{brand.brand}</h5>
-                            <span className="ml-2 text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">
-                              Nuevo
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-600">
-                              {brand.frequency} menciones
-                            </span>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getSentimentColor(brand.context)}`}>
-                              {getSentimentLabel(brand.context)}
-                            </span>
-                          </div>
-                        </div>
-                        {brand.evidence && brand.evidence.length > 0 && (
-                          <div className="text-sm text-gray-600 ml-4">
-                            <p className="font-medium mb-1">Evidencia:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
-                                <li key={evidenceIdx}>{evidence}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                    )}
-
-                    {/* Ranking Visual de Posicionamiento */}
+                    {/* Seccion 3: Fuentes Web */}
                     {(() => {
-                      const allBrands = [
-                        ...(targetBrands || []).map(b => ({ ...b, type: 'target' as const })),
-                        ...(competitors || []).map(b => ({ ...b, type: 'competitor' as const })),
-                        ...(analysisResult?.brandSummary?.otherCompetitors || []).map(b => ({ ...b, type: 'discovered' as const }))
-                      ].filter(b => b.appearanceOrder && b.mentioned)
-                       .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999));
+                      const webSources = question.sources.filter(s =>
+                        s.url &&
+                        s.url.startsWith('http') &&
+                        !s.url.includes('ai-generated') &&
+                        !s.url.includes('generative')
+                      );
 
-                      if (allBrands.length === 0) return null;
-
-                      const getTypeColor = (type: string) => {
-                        switch (type) {
-                          case 'target': return 'bg-blue-500';
-                          case 'competitor': return 'bg-orange-500';
-                          case 'discovered': return 'bg-purple-500';
-                          default: return 'bg-gray-500';
-                        }
-                      };
-
-                      const getTypeLabel = (type: string) => {
-                        switch (type) {
-                          case 'target': return 'Objetivo';
-                          case 'competitor': return 'Competidor';
-                          case 'discovered': return 'Descubierto';
-                          default: return '';
-                        }
-                      };
+                      if (webSources.length === 0) return null;
 
                       return (
-                        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
-                          <h4 className="font-medium text-gray-900 mb-4 flex items-center">
-                            <TrendingUp className="h-5 w-5 text-gray-600 mr-2" />
-                            Ranking de Aparicion en Respuestas IA
-                          </h4>
-                          <div className="space-y-2">
-                            {allBrands.slice(0, 10).map((brand, idx) => (
-                              <div key={idx} className="flex items-center">
-                                <div className={`w-8 h-8 ${getTypeColor(brand.type)} text-white text-sm font-bold rounded-full flex items-center justify-center mr-3`}>
-                                  {brand.appearanceOrder}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-gray-900">{brand.brand}</span>
-                                    <div className="flex items-center space-x-2">
-                                      <span className={`text-xs px-2 py-0.5 rounded ${
-                                        brand.type === 'target' ? 'bg-blue-100 text-blue-700' :
-                                        brand.type === 'competitor' ? 'bg-orange-100 text-orange-700' :
-                                        'bg-purple-100 text-purple-700'
-                                      }`}>
-                                        {getTypeLabel(brand.type)}
-                                      </span>
-                                      <span className="text-xs text-gray-500">{brand.frequency} menciones</span>
-                                    </div>
+                        <div>
+                          <h5 className="font-medium text-gray-900 mb-2 flex items-center">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Fuentes Web ({webSources.length})
+                          </h5>
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <ul className="space-y-1">
+                              {webSources.map((source, sourceIndex) => (
+                                <li key={sourceIndex} className="flex items-start text-sm">
+                                  <span className="text-green-600 mr-2">-</span>
+                                  <div className="flex-1 min-w-0">
+                                    <a
+                                      href={source.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-green-700 hover:text-green-900 hover:underline break-all"
+                                    >
+                                      {source.title || source.url}
+                                    </a>
+                                    {source.domain && (
+                                      <span className="text-green-600 text-xs ml-2">({source.domain})</span>
+                                    )}
                                   </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                    <div
-                                      className={`h-2 rounded-full ${getTypeColor(brand.type)}`}
-                                      style={{ width: `${Math.min(100, (brand.frequency / Math.max(...allBrands.map(b => b.frequency))) * 100)}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         </div>
                       );
                     })()}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'sources' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Respuestas de IA Analizadas</h3>
-              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>Total: {analysisResult?.totalSources || 0}</span>
-                <span>Con menciones: {analysisResult?.brandSummary?.targetBrands?.filter(brand => brand.mentioned).length || 0}</span>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start">
-                <Info className="h-5 w-5 text-blue-600 mr-3 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-blue-900 mb-1">Sobre las Respuestas de IA</h4>
-                  <p className="text-sm text-blue-800">
-                    Cada respuesta fue generada por un modelo de IA actuando como experto en el sector, 
-                    respondiendo de forma natural a las preguntas planteadas. Posteriormente, estas respuestas 
-                    fueron analizadas para detectar menciones de marca y evaluar el contexto.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Respuestas agrupadas por pregunta */}
-            {analysisResult?.questions?.map((question, index) => (
-              <div key={question.questionId} className="border rounded-lg">
-                <button
-                  onClick={() => toggleSection(`source-${question.questionId}`)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium mr-3">
-                        {index + 1}
-                      </span>
-                      <h4 className="font-medium text-gray-900">{question.category}</h4>
-                      <span className="ml-3 text-xs text-gray-500">
-                        {question.brandMentions.filter(m => m.mentioned).length} menciones detectadas
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1 ml-12">{question.question}</p>
-                  </div>
-                  {expandedSections.has(`source-${question.questionId}`) ? (
-                    <ChevronDown className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="h-5 w-5 text-gray-400" />
-                  )}
-                </button>
-                
-                {expandedSections.has(`source-${question.questionId}`) && (
-                  <div className="border-t p-4">
-                    {question.sources.map((source, sourceIndex) => (
-                      <div key={sourceIndex} className="bg-gray-50 rounded-lg p-4 mb-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center mb-2">
-                              <h5 className="font-medium text-gray-900 mr-2">Respuesta de IA Generativa</h5>
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {source.domain || 'ChatGPT'}
-                              </span>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border">
-                              <p className="text-sm text-gray-700 leading-relaxed">{source.snippet}</p>
-                            </div>
-                            
-                            {/* Fuentes utilizadas por ChatGPT */}
-                            {question.sources.length > 1 && (
-                              <div className="mt-3">
-                                <h6 className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                                  <BookOpen className="h-3 w-3 mr-1" />
-                                  Fuentes consultadas por ChatGPT:
-                                </h6>
-                                <div className="space-y-1">
-                                  {question.sources.slice(1).map((refSource, refIndex) => (
-                                    <div key={refIndex} className="bg-blue-50 border border-blue-200 rounded p-2">
-                                      <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                          <div className="flex items-center mb-1">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mr-2 ${
-                                              refSource.isPriority ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'
-                                            }`}>
-                                              {refSource.isPriority ? 'Prioritaria' : 'General'}
-                                            </span>
-                                            <span className="text-xs text-gray-500">{refSource.domain}</span>
-                                          </div>
-                                          <h6 className="font-medium text-blue-900 text-sm">{refSource.title}</h6>
-                                          <p className="text-xs text-blue-800 mt-1">{refSource.snippet}</p>
-                                        </div>
-                                        {refSource.url && refSource.url !== 'generative-ai-response' && refSource.url !== 'ai-generated' && refSource.url !== 'ai-generated-response' && (
-                                          <a
-                                            href={refSource.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="ml-2 text-blue-600 hover:text-blue-800"
-                                            title="Ver fuente original"
-                                          >
-                                            <ExternalLink className="h-3 w-3" />
-                                          </a>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Mostrar menciones detectadas en esta respuesta */}
-                            {question.brandMentions.length > 0 && (
-                              <div className="mt-3">
-                                <h6 className="text-xs font-medium text-gray-700 mb-2">Menciones detectadas en esta respuesta:</h6>
-                                <div className="flex flex-wrap gap-2">
-                                  {question.brandMentions.filter(m => m.mentioned).map((mention, mentionIdx) => (
-                                    <span key={mentionIdx} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      {mention.brand} ({mention.frequency})
-                                    </span>
-                                  ))}
-                                  {question.brandMentions.filter(m => !m.mentioned).length > 0 && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                      {question.brandMentions.filter(m => !m.mentioned).length} marcas no mencionadas
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>
             ))}
-          </div>
-        )}
-
-        {activeTab === 'models' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Comparación entre Modelos de IA</h3>
-              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>Modelos analizados: {analysisResult?.questions?.reduce((acc, q) => {
-                  const models = new Set(q.multiModelAnalysis?.map(m => m.modelPersona) || []);
-                  return Math.max(acc, models.size);
-                }, 0) || 0}</span>
-              </div>
-            </div>
-
-            {/* Resumen de modelos */}
-            {analysisResult?.questions?.some(q => q.multiModelAnalysis && q.multiModelAnalysis.length > 0) ? (
-              <div className="space-y-6">
-                {/* Comparación general de sentimientos */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Análisis de Sentimiento por Modelo</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {['chatgpt', 'claude', 'gemini', 'perplexity'].map(model => {
-                      const modelAnalyses = analysisResult.questions
-                        .flatMap(q => q.multiModelAnalysis || [])
-                        .filter(m => m.modelPersona === model);
-                      
-                      if (modelAnalyses.length === 0) return null;
-
-                      const avgSentiment = modelAnalyses.reduce((sum, analysis) => {
-                        const sentimentScore = analysis.overallSentiment === 'very_positive' ? 2 :
-                                             analysis.overallSentiment === 'positive' ? 1 :
-                                             analysis.overallSentiment === 'neutral' ? 0 :
-                                             analysis.overallSentiment === 'negative' ? -1 : -2;
-                        return sum + sentimentScore;
-                      }, 0) / modelAnalyses.length;
-
-                      const avgSentimentLabel = avgSentiment > 1.5 ? 'very_positive' :
-                                              avgSentiment > 0.5 ? 'positive' :
-                                              avgSentiment > -0.5 ? 'neutral' :
-                                              avgSentiment > -1.5 ? 'negative' : 'very_negative';
-
-                      return (
-                        <div key={model} className="bg-white rounded-lg p-3 border">
-                          <div className="flex items-center mb-2">
-                            <span className="text-lg mr-2">{getModelPersonaIcon(model)}</span>
-                            <span className="font-medium text-gray-900">{getModelPersonaName(model)}</span>
-                          </div>
-                          <div className="text-center">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(avgSentimentLabel)}`}>
-                              {getSentimentLabel(avgSentimentLabel)}
-                            </span>
-                            <p className="text-xs text-gray-600 mt-1">{modelAnalyses.length} análisis</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Comparación por pregunta */}
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Comparación Detallada por Pregunta</h4>
-                  {analysisResult.questions
-                    .filter(q => q.multiModelAnalysis && q.multiModelAnalysis.length > 0)
-                    .map((question, index) => (
-                    <div key={question.questionId} className="border rounded-lg">
-                      <button
-                        onClick={() => toggleSection(`model-comparison-${question.questionId}`)}
-                        className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center">
-                            <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium mr-3">
-                              {index + 1}
-                            </span>
-                            <h5 className="font-medium text-gray-900">{question.category}</h5>
-                            <span className="ml-3 text-xs text-gray-500">
-                              {question.multiModelAnalysis?.length || 0} modelos
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1 ml-12">{question.question}</p>
-                        </div>
-                        {expandedSections.has(`model-comparison-${question.questionId}`) ? (
-                          <ChevronDown className="h-5 w-5 text-gray-400" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-gray-400" />
-                        )}
-                      </button>
-                      
-                      {expandedSections.has(`model-comparison-${question.questionId}`) && (
-                        <div className="border-t p-4">
-                          <div className="grid gap-4">
-                            {question.multiModelAnalysis?.map((modelAnalysis, idx) => (
-                              <div key={idx} className="bg-gray-50 rounded-lg p-4 border">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center">
-                                    <span className="text-xl mr-3">{getModelPersonaIcon(modelAnalysis.modelPersona)}</span>
-                                    <div>
-                                      <h6 className="font-medium text-gray-900">{getModelPersonaName(modelAnalysis.modelPersona)}</h6>
-                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSentimentColor(modelAnalysis.overallSentiment)}`}>
-                                        {getSentimentLabel(modelAnalysis.overallSentiment)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="text-right text-xs text-gray-600">
-                                    <div>Menciones: {modelAnalysis.brandMentions.filter(m => m.mentioned).length}</div>
-                                    <div>Total marcas: {modelAnalysis.brandMentions.length}</div>
-                                  </div>
-                                </div>
-                                
-                                <div className="mb-3">
-                                  <h6 className="text-sm font-medium text-gray-900 mb-1">Insights Contextuales:</h6>
-                                  <p className="text-sm text-gray-700">{modelAnalysis.contextualInsights}</p>
-                                </div>
-
-                                <div className="mb-3">
-                                  <h6 className="text-sm font-medium text-gray-900 mb-2">Respuesta Generada:</h6>
-                                  <div className="bg-white rounded p-3 border text-sm text-gray-700 max-h-32 overflow-y-auto">
-                                    {modelAnalysis.generatedContent}
-                                  </div>
-                                </div>
-
-                                {modelAnalysis.brandMentions.filter(m => m.mentioned).length > 0 && (
-                                  <div>
-                                    <h6 className="text-sm font-medium text-gray-900 mb-2">Menciones Detectadas:</h6>
-                                    <div className="flex flex-wrap gap-2">
-                                      {modelAnalysis.brandMentions
-                                        .filter(m => m.mentioned)
-                                        .map((mention, mentionIdx) => (
-                                        <div key={mentionIdx} className="bg-white rounded px-3 py-1 border text-xs">
-                                          <span className="font-medium">{mention.brand}</span>
-                                          <span className={`ml-2 px-2 py-1 rounded-full ${getSentimentColor(mention.context)}`}>
-                                            {getSentimentLabel(mention.context)}
-                                          </span>
-                                          <span className="ml-1 text-gray-600">({mention.frequency}x)</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No hay análisis multi-modelo disponible</h3>
-                <p className="text-gray-500">Este análisis no incluye comparación entre múltiples modelos de IA.</p>
-              </div>
-            )}
           </div>
         )}
       </div>

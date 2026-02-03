@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
-  Download,
   Eye,
   Trash2,
   Filter,
   Calendar,
   Tag,
-  TrendingUp,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -66,6 +64,14 @@ interface AnalysisDetail {
   };
 }
 
+interface MultiModelAnalysis {
+  modelPersona: string;
+  response?: string;
+  generatedContent?: string;
+  brandMentions?: BrandMention[];
+  overallSentiment?: string;
+}
+
 interface QuestionAnalysis {
   questionId: string;
   question: string;
@@ -75,6 +81,7 @@ interface QuestionAnalysis {
   brandMentions: BrandMention[];
   sentiment: string;
   confidenceScore: number;
+  multiModelAnalysis?: MultiModelAnalysis[];
 }
 
 interface AnalysisSource {
@@ -95,6 +102,7 @@ interface BrandMention {
   // Campos para tracking de aparicion
   appearanceOrder?: number;
   isDiscovered?: boolean;
+  detailedSentiment?: string;
 }
 
 type SortField = 'timestamp' | 'targetBrand' | 'overallConfidence' | 'questionsCount';
@@ -216,69 +224,36 @@ const History: React.FC = () => {
     }
   };
 
-  const generateMarkdownReport = async (analysisId: string) => {
+  const generatePDFReport = async (analysisId: string) => {
     try {
       setExportingId(analysisId);
       const response = await fetch(`http://localhost:3003/api/analysis/saved/${analysisId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch('http://localhost:3003/api/analysis/report/markdown', {
+        const reportResponse = await fetch('http://localhost:3003/api/analysis/report/pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ analysisResult: data.data.results })
+          body: JSON.stringify({
+            analysisResult: data.data.results,
+            configuration: data.data.configuration
+          })
         });
 
-        const reportData = await reportResponse.json();
-
-        if (reportData.success) {
-          const blob = new Blob([reportData.data.content], { type: 'text/markdown' });
+        if (reportResponse.ok) {
+          const blob = await reportResponse.blob();
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = reportData.data.filename;
+          a.download = `analysis-${analysisId}.pdf`;
           a.click();
           window.URL.revokeObjectURL(url);
-          showNotification('success', 'Reporte MD descargado');
+          showNotification('success', 'Reporte PDF descargado');
         }
       }
     } catch (error) {
-      console.error('Error generating markdown report:', error);
-      showNotification('error', 'Error al generar reporte');
-    } finally {
-      setExportingId(null);
-    }
-  };
-
-  const generateJSONReport = async (analysisId: string) => {
-    try {
-      setExportingId(analysisId);
-      const response = await fetch(`http://localhost:3003/api/analysis/saved/${analysisId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        const reportResponse = await fetch('http://localhost:3003/api/analysis/report/json', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ analysisResult: data.data.results })
-        });
-
-        const reportData = await reportResponse.json();
-
-        if (reportData.success) {
-          const blob = new Blob([JSON.stringify(reportData.data.content, null, 2)], { type: 'application/json' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = reportData.data.filename;
-          a.click();
-          window.URL.revokeObjectURL(url);
-          showNotification('success', 'Reporte JSON descargado');
-        }
-      }
-    } catch (error) {
-      console.error('Error generating JSON report:', error);
-      showNotification('error', 'Error al generar reporte');
+      console.error('Error generating PDF report:', error);
+      showNotification('error', 'Error al generar PDF');
     } finally {
       setExportingId(null);
     }
@@ -358,7 +333,7 @@ const History: React.FC = () => {
       }
       setCompareAnalyses(details);
       setViewMode('compare');
-    } catch (error) {
+    } catch {
       showNotification('error', 'Error al cargar análisis para comparar');
     }
   };
@@ -569,38 +544,10 @@ const History: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y">
-              <tr>
-                <td className="px-4 py-3 font-medium">Confianza General</td>
-                {compareAnalyses.map(a => (
-                  <td key={a.id} className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${a.results.overallConfidence * 100}%` }}
-                        />
-                      </div>
-                      <span className="font-semibold">{(a.results.overallConfidence * 100).toFixed(1)}%</span>
-                    </div>
-                  </td>
-                ))}
-              </tr>
               <tr className="bg-gray-50">
                 <td className="px-4 py-3 font-medium">Preguntas Analizadas</td>
                 {compareAnalyses.map(a => (
                   <td key={a.id} className="px-4 py-3 font-semibold">{a.results.questions.length}</td>
-                ))}
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">Total Fuentes</td>
-                {compareAnalyses.map(a => (
-                  <td key={a.id} className="px-4 py-3 font-semibold">{a.results.totalSources}</td>
-                ))}
-              </tr>
-              <tr className="bg-gray-50">
-                <td className="px-4 py-3 font-medium">Fuentes Prioritarias</td>
-                {compareAnalyses.map(a => (
-                  <td key={a.id} className="px-4 py-3 font-semibold">{a.results.prioritySources}</td>
                 ))}
               </tr>
               <tr>
@@ -616,14 +563,6 @@ const History: React.FC = () => {
                 {compareAnalyses.map(a => (
                   <td key={a.id} className="px-4 py-3 font-semibold">
                     {a.results.brandSummary.competitors.filter(b => b.mentioned).length}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">Modelos Usados</td>
-                {compareAnalyses.map(a => (
-                  <td key={a.id} className="px-4 py-3 text-sm">
-                    {a.metadata?.modelsUsed?.join(', ') || 'ChatGPT'}
                   </td>
                 ))}
               </tr>
@@ -656,7 +595,49 @@ const History: React.FC = () => {
     );
   }
 
-  // Vista de detalle
+  // Helper para obtener color de sentimiento
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'very_positive':
+        return 'bg-green-100 text-green-800';
+      case 'positive':
+        return 'bg-green-50 text-green-700';
+      case 'neutral':
+        return 'bg-gray-100 text-gray-700';
+      case 'negative':
+        return 'bg-red-50 text-red-700';
+      case 'very_negative':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getSentimentLabel = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'very_positive':
+        return 'Muy Positivo';
+      case 'positive':
+        return 'Positivo';
+      case 'neutral':
+        return 'Neutral';
+      case 'negative':
+        return 'Negativo';
+      case 'very_negative':
+        return 'Muy Negativo';
+      default:
+        return sentiment || 'No definido';
+    }
+  };
+
+  // Helper para determinar el tipo de marca
+  const getBrandType = (brand: BrandMention, selectedAnalysis: AnalysisDetail): 'objetivo' | 'competidor' | 'descubierto' => {
+    if (brand.isDiscovered) return 'descubierto';
+    if (selectedAnalysis.results.brandSummary.targetBrands.some(t => t.brand === brand.brand)) return 'objetivo';
+    return 'competidor';
+  };
+
+  // Vista de detalle SIMPLIFICADA
   if (viewMode === 'detail' && selectedAnalysis) {
     return (
       <div className="container mx-auto p-6 space-y-6">
@@ -672,27 +653,19 @@ const History: React.FC = () => {
               <ChevronLeft className="w-4 h-4" />
               Volver al listado
             </button>
-            <h1 className="text-3xl font-bold">Detalle del Análisis</h1>
+            <h1 className="text-3xl font-bold">Detalle del Analisis</h1>
             <p className="text-gray-600">
               {selectedAnalysis.configuration.brand} - {new Date(selectedAnalysis.timestamp).toLocaleString('es-ES')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => generateMarkdownReport(selectedAnalysis.id)}
+              onClick={() => generatePDFReport(selectedAnalysis.id)}
               disabled={exportingId === selectedAnalysis.id}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              <Download className="w-4 h-4" />
-              MD
-            </button>
-            <button
-              onClick={() => generateJSONReport(selectedAnalysis.id)}
-              disabled={exportingId === selectedAnalysis.id}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              JSON
+              <FileText className="w-4 h-4" />
+              PDF
             </button>
             <button
               onClick={() => generateExcelReport(selectedAnalysis.id)}
@@ -705,222 +678,161 @@ const History: React.FC = () => {
           </div>
         </div>
 
-        {/* Métricas generales */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-            <div className="text-sm text-gray-600">Preguntas Analizadas</div>
-            <div className="text-2xl font-bold text-blue-600">{selectedAnalysis.results.questions.length}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-            <div className="text-sm text-gray-600">Confianza General</div>
-            <div className="text-2xl font-bold text-green-600">
-              {(selectedAnalysis.results.overallConfidence * 100).toFixed(1)}%
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-            <div className="text-sm text-gray-600">Total Fuentes</div>
-            <div className="text-2xl font-bold text-purple-600">{selectedAnalysis.results.totalSources}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-            <div className="text-sm text-gray-600">Modelos Usados</div>
-            <div className="text-sm font-semibold mt-1 text-gray-700">
-              {selectedAnalysis.metadata?.modelsUsed?.join(', ') || 'ChatGPT'}
-            </div>
-          </div>
-        </div>
-
-        {/* Menciones de marca */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            Menciones de Marca
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Marcas Objetivo */}
-            <div>
-              <h3 className="font-semibold mb-2 text-blue-700 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-blue-600"></span>
-                Marcas Objetivo
-              </h3>
-              {selectedAnalysis.results.brandSummary.targetBrands
-                .filter(b => b.mentioned)
-                .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                .map(brand => (
-                  <div key={brand.brand} className="mb-2 p-3 bg-blue-50 rounded-lg border border-blue-100 hover:border-blue-200 transition-colors relative">
-                    {brand.appearanceOrder && (
-                      <span className="absolute -top-2 -left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {brand.appearanceOrder}
-                      </span>
-                    )}
-                    <div className="font-medium text-blue-800 ml-2">{brand.brand}</div>
-                    <div className="text-sm text-blue-600 ml-2">
-                      {brand.frequency} menciones - {brand.context}
-                    </div>
+        {/* Analisis por Pregunta - SIMPLIFICADO */}
+        <div className="space-y-6">
+          {selectedAnalysis.results.questions.map((question: QuestionAnalysis, index: number) => (
+            <div key={question.questionId} className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Cabecera de pregunta */}
+              <div
+                className="flex items-start justify-between cursor-pointer p-4 hover:bg-gray-50 transition-colors border-b"
+                onClick={() => toggleQuestionExpand(question.questionId)}
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
+                      {index + 1}
+                    </span>
+                    <h3 className="font-semibold text-lg">{question.question}</h3>
                   </div>
-                ))}
-              {selectedAnalysis.results.brandSummary.targetBrands.filter(b => b.mentioned).length === 0 && (
-                <div className="text-gray-500 italic">No se encontraron menciones</div>
-              )}
-            </div>
-
-            {/* Competidores Configurados */}
-            <div>
-              <h3 className="font-semibold mb-2 text-orange-700 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-                Competidores Configurados
-              </h3>
-              {selectedAnalysis.results.brandSummary.competitors
-                .filter(b => b.mentioned)
-                .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                .map(brand => (
-                  <div key={brand.brand} className="mb-2 p-3 bg-orange-50 rounded-lg border border-orange-100 hover:border-orange-200 transition-colors relative">
-                    {brand.appearanceOrder && (
-                      <span className="absolute -top-2 -left-2 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {brand.appearanceOrder}
-                      </span>
-                    )}
-                    <div className="font-medium text-orange-800 ml-2">{brand.brand}</div>
-                    <div className="text-sm text-orange-600 ml-2">
-                      {brand.frequency} menciones - {brand.context}
-                    </div>
+                  <div className="flex flex-wrap gap-3 mt-2 ml-10 text-sm text-gray-600">
+                    <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
+                      <Tag className="w-3 h-3" />
+                      {question.category}
+                    </span>
                   </div>
-                ))}
-              {selectedAnalysis.results.brandSummary.competitors.filter(b => b.mentioned).length === 0 && (
-                <div className="text-gray-500 italic">No se encontraron menciones</div>
-              )}
-            </div>
-
-            {/* Competidores Descubiertos */}
-            <div>
-              <h3 className="font-semibold mb-2 text-purple-700 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                Descubiertos por IA
-                <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">Nuevo</span>
-              </h3>
-              {selectedAnalysis.results.brandSummary.otherCompetitors &&
-               selectedAnalysis.results.brandSummary.otherCompetitors.filter(b => b.mentioned).length > 0 ? (
-                selectedAnalysis.results.brandSummary.otherCompetitors
-                  .filter(b => b.mentioned)
-                  .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                  .map(brand => (
-                    <div key={brand.brand} className="mb-2 p-3 bg-purple-50 rounded-lg border border-purple-100 hover:border-purple-200 transition-colors relative">
-                      {brand.appearanceOrder && (
-                        <span className="absolute -top-2 -left-2 bg-purple-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {brand.appearanceOrder}
-                        </span>
-                      )}
-                      <div className="font-medium text-purple-800 ml-2">{brand.brand}</div>
-                      <div className="text-sm text-purple-600 ml-2">
-                        {brand.frequency} menciones - {brand.context}
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <div className="text-gray-500 italic p-3 bg-gray-50 rounded-lg">
-                  No se descubrieron marcas adicionales
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Leyenda de orden */}
-          <div className="mt-4 pt-4 border-t text-sm text-gray-600">
-            <span className="font-medium">Orden de aparicion:</span> Los numeros indican el orden en que cada marca fue mencionada en las respuestas de la IA (1 = primera mencion).
-          </div>
-        </div>
-
-        {/* Preguntas detalladas */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            Análisis Detallado por Pregunta
-          </h2>
-          <div className="space-y-4">
-            {selectedAnalysis.results.questions.map((question, index) => (
-              <div key={question.questionId} className="border rounded-lg overflow-hidden hover:border-blue-200 transition-colors">
-                <div
-                  className="flex items-start justify-between cursor-pointer p-4 hover:bg-gray-50 transition-colors"
-                  onClick={() => toggleQuestionExpand(question.questionId)}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
-                        {index + 1}
-                      </span>
-                      <h3 className="font-semibold">{question.question}</h3>
-                    </div>
-                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-600">
-                      <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
-                        <Tag className="w-3 h-3" />
-                        {question.category}
-                      </span>
-                      <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
-                        <TrendingUp className="w-3 h-3" />
-                        {(question.confidenceScore * 100).toFixed(0)}%
-                      </span>
-                      <span className={`px-2 py-0.5 rounded ${question.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
-                          question.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                        }`}>
-                        {question.sentiment}
-                      </span>
-                    </div>
-                  </div>
-                  <button className="text-blue-600 hover:text-blue-800 p-2">
-                    {expandedQuestions.has(question.questionId) ? (
-                      <ChevronLeft className="w-5 h-5 rotate-90" />
-                    ) : (
-                      <ChevronLeft className="w-5 h-5 -rotate-90" />
-                    )}
-                  </button>
-                </div>
-
-                {expandedQuestions.has(question.questionId) && (
-                  <div className="border-t bg-gray-50 p-4 space-y-4">
-                    <div>
-                      <h4 className="font-semibold mb-2 text-gray-700">Resumen del Análisis</h4>
-                      <p className="text-gray-600 bg-white p-3 rounded border">{question.summary}</p>
-                    </div>
-
-                    {question.sources[0]?.fullContent && (
-                      <div>
-                        <h4 className="font-semibold mb-2 flex items-center gap-2 text-gray-700">
-                          <FileText className="w-4 h-4" />
-                          Respuesta Completa del LLM ({question.sources[0].domain})
-                        </h4>
-                        <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
-                          <pre className="whitespace-pre-wrap text-sm font-mono text-gray-700">
-                            {question.sources[0].fullContent}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-
-                    {question.brandMentions && question.brandMentions.filter(b => b.mentioned).length > 0 && (
-                      <div>
-                        <h4 className="font-semibold mb-2 text-gray-700">Marcas Mencionadas</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {question.brandMentions.filter(b => b.mentioned).map(brand => (
-                            <div key={brand.brand} className="p-3 bg-yellow-50 rounded border border-yellow-200">
-                              <div className="font-medium text-yellow-800">{brand.brand}</div>
-                              <div className="text-sm text-yellow-700">
-                                {brand.frequency} mención/es - {brand.context}
-                              </div>
-                              {brand.evidence && brand.evidence.length > 0 && (
-                                <div className="text-xs text-yellow-600 mt-1 italic">
-                                  "{brand.evidence[0].substring(0, 100)}..."
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <button className="text-blue-600 hover:text-blue-800 p-2">
+                  {expandedQuestions.has(question.questionId) ? (
+                    <ChevronLeft className="w-5 h-5 rotate-90" />
+                  ) : (
+                    <ChevronLeft className="w-5 h-5 -rotate-90" />
+                  )}
+                </button>
               </div>
-            ))}
-          </div>
+
+              {expandedQuestions.has(question.questionId) && (
+                <div className="p-4 space-y-6">
+
+                  {/* 1. RESPUESTA COMPLETA DEL LLM */}
+                  <div>
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                      <span className="text-lg">🤖</span>
+                      Respuesta Completa de ChatGPT
+                    </h4>
+                    <div className="bg-gray-50 rounded-lg p-4 border text-sm text-gray-700 max-h-96 overflow-y-auto whitespace-pre-wrap">
+                      {question.multiModelAnalysis?.[0]?.response ||
+                       question.summary ||
+                       'Respuesta no disponible'}
+                    </div>
+                  </div>
+
+                  {/* 2. RANKING POR ORDEN DE APARICION */}
+                  {question.brandMentions?.filter((m: BrandMention) => m.mentioned).length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                        <span className="text-lg">📊</span>
+                        Ranking por Orden de Aparicion
+                        <span className="ml-2 text-xs text-gray-500 font-normal">
+                          (posicion en la que aparece cada marca en la respuesta)
+                        </span>
+                      </h4>
+                      <div className="bg-gray-50 rounded-lg border overflow-hidden">
+                        <table className="min-w-full">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Pos.</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Marca</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sentimiento</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {question.brandMentions
+                              .filter((m: BrandMention) => m.mentioned)
+                              .sort((a: BrandMention, b: BrandMention) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                              .map((brand: BrandMention, idx: number) => {
+                                const brandType = getBrandType(brand, selectedAnalysis);
+                                return (
+                                  <tr key={idx} className={idx === 0 ? 'bg-yellow-50' : idx === 1 ? 'bg-gray-50' : idx === 2 ? 'bg-orange-50' : 'bg-white'}>
+                                    <td className="px-4 py-3">
+                                      <span className="text-xl">
+                                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${brand.appearanceOrder || idx + 1}`}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className="font-medium text-gray-900">{brand.brand}</span>
+                                      {brand.isDiscovered && (
+                                        <span title="Descubierta por IA">
+                                          <Sparkles className="h-3 w-3 text-purple-500 ml-1 inline" />
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                        brandType === 'objetivo' ? 'bg-blue-100 text-blue-800' :
+                                        brandType === 'competidor' ? 'bg-orange-100 text-orange-800' :
+                                        'bg-purple-100 text-purple-800'
+                                      }`}>
+                                        {brandType === 'objetivo' ? 'Objetivo' :
+                                         brandType === 'competidor' ? 'Competidor' : 'Descubierto'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 text-xs rounded-full ${getSentimentColor(brand.detailedSentiment || brand.context)}`}>
+                                        {getSentimentLabel(brand.detailedSentiment || brand.context)}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. FUENTES WEB */}
+                  {(() => {
+                    const webSources = question.sources?.filter((s: AnalysisSource) =>
+                      s.url &&
+                      !s.url.includes('ai-generated') &&
+                      !s.url.includes('generative') &&
+                      s.url.startsWith('http')
+                    ) || [];
+
+                    if (webSources.length === 0) return null;
+
+                    return (
+                      <div>
+                        <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                          <span className="text-lg">🔗</span>
+                          Fuentes Web ({webSources.length})
+                        </h4>
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <ul className="space-y-2">
+                            {webSources.map((source: AnalysisSource, sourceIndex: number) => (
+                              <li key={sourceIndex} className="flex items-start text-sm">
+                                <span className="text-green-600 mr-2 mt-0.5">•</span>
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-700 hover:text-green-900 hover:underline break-all"
+                                >
+                                  {source.title || source.url}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1113,10 +1025,6 @@ const History: React.FC = () => {
                         <FileText className="w-4 h-4" />
                         {analysis.questionsCount} preguntas
                       </span>
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="w-4 h-4" />
-                        {(analysis.overallConfidence * 100).toFixed(0)}%
-                      </span>
                     </div>
                     {analysis.categories.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-2">
@@ -1149,14 +1057,6 @@ const History: React.FC = () => {
                     title="Exportar Excel"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => generateMarkdownReport(analysis.id)}
-                    disabled={exportingId === analysis.id}
-                    className="flex items-center gap-1 px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    title="Exportar Markdown"
-                  >
-                    <Download className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => deleteAnalysis(analysis.id)}

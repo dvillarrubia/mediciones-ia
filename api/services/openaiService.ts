@@ -75,6 +75,26 @@ export interface WebSearchSource {
   endIndex?: number;
 }
 
+// ========== ESTRUCTURA SIMPLIFICADA DE ANÁLISIS ==========
+// Esta es la estructura que el usuario realmente necesita
+
+export interface SimpleBrandAnalysis {
+  name: string;
+  mentioned: boolean;
+  sentiment: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
+  position: number;  // Orden de aparición en la respuesta (1=primero, 0=no mencionado)
+}
+
+export interface SimpleQuestionAnalysis {
+  questionId: string;
+  question: string;
+  response: string;  // Respuesta COMPLETA del LLM
+  targetBrand: SimpleBrandAnalysis;  // La marca objetivo configurada
+  otherBrands: SimpleBrandAnalysis[];  // Otras marcas mencionadas (competidores + descubiertas)
+  sources: string[];  // Solo las URLs de las fuentes usadas
+  confidence: number;  // Nivel de confianza (0-1)
+}
+
 export interface QuestionAnalysis {
   questionId: string;
   question: string;
@@ -561,21 +581,50 @@ class OpenAIService {
   private extractWebSources(message: any): WebSearchSource[] {
     const sources: WebSearchSource[] = [];
 
-    if (!message?.annotations || !Array.isArray(message.annotations)) {
+    // Debug: ver estructura del mensaje
+    if (message) {
+      const keys = Object.keys(message);
+      console.log(`🔍 Estructura del mensaje: ${keys.join(', ')}`);
+    }
+
+    // OpenAI puede devolver annotations en diferentes ubicaciones
+    let annotations = message?.annotations;
+
+    // Alternativa: buscar en content si es array (nuevo formato)
+    if (!annotations && Array.isArray(message?.content)) {
+      for (const content of message.content) {
+        if (content.annotations) {
+          annotations = content.annotations;
+          break;
+        }
+      }
+    }
+
+    if (!annotations || !Array.isArray(annotations)) {
       console.log('⚠️ No se encontraron annotations en la respuesta');
       return sources;
     }
 
-    for (const annotation of message.annotations) {
-      if (annotation.type === 'url_citation' && annotation.url) {
-        sources.push({
-          url: annotation.url,
-          title: annotation.title || this.extractDomainFromUrl(annotation.url),
-          snippet: annotation.text || '',
-          startIndex: annotation.start_index,
-          endIndex: annotation.end_index,
-        });
-        console.log(`  📎 Fuente: ${annotation.title || annotation.url}`);
+    console.log(`📎 Encontradas ${annotations.length} annotations`);
+
+    for (const annotation of annotations) {
+      // OpenAI devuelve url_citation con datos anidados en url_citation objeto
+      if (annotation.type === 'url_citation') {
+        // Formato nuevo: { type: 'url_citation', url_citation: { url, title, ... } }
+        const citation = annotation.url_citation || annotation;
+        const url = citation.url || annotation.url;
+        const title = citation.title || annotation.title;
+
+        if (url) {
+          sources.push({
+            url: url,
+            title: title || this.extractDomainFromUrl(url),
+            snippet: annotation.text || citation.text || '',
+            startIndex: citation.start_index || annotation.start_index,
+            endIndex: citation.end_index || annotation.end_index,
+          });
+          console.log(`  📎 Fuente: ${title || url}`);
+        }
       }
     }
 
@@ -1024,6 +1073,23 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
     if (d.includes('edu') || d.includes('university') || d.includes('academic')) return 'study';
     if (d.includes('org')) return 'organization';
     return 'website';
+  }
+
+  /**
+   * Calcula la credibilidad de una fuente basada en su URL
+   */
+  private calculateSourceCredibility(url: string): 'high' | 'medium' | 'low' {
+    const domain = this.extractDomainFromUrl(url).toLowerCase();
+
+    // Fuentes de alta credibilidad
+    const highCredibility = ['.gov', '.gob', '.edu', 'reuters', 'bloomberg', 'bbc', 'nytimes', 'wsj', 'forbes', 'harvard', 'mit', 'stanford'];
+    if (highCredibility.some(s => domain.includes(s))) return 'high';
+
+    // Fuentes de credibilidad media
+    const mediumCredibility = ['.org', 'wikipedia', 'medium', 'linkedin', 'techcrunch', 'wired', 'cnn', 'abc', 'elpais', 'elmundo'];
+    if (mediumCredibility.some(s => domain.includes(s))) return 'medium';
+
+    return 'medium'; // Por defecto, credibilidad media
   }
 
   /**
@@ -2045,22 +2111,58 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
   const timestamp = new Date().toISOString();
 
   // Solo usar ChatGPT por defecto si no se especifican otros modelos
-  const aiModels = configuration.aiModels || ['chatgpt'];
+  const requestedModels: AIModelPersona[] = configuration.aiModels || ['chatgpt'];
+
+  // OPTIMIZACIÓN: Filtrar modelos SIN API key configurada ANTES de empezar
+  // Esto evita intentar 22 veces modelos que van a fallar
+  const aiModels = requestedModels.filter(model => {
+    const validation = this.validateApiKeyForModel(model);
+    if (!validation.valid) {
+      console.log(`⏭️ Modelo ${model} excluido: ${validation.error}`);
+    }
+    return validation.valid;
+  });
+
+  // Si no queda ningún modelo válido, usar chatgpt por defecto
+  if (aiModels.length === 0) {
+    console.log('⚠️ Ningún modelo con API key válida, usando chatgpt por defecto');
+    aiModels.push('chatgpt');
+  }
 
   console.log(`🚀 Iniciando análisis multi-modelo con ID: ${analysisId}`);
-  console.log(`🤖 Modelos configurados: ${aiModels.join(', ')}`);
+  console.log(`🤖 Modelos solicitados: ${requestedModels.join(', ')}`);
+  console.log(`✅ Modelos disponibles (con API key): ${aiModels.join(', ')}`);
 
   const results: QuestionAnalysis[] = [];
   const errors: string[] = [];
-  
+
+  // Crear configuración con modelos filtrados
+  const filteredConfiguration = {
+    ...configuration,
+    aiModels: aiModels  // Usar solo modelos con API key válida
+  };
+
   try {
-    // Procesar cada pregunta con múltiples modelos
-    for (const questionData of questions) {
-      console.log(`📝 Procesando pregunta: ${questionData.question}`);
-      
-      const multiModelAnalysis = await this.analyzeQuestionWithMultipleModels(questionData, configuration);
-      results.push(multiModelAnalysis);
-    }
+    // Procesar preguntas EN PARALELO para máxima velocidad
+    console.log(`🚀 Procesando ${questions.length} preguntas en PARALELO...`);
+
+    const analysisPromises = questions.map((questionData, index) => {
+      console.log(`📝 [${index + 1}/${questions.length}] Iniciando: ${questionData.question.substring(0, 50)}...`);
+      return this.analyzeQuestionWithMultipleModels(questionData, filteredConfiguration)
+        .then(result => {
+          console.log(`✅ [${index + 1}/${questions.length}] Completada`);
+          return result;
+        })
+        .catch(error => {
+          console.error(`🔴 [${index + 1}/${questions.length}] Error: ${error.message}`);
+          throw error;
+        });
+    });
+
+    const parallelResults = await Promise.all(analysisPromises);
+    results.push(...parallelResults);
+
+    console.log(`✅ Todas las preguntas procesadas en paralelo`);
   
     // Calcular métricas generales
     const totalSources = results.reduce((sum, q) => sum + q.sources.length, 0);
@@ -2149,25 +2251,16 @@ private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; 
       return { valid: true };
 
     case 'claude':
-      const anthropicKey = this.userApiKeys?.anthropic || process.env.ANTHROPIC_API_KEY;
-      if (!anthropicKey) {
-        return { valid: false, error: 'API de Claude (Anthropic) no configurada. Configure ANTHROPIC_API_KEY.' };
-      }
-      return { valid: true };
+      // Claude NO está implementado todavía - siempre excluir
+      return { valid: false, error: 'API de Claude (Anthropic) no configurada. Configure ANTHROPIC_API_KEY.' };
 
     case 'gemini':
-      const googleKey = this.userApiKeys?.google || process.env.GOOGLE_API_KEY;
-      if (!googleKey) {
-        return { valid: false, error: 'API de Gemini (Google) no configurada. Configure GOOGLE_API_KEY.' };
-      }
-      return { valid: true };
+      // Gemini NO está implementado todavía - siempre excluir
+      return { valid: false, error: 'API de Gemini (Google) no está implementada todavía. Solo ChatGPT está disponible.' };
 
     case 'perplexity':
-      const perplexityKey = process.env.PERPLEXITY_API_KEY;
-      if (!perplexityKey) {
-        return { valid: false, error: 'API de Perplexity no configurada. Configure PERPLEXITY_API_KEY.' };
-      }
-      return { valid: true };
+      // Perplexity NO está implementado todavía - siempre excluir
+      return { valid: false, error: 'API de Perplexity no está implementada todavía. Solo ChatGPT está disponible.' };
 
     default:
       return { valid: false, error: `Modelo desconocido: ${modelPersona}` };
@@ -2175,7 +2268,9 @@ private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; 
 }
 
 /**
- * Analiza con una persona de IA específica
+ * Analiza con una persona de IA específica - 2 LLAMADAS SIN SESGO
+ * 1. Búsqueda web: Pregunta LIMPIA (sin mencionar marcas) → Respuesta natural
+ * 2. Análisis barato: gpt-4o-mini analiza la respuesta → JSON con marcas
  */
 private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPersona, configuration: any): Promise<MultiModelAnalysis> {
   const questionId = questionData.id || `q_${Date.now()}`;
@@ -2186,41 +2281,208 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
     throw new Error(apiValidation.error);
   }
 
-  // Solo ChatGPT usa GPT-4.1, los demás requieren sus propias APIs
   if (modelPersona !== 'chatgpt') {
     throw new Error(`API de ${modelPersona} no está activada. Solo ChatGPT está disponible.`);
   }
 
-  // PASO 1: Generar respuesta con la persona del modelo específico
-  const generativePrompt = this.buildPersonaGenerativePrompt(questionData.question, modelPersona, configuration);
+  const targetBrand = configuration.targetBrand || (configuration.targetBrands?.[0]) || 'Coca-Cola';
+  const competitors = configuration.competitorBrands || COMPETITOR_BRANDS;
 
-  // El modelo de búsqueda web NO soporta temperature, usar web_search_options
-  const generativeResponse = await this.client.chat.completions.create({
-    model: this.GENERATION_MODEL, // Modelo con búsqueda web para generar respuestas de calidad
-    messages: [{ role: 'user', content: generativePrompt }],
+  // ========== LLAMADA 1: Pregunta LIMPIA sin sesgo ==========
+  // NO mencionamos marcas para obtener una respuesta natural
+  const cleanPrompt = `${questionData.question}
+
+Responde de forma completa y útil (200-400 palabras).`;
+
+  console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia)...`);
+
+  const searchResponse = await this.client.chat.completions.create({
+    model: this.GENERATION_MODEL,
+    messages: [{ role: 'user', content: cleanPrompt }],
     max_tokens: configuration.maxTokens || 2000,
     web_search_options: {
       search_context_size: 'medium',
     },
   } as any);
 
-  const generatedContent = generativeResponse.choices[0]?.message?.content || '';
+  const naturalResponse = searchResponse.choices[0]?.message?.content || '';
 
-  // PASO 2: Analizar la respuesta para menciones de marca con análisis contextual
-  const analysisPrompt = this.buildEnhancedAnalysisPrompt(questionData.question, generatedContent, modelPersona, configuration);
+  // Extraer fuentes web de las annotations
+  const message = searchResponse.choices[0]?.message;
+  const webSources = this.extractWebSources(message);
+  console.log(`📚 [${modelPersona}] Fuentes web extraídas: ${webSources.length}`);
+  webSources.forEach(s => console.log(`  📎 ${s.url}`));
+  console.log(`📝 [${modelPersona}] Respuesta natural: ${naturalResponse.length} chars`);
+
+  // ========== LLAMADA 2: Análisis con modelo BARATO ==========
+  const analysisPrompt = `Analiza la siguiente respuesta de IA y extrae información sobre menciones de marcas.
+
+RESPUESTA A ANALIZAR:
+"""
+${naturalResponse}
+"""
+
+MARCA OBJETIVO: ${targetBrand}
+COMPETIDORES CONOCIDOS: ${competitors.join(', ')}
+
+Responde SOLO con JSON válido (sin texto adicional):
+{
+  "targetBrand": {
+    "name": "${targetBrand}",
+    "mentioned": true/false,
+    "sentiment": "very_positive|positive|neutral|negative|very_negative",
+    "position": número (orden de aparición en el texto, 1=primera marca, 0=no aparece)
+  },
+  "otherBrands": [
+    {
+      "name": "NombreMarca",
+      "mentioned": true,
+      "sentiment": "very_positive|positive|neutral|negative|very_negative",
+      "position": número
+    }
+  ],
+  "confidence": número entre 0.7 y 0.95
+}
+
+IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en la lista de competidores.`;
+
+  console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 
   const analysisResponse = await this.client.chat.completions.create({
-    model: this.ANALYSIS_MODEL, // Usar modelo ECONÓMICO para analizar menciones (ahorro de costos)
+    model: this.ANALYSIS_MODEL, // gpt-4o-mini - económico
     messages: [{ role: 'user', content: analysisPrompt }],
     temperature: 0.1,
-    max_tokens: 2500,
+    max_tokens: 1500,
   });
 
-  const analysisResult = analysisResponse.choices[0]?.message?.content || '';
-  
-  // Parsear resultados con análisis contextual
-   return this.parseEnhancedAnalysisResponse(questionData, generatedContent, analysisResult, modelPersona, configuration);
- }
+  const analysisContent = analysisResponse.choices[0]?.message?.content || '{}';
+
+  // Parsear JSON del análisis
+  let analysisJson: any = {
+    targetBrand: { name: targetBrand, mentioned: false, sentiment: 'neutral', position: 0 },
+    otherBrands: [],
+    confidence: 0.5
+  };
+
+  try {
+    const cleanedJson = this.cleanJSONResponse(analysisContent);
+    analysisJson = JSON.parse(cleanedJson);
+  } catch (error) {
+    console.error(`⚠️ [${modelPersona}] Error parseando análisis JSON:`, error);
+  }
+
+  console.log(`📊 [${modelPersona}] Target "${targetBrand}": ${analysisJson.targetBrand?.mentioned ? 'MENCIONADA' : 'no mencionada'}, sentiment: ${analysisJson.targetBrand?.sentiment}`);
+  console.log(`📊 [${modelPersona}] Otras marcas: ${analysisJson.otherBrands?.map((b: any) => b.name).join(', ') || 'ninguna'}`);
+
+  // Convertir a BrandMention[] para compatibilidad
+  const brandMentions: BrandMention[] = [];
+
+  // Marca objetivo
+  if (analysisJson.targetBrand) {
+    brandMentions.push({
+      brand: analysisJson.targetBrand.name || targetBrand,
+      mentioned: analysisJson.targetBrand.mentioned || false,
+      frequency: analysisJson.targetBrand.mentioned ? 1 : 0,
+      context: this.mapSentimentToContext(analysisJson.targetBrand.sentiment),
+      evidence: [],
+      appearanceOrder: analysisJson.targetBrand.position || 0,
+      isDiscovered: false,
+      detailedSentiment: analysisJson.targetBrand.sentiment || 'neutral'
+    });
+  }
+
+  // Otras marcas
+  if (analysisJson.otherBrands && Array.isArray(analysisJson.otherBrands)) {
+    analysisJson.otherBrands.forEach((brand: any) => {
+      const isConfiguredCompetitor = competitors.some((c: string) =>
+        c.toLowerCase() === brand.name?.toLowerCase()
+      );
+      brandMentions.push({
+        brand: brand.name,
+        mentioned: brand.mentioned || true,
+        frequency: 1,
+        context: this.mapSentimentToContext(brand.sentiment),
+        evidence: [],
+        appearanceOrder: brand.position || 0,
+        isDiscovered: !isConfiguredCompetitor,
+        detailedSentiment: brand.sentiment || 'neutral'
+      });
+    });
+  }
+
+  // Convertir webSources a SourceCited
+  const sourcesCited: SourceCited[] = webSources.map(source => ({
+    name: source.title,
+    type: this.classifySourceType(this.extractDomainFromUrl(source.url)) as any,
+    url: source.url,
+    context: source.snippet,
+    credibility: this.calculateSourceCredibility(source.url)
+  }));
+
+  return {
+    modelPersona,
+    response: naturalResponse,  // Respuesta LIMPIA sin sesgo
+    brandMentions,
+    sourcesCited,
+    overallSentiment: analysisJson.targetBrand?.sentiment || 'neutral',
+    contextualAnalysis: [],
+    confidenceScore: analysisJson.confidence || 0.8
+  };
+}
+
+/**
+ * Parsea la respuesta unificada separando texto de JSON
+ */
+private parseUnifiedResponse(content: string): { textResponse: string; analysisJson: any } {
+  const defaultJson = {
+    targetBrand: { name: '', mentioned: false, sentiment: 'neutral', position: 0 },
+    otherBrands: [],
+    confidence: 0.5
+  };
+
+  try {
+    // Buscar el bloque JSON
+    const jsonMatch = content.match(/---ANALYSIS_JSON---\s*([\s\S]*?)\s*---END_ANALYSIS---/);
+
+    if (jsonMatch) {
+      const textResponse = content.replace(/---ANALYSIS_JSON---[\s\S]*---END_ANALYSIS---/, '').trim();
+      const jsonStr = jsonMatch[1].trim();
+      const analysisJson = JSON.parse(jsonStr);
+      return { textResponse, analysisJson };
+    }
+
+    // Si no hay bloque JSON, intentar extraer JSON del final
+    const lastBraceIndex = content.lastIndexOf('}');
+    const firstBraceIndex = content.lastIndexOf('{');
+
+    if (firstBraceIndex > 0 && lastBraceIndex > firstBraceIndex) {
+      const possibleJson = content.substring(firstBraceIndex, lastBraceIndex + 1);
+      try {
+        const analysisJson = JSON.parse(possibleJson);
+        if (analysisJson.targetBrand || analysisJson.otherBrands) {
+          const textResponse = content.substring(0, firstBraceIndex).trim();
+          return { textResponse, analysisJson };
+        }
+      } catch {}
+    }
+
+    // Sin JSON encontrado, devolver todo como texto
+    return { textResponse: content, analysisJson: defaultJson };
+  } catch (error) {
+    console.error('Error parseando respuesta unificada:', error);
+    return { textResponse: content, analysisJson: defaultJson };
+  }
+}
+
+/**
+ * Mapea sentimiento detallado a SentimentType básico
+ */
+private mapSentimentToContext(sentiment: string): SentimentType {
+  if (!sentiment) return 'neutral';
+  if (sentiment.includes('positive')) return 'positive';
+  if (sentiment.includes('negative')) return 'negative';
+  return 'neutral';
+}
 
   /**
    * Construye prompt para generar respuesta con persona específica de IA
@@ -2355,7 +2617,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
   /**
    * Parsea respuesta mejorada con análisis contextual
    */
-  private parseEnhancedAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, modelPersona: AIModelPersona, configuration: any): MultiModelAnalysis {
+  private parseEnhancedAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, modelPersona: AIModelPersona, configuration: any, webSources: WebSearchSource[] = []): MultiModelAnalysis {
     try {
       const cleanedResponse = this.cleanJSONResponse(analysisResponse);
       const parsed = JSON.parse(cleanedResponse);
@@ -2378,10 +2640,24 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
         console.log(`🔍 [${modelPersona}] Marcas descubiertas: ${discoveredBrands.map((b: any) => b.brand).join(', ')}`);
       }
 
+      // Convertir webSources a SourceCited para compatibilidad
+      const sourcesCited: SourceCited[] = webSources.map(source => ({
+        name: source.title,
+        type: this.classifySourceType(this.extractDomainFromUrl(source.url)) as any,
+        url: source.url,
+        context: source.snippet,
+        credibility: this.calculateSourceCredibility(source.url) as any
+      }));
+
+      if (sourcesCited.length > 0) {
+        console.log(`📖 [${modelPersona}] Fuentes citadas: ${sourcesCited.map(s => s.name).join(', ')}`);
+      }
+
       return {
         modelPersona,
         response: generatedContent,
         brandMentions: allBrandMentions,
+        sourcesCited: sourcesCited,
         overallSentiment: parsed.overallSentiment || 'neutral',
         contextualAnalysis: parsed.brandMentions?.map((brand: any) => brand.contextualAnalysis).filter(Boolean) || [],
         confidenceScore: parsed.confidenceScore || 0.75
@@ -2392,6 +2668,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
         modelPersona,
         response: generatedContent,
         brandMentions: [],
+        sourcesCited: [],
         overallSentiment: 'neutral',
         contextualAnalysis: [],
         confidenceScore: 0.5
@@ -2453,19 +2730,36 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
       index === self.findIndex(s => s.name.toLowerCase() === source.name.toLowerCase())
     );
 
-    return {
-      questionId: questionData.id,
-      question: questionData.question,
-      category: questionData.category || 'general',
-      summary: `Análisis multi-modelo (${multiModelResults.map(r => r.modelPersona).join(', ')}) de respuestas de IA`,
-      sources: [{
+    // Convertir sourcesCited a AnalysisSource para el frontend
+    const webSourcesAsAnalysisSources: AnalysisSource[] = uniqueSourcesCited.map(source => ({
+      url: source.url || '',
+      title: source.name,
+      snippet: source.context || '',
+      domain: source.url ? this.extractDomainFromUrl(source.url) : 'unknown',
+      isPriority: source.credibility === 'high'
+    }));
+
+    // Combinar respuesta IA + fuentes web reales
+    const allSources: AnalysisSource[] = [
+      {
         url: 'ai-generated',
         title: 'Respuestas generadas por IA',
         snippet: multiModelResults[0]?.response.substring(0, 2000) + '...',
         domain: 'ai-models',
         isPriority: true,
-        fullContent: allResponses // Guardar todas las respuestas completas
-      }],
+        fullContent: allResponses
+      },
+      ...webSourcesAsAnalysisSources
+    ];
+
+    console.log(`📊 Consolidación: ${brandMap.size} marcas, ${uniqueSourcesCited.length} fuentes web`);
+
+    return {
+      questionId: questionData.id,
+      question: questionData.question,
+      category: questionData.category || 'general',
+      summary: `Análisis multi-modelo (${multiModelResults.map(r => r.modelPersona).join(', ')}) de respuestas de IA`,
+      sources: allSources,
       brandMentions: Array.from(brandMap.values()),
       sourcesCited: uniqueSourcesCited,
       sentiment: this.calculateOverallSentiment(overallSentiments),

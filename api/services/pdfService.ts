@@ -1,7 +1,7 @@
 /**
- * Servicio para generación de informes PDF profesionales
+ * Servicio para generacion de informes PDF simplificados
  * Usa Puppeteer para renderizar HTML a PDF
- * Updated: 2025-12-03
+ * Updated: 2026-02-03 - Simplificado por peticion del usuario
  */
 import puppeteer from 'puppeteer';
 
@@ -12,7 +12,6 @@ interface BrandMention {
   context: string;
   sentiment?: string;
   evidence?: string[];
-  // Campos para tracking de aparicion
   appearanceOrder?: number;
   isDiscovered?: boolean;
 }
@@ -48,7 +47,7 @@ interface AnalysisResult {
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
-    otherCompetitors?: BrandMention[];  // Competidores descubiertos por IA
+    otherCompetitors?: BrandMention[];
   };
 }
 
@@ -64,7 +63,7 @@ interface Configuration {
 class PDFService {
 
   /**
-   * Genera un PDF profesional del análisis
+   * Genera un PDF profesional del analisis
    */
   async generateAnalysisPDF(analysisResult: AnalysisResult, configuration: Configuration): Promise<Buffer> {
     const html = this.buildHTMLReport(analysisResult, configuration);
@@ -96,24 +95,10 @@ class PDFService {
   }
 
   /**
-   * Construye el HTML del informe con estilos profesionales
+   * Construye el HTML del informe simplificado
    */
   private buildHTMLReport(analysis: AnalysisResult, config: Configuration): string {
-    // Debug: ver estructura de datos recibidos
-    console.log('📊 PDF Config recibida:', JSON.stringify(config, null, 2).substring(0, 500));
-    console.log('📊 PDF Analysis keys:', Object.keys(analysis || {}));
-    // Ver estructura de la primera pregunta para debug
-    if (analysis?.questions?.[0]) {
-      console.log('📊 Primera pregunta keys:', Object.keys(analysis.questions[0]));
-      console.log('📊 Tiene multiModelAnalysis:', !!analysis.questions[0].multiModelAnalysis);
-      if (analysis.questions[0].multiModelAnalysis) {
-        console.log('📊 multiModelAnalysis count:', analysis.questions[0].multiModelAnalysis.length);
-        console.log('📊 multiModelAnalysis[0] keys:', Object.keys(analysis.questions[0].multiModelAnalysis[0] || {}));
-        console.log('📊 multiModelAnalysis[0] response length:', (analysis.questions[0].multiModelAnalysis[0]?.response || '').length);
-      }
-    }
-
-    // Extraer competidores de la configuración (puede venir como competitorBrands, competitors, o dentro de configuration)
+    // Extraer configuracion
     let competitorsList: string[] = [];
     if (config?.competitorBrands && Array.isArray(config.competitorBrands)) {
       competitorsList = config.competitorBrands;
@@ -123,17 +108,13 @@ class PDFService {
       competitorsList = (config as any).configuration.competitors;
     }
 
-    // Asegurar valores por defecto para evitar errores de undefined
     const safeConfig = {
-      name: config?.name || (config as any)?.configuration?.name || 'Análisis',
+      name: config?.name || (config as any)?.configuration?.name || 'Analisis',
       targetBrand: config?.targetBrand || (config as any)?.brand || (config as any)?.configuration?.brand || 'Marca',
       competitorBrands: competitorsList,
       industry: config?.industry || (config as any)?.configuration?.industry || 'General'
     };
 
-    console.log('📊 SafeConfig:', JSON.stringify(safeConfig, null, 2));
-
-    // Asegurar valores por defecto para analysis
     const safeAnalysis = {
       ...analysis,
       analysisId: analysis?.analysisId || (analysis as any)?.id || 'N/A',
@@ -157,55 +138,13 @@ class PDFService {
       minute: '2-digit'
     });
 
-    // Calcular menciones desde las preguntas si brandSummary está vacío
-    let allBrandMentions: BrandMention[] = [];
-
-    // Primero intentar desde brandSummary
-    if (safeAnalysis.brandSummary.targetBrands.length > 0 || safeAnalysis.brandSummary.competitors.length > 0) {
-      allBrandMentions = [...safeAnalysis.brandSummary.targetBrands, ...safeAnalysis.brandSummary.competitors];
-    } else {
-      // Si brandSummary está vacío, extraer de las preguntas
-      safeAnalysis.questions.forEach((q: any) => {
-        if (q?.brandMentions && Array.isArray(q.brandMentions)) {
-          allBrandMentions.push(...q.brandMentions);
-        }
-      });
-    }
-
-    // Calcular estadísticas
-    const totalMentions = allBrandMentions.reduce((sum, b) => sum + (b?.frequency || 0), 0);
-    const positiveMentions = allBrandMentions.filter(b => b?.context === 'positive' || b?.sentiment === 'positive').length;
-    const negativeMentions = allBrandMentions.filter(b => b?.context === 'negative' || b?.sentiment === 'negative').length;
-
-    // También contar sentimientos positivos/negativos desde las preguntas
-    let positiveQuestions = 0;
-    let negativeQuestions = 0;
-    safeAnalysis.questions.forEach((q: any) => {
-      if (q?.sentiment === 'positive' || q?.sentiment === 'muy_positivo') positiveQuestions++;
-      if (q?.sentiment === 'negative' || q?.sentiment === 'muy_negativo') negativeQuestions++;
-    });
-
-    // Usar el mayor entre menciones de marca y preguntas
-    const finalPositive = Math.max(positiveMentions, positiveQuestions);
-    const finalNegative = Math.max(negativeMentions, negativeQuestions);
-
-    console.log('📊 Estadísticas calculadas:', { totalMentions, positiveMentions, negativeMentions, positiveQuestions, negativeQuestions, competitorsCount: safeConfig.competitorBrands.length });
-
-    // Agrupar preguntas por categoría
-    const questionsByCategory = safeAnalysis.questions.reduce((acc, q) => {
-      const category = q?.category || 'General';
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(q);
-      return acc;
-    }, {} as Record<string, QuestionAnalysis[]>);
-
     return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Informe de Análisis - ${safeConfig.targetBrand}</title>
+  <title>Informe de Analisis - ${safeConfig.targetBrand}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -228,7 +167,6 @@ class PDFService {
       padding: 0;
     }
 
-    /* Header */
     .header {
       background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
       color: white;
@@ -247,13 +185,11 @@ class PDFService {
       font-size: 24px;
       font-weight: 700;
       margin-bottom: 8px;
-      letter-spacing: -0.5px;
     }
 
     .header .subtitle {
       font-size: 14px;
       opacity: 0.9;
-      font-weight: 400;
     }
 
     .header .brand-badge {
@@ -262,7 +198,6 @@ class PDFService {
       border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      backdrop-filter: blur(10px);
     }
 
     .header .date {
@@ -271,10 +206,9 @@ class PDFService {
       margin-top: 15px;
     }
 
-    /* Métricas principales */
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 15px;
       margin-bottom: 30px;
     }
@@ -307,7 +241,6 @@ class PDFService {
       font-weight: 500;
     }
 
-    /* Secciones */
     .section {
       margin-bottom: 30px;
       page-break-inside: avoid;
@@ -320,33 +253,75 @@ class PDFService {
       margin-bottom: 15px;
       padding-bottom: 10px;
       border-bottom: 2px solid #3b82f6;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
-    .section-title .icon {
-      width: 24px;
-      height: 24px;
-      background: #3b82f6;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
+    .question-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+
+    .question-header {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      padding: 15px 20px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .question-text {
       font-size: 14px;
+      font-weight: 600;
+      color: #1e40af;
     }
 
-    /* Tabla de menciones */
-    .mentions-table {
+    .question-category {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 5px;
+    }
+
+    .question-body {
+      padding: 20px;
+    }
+
+    /* Respuesta del LLM */
+    .llm-response {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .llm-response-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0369a1;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .llm-response-text {
+      font-size: 11px;
+      line-height: 1.7;
+      color: #1f2937;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Tabla de ranking */
+    .ranking-table {
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 20px;
     }
 
-    .mentions-table th {
+    .ranking-table th {
       background: #f1f5f9;
-      padding: 12px 15px;
+      padding: 10px 12px;
       text-align: left;
       font-size: 10px;
       text-transform: uppercase;
@@ -356,327 +331,70 @@ class PDFService {
       border-bottom: 2px solid #e2e8f0;
     }
 
-    .mentions-table td {
-      padding: 12px 15px;
-      border-bottom: 1px solid #f1f5f9;
-      vertical-align: middle;
-    }
-
-    .mentions-table tr:hover {
-      background: #f8fafc;
-    }
-
-    .brand-name {
-      font-weight: 600;
-      color: #1f2937;
-    }
-
-    .brand-target {
-      color: #1e40af;
-    }
-
-    .frequency-badge {
-      display: inline-block;
-      background: #dbeafe;
-      color: #1e40af;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 12px;
-    }
-
-    .sentiment-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .sentiment-positive {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .sentiment-negative {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .sentiment-neutral {
-      background: #f3f4f6;
-      color: #4b5563;
-    }
-
-    /* Cards de categorías */
-    .category-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      margin-bottom: 20px;
-      overflow: hidden;
-      page-break-inside: avoid;
-    }
-
-    .category-header {
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-      padding: 15px 20px;
-      border-bottom: 1px solid #e2e8f0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .category-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1e40af;
-    }
-
-    .category-count {
-      background: #3b82f6;
-      color: white;
-      padding: 4px 10px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .question-item {
-      padding: 15px 20px;
-      border-bottom: 1px solid #f1f5f9;
-    }
-
-    .question-item:last-child {
-      border-bottom: none;
-    }
-
-    .question-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 10px;
-    }
-
-    .question-text {
-      font-size: 12px;
-      font-weight: 500;
-      color: #1f2937;
-      flex: 1;
-      padding-right: 15px;
-    }
-
-    .question-meta {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .confidence-pill {
-      background: #f0fdf4;
-      color: #166534;
-      padding: 3px 8px;
-      border-radius: 8px;
-      font-size: 10px;
-      font-weight: 600;
-    }
-
-    .confidence-low {
-      background: #fef2f2;
-      color: #991b1b;
-    }
-
-    .confidence-medium {
-      background: #fffbeb;
-      color: #92400e;
-    }
-
-    .question-response {
-      font-size: 11px;
-      color: #374151;
-      background: #f0f9ff;
-      border: 1px solid #bae6fd;
-      padding: 12px 15px;
-      border-radius: 8px;
-      margin-top: 12px;
-      line-height: 1.6;
-    }
-
-    .question-response strong {
-      color: #0369a1;
-      display: block;
-      margin-bottom: 8px;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .response-content {
-      color: #1f2937;
-      white-space: pre-wrap;
-    }
-
-    .question-summary {
-      font-size: 11px;
-      color: #64748b;
-      background: #f8fafc;
+    .ranking-table td {
       padding: 10px 12px;
-      border-radius: 8px;
-      margin-top: 10px;
-      line-height: 1.5;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 11px;
     }
 
-    .question-summary strong {
-      color: #475569;
-      margin-right: 5px;
-    }
-
-    .question-brands {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }
-
-    /* Respuestas generativas */
-    .generative-responses {
-      margin-top: 15px;
-    }
-
-    .generative-response-card {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-
-    .generative-response-header {
-      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-      padding: 10px 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #e2e8f0;
-    }
-
-    .model-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .model-icon {
+    .position-badge {
+      display: inline-block;
       width: 24px;
       height: 24px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
+      line-height: 24px;
+      text-align: center;
+      border-radius: 50%;
       font-weight: 700;
+      font-size: 11px;
       color: white;
     }
 
-    .model-icon.chatgpt {
-      background: linear-gradient(135deg, #10a37f 0%, #1a7f5a 100%);
-    }
+    .position-1 { background: #f59e0b; }
+    .position-2 { background: #6b7280; }
+    .position-3 { background: #b45309; }
+    .position-other { background: #94a3b8; }
 
-    .model-icon.claude {
-      background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    }
+    .type-objetivo { color: #1e40af; font-weight: 600; }
+    .type-competidor { color: #ea580c; font-weight: 600; }
+    .type-descubierto { color: #7c3aed; font-weight: 600; }
 
-    .model-icon.gemini {
-      background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%);
-    }
+    .sentiment-positive { color: #166534; }
+    .sentiment-negative { color: #991b1b; }
+    .sentiment-neutral { color: #4b5563; }
 
-    .model-icon.perplexity {
-      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    }
-
-    .model-name {
-      font-weight: 600;
-      font-size: 12px;
-      color: #334155;
-    }
-
-    .model-provider {
-      font-size: 10px;
-      color: #64748b;
-    }
-
-    .char-count {
-      background: #dbeafe;
-      color: #1e40af;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 10px;
-      font-weight: 600;
-    }
-
-    .generative-response-content {
+    /* Fuentes */
+    .sources-list {
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
       padding: 15px;
     }
 
-    .response-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #64748b;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .response-text {
-      font-size: 11px;
-      line-height: 1.7;
-      color: #1f2937;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .question-brands strong {
-      color: #475569;
-      font-size: 10px;
-      margin-right: 8px;
-    }
-
-    .brand-chip {
-      background: #eff6ff;
-      color: #1e40af;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 500;
-    }
-
-    /* Resumen ejecutivo */
-    .executive-summary {
-      background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
-      border: 1px solid #fcd34d;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-
-    .executive-summary h3 {
-      color: #92400e;
-      font-size: 14px;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .executive-summary p {
-      color: #78350f;
+    .sources-title {
       font-size: 12px;
-      line-height: 1.7;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 10px;
     }
 
-    /* Pie de página */
+    .source-item {
+      font-size: 10px;
+      color: #0066cc;
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+
+    .source-item a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+
+    .no-data {
+      color: #9ca3af;
+      font-style: italic;
+      font-size: 11px;
+    }
+
     .footer {
       margin-top: 40px;
       padding-top: 20px;
@@ -693,58 +411,12 @@ class PDFService {
       margin-bottom: 5px;
     }
 
-    /* Barra de progreso */
-    .progress-bar {
-      width: 100%;
-      height: 8px;
-      background: #e2e8f0;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
-      border-radius: 4px;
-    }
-
-    /* Gráfico de sentimientos */
-    .sentiment-chart {
-      display: flex;
-      gap: 20px;
-      margin-top: 15px;
-    }
-
-    .sentiment-bar {
-      flex: 1;
-      text-align: center;
-    }
-
-    .sentiment-bar-fill {
-      height: 40px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 600;
-      font-size: 14px;
-    }
-
-    .sentiment-bar-label {
-      margin-top: 8px;
-      font-size: 10px;
-      color: #64748b;
-    }
-
-    /* Print styles */
     @media print {
       .header {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
-
-      .category-card {
+      .question-card {
         break-inside: avoid;
       }
     }
@@ -756,8 +428,8 @@ class PDFService {
     <div class="header">
       <div class="header-content">
         <div>
-          <h1>Informe de Análisis de Marca</h1>
-          <p class="subtitle">Análisis de presencia en respuestas de IA Generativa</p>
+          <h1>Informe de Analisis de Marca</h1>
+          <p class="subtitle">Analisis de presencia en respuestas de IA Generativa</p>
           <p class="date">${formattedDate}</p>
         </div>
         <div class="brand-badge">
@@ -766,7 +438,7 @@ class PDFService {
       </div>
     </div>
 
-    <!-- Métricas principales -->
+    <!-- Metricas principales -->
     <div class="metrics-grid">
       <div class="metric-card primary">
         <div class="metric-value">${Math.round(safeAnalysis.overallConfidence * 100)}%</div>
@@ -777,209 +449,22 @@ class PDFService {
         <div class="metric-label">Preguntas Analizadas</div>
       </div>
       <div class="metric-card">
-        <div class="metric-value">${totalMentions}</div>
-        <div class="metric-label">Menciones Totales</div>
-      </div>
-      <div class="metric-card">
         <div class="metric-value">${safeConfig.competitorBrands.length}</div>
         <div class="metric-label">Competidores</div>
       </div>
     </div>
 
-    <!-- Resumen ejecutivo -->
-    <div class="executive-summary">
-      <h3>Resumen Ejecutivo</h3>
-      <p>
-        Este análisis evaluó la presencia de <strong>${safeConfig.targetBrand}</strong> en ${safeAnalysis.questions.length} preguntas
-        relacionadas con ${safeConfig.industry}. Se analizaron ${safeConfig.competitorBrands.length} competidores.
-        ${totalMentions > 0 ? `Se detectaron ${totalMentions} menciones de marca en total.` : ''}
-        El análisis identificó ${finalPositive} respuestas con sentimiento positivo y ${finalNegative} con sentimiento negativo.
-        La confianza general del análisis es del ${Math.round(safeAnalysis.overallConfidence * 100)}%.
-      </p>
-    </div>
-
-    <!-- Menciones de marca -->
+    <!-- Preguntas -->
     <div class="section">
-      <h2 class="section-title">
-        <span class="icon">T</span>
-        Menciones de Marca
-      </h2>
+      <h2 class="section-title">Analisis por Pregunta</h2>
 
-      ${safeAnalysis.brandSummary.targetBrands.length > 0 || safeAnalysis.brandSummary.competitors.length > 0 ? `
-      <table class="mentions-table">
-        <thead>
-          <tr>
-            <th>Marca</th>
-            <th>Tipo</th>
-            <th>Orden</th>
-            <th>Menciones</th>
-            <th>Sentimiento</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${safeAnalysis.brandSummary.targetBrands
-            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
-            .map(brand => `
-            <tr style="background: #eff6ff;">
-              <td><span class="brand-name brand-target">${brand?.brand || 'N/A'}</span></td>
-              <td><span style="color: #1e40af; font-weight: 600;">Objetivo</span></td>
-              <td>${brand?.appearanceOrder ? `<span style="background: #1e40af; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
-              <td><span class="frequency-badge">${brand?.frequency || 0}</span></td>
-              <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
-            </tr>
-          `).join('')}
-          ${safeAnalysis.brandSummary.competitors
-            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
-            .map(brand => `
-            <tr style="background: #fff7ed;">
-              <td><span class="brand-name">${brand?.brand || 'N/A'}</span></td>
-              <td><span style="color: #ea580c; font-weight: 600;">Competidor</span></td>
-              <td>${brand?.appearanceOrder ? `<span style="background: #ea580c; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
-              <td><span class="frequency-badge">${brand?.frequency || 0}</span></td>
-              <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      ` : '<p style="color: #64748b; text-align: center; padding: 20px;">No se detectaron menciones de marca en este análisis.</p>'}
-    </div>
-
-    <!-- Competidores Descubiertos por IA -->
-    ${safeAnalysis.brandSummary.otherCompetitors && safeAnalysis.brandSummary.otherCompetitors.length > 0 ? `
-    <div class="section">
-      <h2 class="section-title" style="border-bottom-color: #7c3aed;">
-        <span class="icon" style="background: #7c3aed;">*</span>
-        Competidores Descubiertos por IA
-      </h2>
-
-      <div style="background: linear-gradient(135deg, #f3e8ff 0%, #faf5ff 100%); border: 1px solid #c4b5fd; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
-        <p style="color: #6b21a8; font-size: 12px; margin: 0;">
-          <strong>Importante:</strong> Estas marcas fueron mencionadas por la IA pero no estaban en tu configuracion original.
-          Considera agregarlas a tu lista de competidores para futuros analisis.
-        </p>
-      </div>
-
-      <table class="mentions-table">
-        <thead>
-          <tr style="background: #7c3aed;">
-            <th style="color: white;">Marca</th>
-            <th style="color: white;">Orden</th>
-            <th style="color: white;">Menciones</th>
-            <th style="color: white;">Sentimiento</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${safeAnalysis.brandSummary.otherCompetitors
-            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
-            .map(brand => `
-            <tr style="background: #faf5ff;">
-              <td>
-                <span class="brand-name" style="color: #7c3aed;">${brand?.brand || 'N/A'}</span>
-                <span style="background: #f3e8ff; color: #7c3aed; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px;">NUEVO</span>
-              </td>
-              <td>${brand?.appearanceOrder ? `<span style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
-              <td><span class="frequency-badge" style="background: #f3e8ff; color: #7c3aed;">${brand?.frequency || 0}</span></td>
-              <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-    ` : ''}
-
-    <!-- Análisis por categoría -->
-    <div class="section">
-      <h2 class="section-title">
-        <span class="icon">📋</span>
-        Análisis Detallado por Categoría
-      </h2>
-
-      ${Object.entries(questionsByCategory).map(([category, questions]) => `
-        <div class="category-card">
-          <div class="category-header">
-            <span class="category-name">${category}</span>
-            <span class="category-count">${questions.length} pregunta${questions.length > 1 ? 's' : ''}</span>
-          </div>
-          ${questions.map(q => `
-            <div class="question-item">
-              <div class="question-header">
-                <span class="question-text">${q?.question || 'Sin pregunta'}</span>
-                <div class="question-meta">
-                  <span class="sentiment-badge sentiment-${q?.sentiment || 'neutral'}">${this.translateSentiment(q?.sentiment || 'neutral')}</span>
-                  <span class="confidence-pill ${(q?.confidenceScore || 0) < 0.5 ? 'confidence-low' : (q?.confidenceScore || 0) < 0.75 ? 'confidence-medium' : ''}">${Math.round((q?.confidenceScore || 0) * 100)}%</span>
-                </div>
-              </div>
-              ${q?.summary ? `<div class="question-summary"><strong>Resumen:</strong> ${q.summary}</div>` : ''}
-              ${q?.brandMentions && q.brandMentions.length > 0 ? `
-                <div class="question-brands">
-                  <strong>Marcas mencionadas:</strong>
-                  ${q.brandMentions.filter(b => b?.mentioned).map(b => `
-                    <span class="brand-chip">${b?.brand || 'N/A'} (${b?.frequency || 0})</span>
-                  `).join('')}
-                </div>
-              ` : ''}
-              ${q?.sources && q.sources.filter(s => s?.url && s.url !== 'ai-generated-response' && s.url !== 'generative-ai-response').length > 0 ? `
-                <div class="sources-section" style="margin-top: 12px; padding: 10px; background: #f0f9ff; border-radius: 6px; border-left: 3px solid #0066cc;">
-                  <strong style="color: #0066cc;">Fuentes Web Consultadas:</strong>
-                  <div style="margin-top: 8px;">
-                  ${q.sources.filter(s => s?.url && s.url !== 'ai-generated-response' && s.url !== 'generative-ai-response').map(s => `
-                    <div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
-                      <div style="font-weight: 600; color: #1a1a1a;">${s?.title || 'Sin título'}</div>
-                      <div style="font-size: 11px; color: #666; margin: 2px 0;">
-                        <span style="background: ${s?.isPriority ? '#dcfce7' : '#f3f4f6'}; color: ${s?.isPriority ? '#166534' : '#4b5563'}; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
-                          ${s?.isPriority ? 'Prioritaria' : 'General'}
-                        </span>
-                        <span style="margin-left: 8px;">${s?.domain || ''}</span>
-                      </div>
-                      <a href="${s?.url}" style="font-size: 11px; color: #0066cc; word-break: break-all;">${s?.url}</a>
-                      ${s?.snippet ? `<div style="font-size: 11px; color: #555; margin-top: 4px; font-style: italic;">"${s.snippet.substring(0, 150)}${s.snippet.length > 150 ? '...' : ''}"</div>` : ''}
-                    </div>
-                  `).join('')}
-                  </div>
-                </div>
-              ` : ''}
-              ${this.buildGenerativeResponsesHTML(q)}
-            </div>
-          `).join('')}
-        </div>
-      `).join('')}
-    </div>
-
-    <!-- Configuración del análisis -->
-    <div class="section">
-      <h2 class="section-title">
-        <span class="icon">*</span>
-        Configuración del Análisis
-      </h2>
-      <table class="mentions-table">
-        <tr>
-          <td style="width: 150px; font-weight: 600;">Nombre del análisis</td>
-          <td>${safeConfig.name}</td>
-        </tr>
-        <tr>
-          <td style="font-weight: 600;">Marca objetivo</td>
-          <td>${safeConfig.targetBrand}</td>
-        </tr>
-        <tr>
-          <td style="font-weight: 600;">Competidores</td>
-          <td>${safeConfig.competitorBrands.join(', ') || 'Ninguno'}</td>
-        </tr>
-        <tr>
-          <td style="font-weight: 600;">Industria</td>
-          <td>${safeConfig.industry}</td>
-        </tr>
-        <tr>
-          <td style="font-weight: 600;">ID del análisis</td>
-          <td style="font-family: monospace; font-size: 10px;">${safeAnalysis.analysisId || 'N/A'}</td>
-        </tr>
-      </table>
+      ${safeAnalysis.questions.map((q, index) => this.buildQuestionHTML(q, index + 1, safeConfig.targetBrand, safeConfig.competitorBrands)).join('')}
     </div>
 
     <!-- Footer -->
     <div class="footer">
       <div class="logo">Mediciones IA</div>
-      <p>Informe generado automáticamente • ${formattedDate}</p>
-      <p>Análisis de presencia de marca en respuestas de IA Generativa</p>
+      <p>Informe generado automaticamente - ${formattedDate}</p>
     </div>
   </div>
 </body>
@@ -988,7 +473,167 @@ class PDFService {
   }
 
   /**
-   * Traduce el sentimiento a español
+   * Construye el HTML para una pregunta individual
+   */
+  private buildQuestionHTML(question: any, questionNumber: number, targetBrand: string, competitors: string[]): string {
+    // 1. Obtener respuesta del LLM
+    const llmResponse = this.getLLMResponse(question);
+
+    // 2. Obtener ranking de marcas por orden de aparicion
+    const brandRanking = this.getBrandRanking(question, targetBrand, competitors);
+
+    // 3. Obtener fuentes web (filtrar ai-generated)
+    const webSources = this.getWebSources(question);
+
+    return `
+      <div class="question-card">
+        <div class="question-header">
+          <div class="question-text">${questionNumber}. ${question?.question || 'Sin pregunta'}</div>
+          <div class="question-category">Categoria: ${question?.category || 'General'}</div>
+        </div>
+        <div class="question-body">
+
+          <!-- Respuesta Completa del LLM -->
+          <div class="llm-response">
+            <div class="llm-response-title">Respuesta Completa del LLM</div>
+            <div class="llm-response-text">${llmResponse ? this.escapeHtml(llmResponse) : '<span class="no-data">No hay respuesta disponible</span>'}</div>
+          </div>
+
+          <!-- Ranking por Orden de Aparicion -->
+          ${brandRanking.length > 0 ? `
+          <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px;">Ranking por Orden de Aparicion</div>
+            <table class="ranking-table">
+              <thead>
+                <tr>
+                  <th>Posicion</th>
+                  <th>Marca</th>
+                  <th>Tipo</th>
+                  <th>Sentimiento</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${brandRanking.map((brand, idx) => `
+                  <tr>
+                    <td><span class="position-badge position-${idx < 3 ? idx + 1 : 'other'}">${idx + 1}</span></td>
+                    <td><strong>${brand.brand}</strong></td>
+                    <td><span class="type-${brand.type.toLowerCase()}">${brand.type}</span></td>
+                    <td><span class="sentiment-${brand.sentiment}">${this.translateSentiment(brand.sentiment)}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ` : '<div class="no-data" style="margin-bottom: 20px;">No se detectaron marcas en esta respuesta</div>'}
+
+          <!-- Fuentes Web -->
+          ${webSources.length > 0 ? `
+          <div class="sources-list">
+            <div class="sources-title">Fuentes Web (${webSources.length})</div>
+            ${webSources.map(url => `<div class="source-item"><a href="${url}">${url}</a></div>`).join('')}
+          </div>
+          ` : '<div class="no-data">No hay fuentes web disponibles</div>'}
+
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Obtiene la respuesta del LLM desde multiModelAnalysis[0].response
+   */
+  private getLLMResponse(question: any): string | null {
+    // Intentar obtener de multiModelAnalysis
+    if (question?.multiModelAnalysis && Array.isArray(question.multiModelAnalysis) && question.multiModelAnalysis.length > 0) {
+      return question.multiModelAnalysis[0]?.response || null;
+    }
+
+    // Fallback: buscar en sources con tipo generative
+    if (question?.sources && Array.isArray(question.sources)) {
+      const generativeSource = question.sources.find((s: any) =>
+        s?.url === 'generative-ai-response' ||
+        s?.title?.startsWith('Respuesta Generativa:')
+      );
+      if (generativeSource) {
+        return generativeSource?.fullContent || generativeSource?.snippet || null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Obtiene el ranking de marcas ordenado por appearanceOrder
+   */
+  private getBrandRanking(question: any, targetBrand: string, competitors: string[]): Array<{brand: string; type: string; sentiment: string}> {
+    const brandMentions = question?.brandMentions;
+    if (!brandMentions || !Array.isArray(brandMentions)) {
+      return [];
+    }
+
+    // Filtrar solo las que fueron mencionadas y ordenar por appearanceOrder
+    const mentionedBrands = brandMentions
+      .filter((b: any) => b?.mentioned)
+      .sort((a: any, b: any) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999));
+
+    return mentionedBrands.map((b: any) => {
+      // Determinar tipo
+      let type = 'Descubierto';
+      const brandName = (b?.brand || '').toLowerCase();
+
+      if (brandName === targetBrand.toLowerCase()) {
+        type = 'Objetivo';
+      } else if (competitors.some(c => c.toLowerCase() === brandName)) {
+        type = 'Competidor';
+      } else if (b?.isDiscovered) {
+        type = 'Descubierto';
+      }
+
+      return {
+        brand: b?.brand || 'N/A',
+        type,
+        sentiment: b?.sentiment || b?.context || 'neutral'
+      };
+    });
+  }
+
+  /**
+   * Obtiene las URLs de fuentes web (excluyendo ai-generated)
+   */
+  private getWebSources(question: any): string[] {
+    const sources = question?.sources;
+    if (!sources || !Array.isArray(sources)) {
+      return [];
+    }
+
+    return sources
+      .filter((s: any) => {
+        const url = s?.url;
+        return url &&
+               typeof url === 'string' &&
+               url !== 'ai-generated' &&
+               url !== 'ai-generated-response' &&
+               url !== 'generative-ai-response' &&
+               url.startsWith('http');
+      })
+      .map((s: any) => s.url);
+  }
+
+  /**
+   * Escapa HTML para evitar XSS
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+      .replace(/\n/g, '<br>');
+  }
+
+  /**
+   * Traduce el sentimiento a espanol
    */
   private translateSentiment(sentiment: string): string {
     const translations: Record<string, string> = {
@@ -1000,120 +645,7 @@ class PDFService {
       'very_positive': 'Muy Positivo',
       'very_negative': 'Muy Negativo'
     };
-    return translations[sentiment] || sentiment;
-  }
-
-  /**
-   * Obtiene el nombre del modelo para mostrar
-   */
-  private getModelDisplayName(modelPersona: string): { name: string; provider: string; icon: string } {
-    const models: Record<string, { name: string; provider: string; icon: string }> = {
-      'chatgpt': { name: 'ChatGPT', provider: 'OpenAI', icon: 'G' },
-      'claude': { name: 'Claude', provider: 'Anthropic', icon: 'C' },
-      'gemini': { name: 'Gemini', provider: 'Google', icon: 'G' },
-      'perplexity': { name: 'Perplexity', provider: 'Perplexity AI', icon: 'P' }
-    };
-    return models[modelPersona] || { name: modelPersona, provider: 'AI', icon: 'A' };
-  }
-
-  /**
-   * Genera HTML para las respuestas generativas de una pregunta
-   */
-  private buildGenerativeResponsesHTML(question: any): string {
-    // Primero intentar con multiModelAnalysis (nuevo formato)
-    const multiModelAnalysis = question?.multiModelAnalysis;
-    if (multiModelAnalysis && Array.isArray(multiModelAnalysis) && multiModelAnalysis.length > 0) {
-      return this.buildMultiModelResponsesHTML(multiModelAnalysis);
-    }
-
-    // Si no hay multiModelAnalysis, buscar en sources (formato actual de la DB)
-    const sources = question?.sources;
-    if (sources && Array.isArray(sources)) {
-      const generativeResponses = sources.filter((s: any) =>
-        s?.url === 'generative-ai-response' ||
-        s?.title?.startsWith('Respuesta Generativa:')
-      );
-
-      if (generativeResponses.length > 0) {
-        return this.buildSourcesResponsesHTML(generativeResponses, question?.question);
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Genera HTML para respuestas de multiModelAnalysis
-   */
-  private buildMultiModelResponsesHTML(multiModelAnalysis: any[]): string {
-    return `
-      <div class="generative-responses">
-        <div class="response-label">Respuestas Generativas (${multiModelAnalysis.length})</div>
-        ${multiModelAnalysis.map((analysis: any) => {
-          const model = this.getModelDisplayName(analysis?.modelPersona || 'chatgpt');
-          const response = analysis?.response || '';
-          const charCount = response.length;
-
-          return `
-            <div class="generative-response-card">
-              <div class="generative-response-header">
-                <div class="model-badge">
-                  <div class="model-icon ${analysis?.modelPersona || 'chatgpt'}">${model.icon}</div>
-                  <div>
-                    <div class="model-name">${model.name}</div>
-                    <div class="model-provider">${model.provider}</div>
-                  </div>
-                </div>
-                <span class="char-count">${charCount.toLocaleString()} caracteres</span>
-              </div>
-              <div class="generative-response-content">
-                <div class="response-text">${response.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }
-
-  /**
-   * Genera HTML para respuestas desde sources (formato de la DB)
-   */
-  private buildSourcesResponsesHTML(sources: any[], questionText?: string): string {
-    return `
-      <div class="generative-responses">
-        <div class="response-label">Respuestas Generativas (${sources.length})</div>
-        ${sources.map((source: any) => {
-          // Parsear el modelo desde domain (ej: "ChatGPT/OpenAI")
-          const domain = source?.domain || 'ChatGPT/OpenAI';
-          const [modelName, provider] = domain.split('/');
-          const modelPersona = modelName?.toLowerCase().replace('gpt', 'chatgpt') || 'chatgpt';
-          const model = this.getModelDisplayName(modelPersona);
-
-          // Usar fullContent si está disponible, sino snippet
-          const response = source?.fullContent || source?.snippet || '';
-          const charCount = response.length;
-
-          return `
-            <div class="generative-response-card">
-              <div class="generative-response-header">
-                <div class="model-badge">
-                  <div class="model-icon ${modelPersona}">${model.icon}</div>
-                  <div>
-                    <div class="model-name">${modelName || model.name}</div>
-                    <div class="model-provider">${provider || model.provider}</div>
-                  </div>
-                </div>
-                <span class="char-count">${charCount.toLocaleString()} caracteres</span>
-              </div>
-              <div class="generative-response-content">
-                <div class="response-text">${response.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
+    return translations[sentiment] || sentiment || 'Neutral';
   }
 }
 
