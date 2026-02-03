@@ -309,11 +309,11 @@ const Analysis = () => {
           },
           userApiKeys: parsedApiKeys,
           projectId: selectedProjectId || undefined,
-          // Nuevos parámetros: modelo y país
+          // Parámetros: modelo y país (del dropdown)
           selectedModel: selectedModel,
           countryCode: selectedCountry,
-          countryContext: countryInfo?.marketContext || '',
-          countryLanguage: countryInfo?.language || 'Español'
+          countryName: countryInfo?.name || 'España',
+          timezone: countryInfo?.timezone || 'Europe/Madrid'
         }),
       });
 
@@ -755,6 +755,12 @@ const Analysis = () => {
             {showCountryInfo && (() => {
               const country = countries.find(c => c.code === selectedCountry);
               if (!country) return null;
+              const now = new Date();
+              const formattedDate = now.toLocaleString(country.locale, {
+                timeZone: country.timezone,
+                dateStyle: 'full',
+                timeStyle: 'short'
+              });
               return (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-center mb-2">
@@ -763,22 +769,13 @@ const Analysis = () => {
                   </div>
                   <p className="text-sm text-gray-600 mb-3">{country.description}</p>
 
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="text-sm">
-                      <span className="text-gray-500">Idioma:</span>
-                      <span className="ml-2 font-medium">{country.language}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">Zona horaria:</span>
-                      <span className="ml-2 font-medium">{country.timezone}</span>
-                    </div>
-                  </div>
-
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded">
                     <span className="text-xs font-medium text-blue-800 uppercase block mb-1">
-                      Contexto que se añadirá a las preguntas:
+                      Prompt de sistema:
                     </span>
-                    <p className="text-sm text-blue-900 italic">"{country.marketContext}"</p>
+                    <p className="text-sm text-blue-900 font-mono bg-blue-100 p-2 rounded mt-1">
+                      "País: {country.name}. Fecha y hora actual: {formattedDate}."
+                    </p>
                   </div>
                 </div>
               );

@@ -85,9 +85,11 @@ router.post('/execute', async (req: Request, res: Response) => {
       configuration,
       userApiKeys,
       projectId,
-      // Nuevos parámetros
+      // Parámetros de modelo y país (del dropdown del frontend)
       selectedModel,
       countryCode,
+      countryName,
+      timezone,
       countryContext,
       countryLanguage
     } = req.body;
@@ -149,11 +151,13 @@ router.post('/execute', async (req: Request, res: Response) => {
     console.log(`📝 Preguntas: ${configuration.questions.length}`);
     console.log(`🤖 Modelos: ${configuration.aiModels?.join(', ') || 'ChatGPT'}`);
 
-    // Extender la configuración con modelo y país
+    // Extender la configuración con modelo y país (datos del dropdown del frontend)
     const extendedConfiguration = {
       ...configuration,
-      selectedModel: selectedModel || 'gpt-4o',
+      selectedModel: selectedModel || 'gpt-4o-search-preview',
       countryCode: countryCode || 'ES',
+      countryName: countryName || 'España',
+      timezone: timezone || 'Europe/Madrid',
       countryContext: countryContext || 'en España, considerando el mercado español',
       countryLanguage: countryLanguage || 'Español'
     };

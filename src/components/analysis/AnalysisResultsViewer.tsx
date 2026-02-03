@@ -586,7 +586,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                                   <h6 className="font-medium text-blue-900 mb-1">{source.title}</h6>
                                   <p className="text-sm text-blue-800 leading-relaxed">{source.snippet}</p>
                                 </div>
-                                {source.url && source.url !== 'generative-ai-response' && source.url !== 'ai-generated' && (
+                                {source.url && source.url !== 'generative-ai-response' && source.url !== 'ai-generated' && source.url !== 'ai-generated-response' && (
                                   <a
                                     href={source.url}
                                     target="_blank"
@@ -921,7 +921,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                                           <h6 className="font-medium text-blue-900 text-sm">{refSource.title}</h6>
                                           <p className="text-xs text-blue-800 mt-1">{refSource.snippet}</p>
                                         </div>
-                                        {refSource.url && refSource.url !== 'generative-ai-response' && refSource.url !== 'ai-generated' && (
+                                        {refSource.url && refSource.url !== 'generative-ai-response' && refSource.url !== 'ai-generated' && refSource.url !== 'ai-generated-response' && (
                                           <a
                                             href={refSource.url}
                                             target="_blank"

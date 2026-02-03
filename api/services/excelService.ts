@@ -326,24 +326,24 @@ class ExcelService {
   }
 
   /**
-   * Hoja 4: Fuentes Citadas por el LLM
+   * Hoja 4: Fuentes Web Reales (de OpenAI Web Search)
    */
   private async createSourcesCitedSheet(
     workbook: ExcelJS.Workbook,
     analysis: AnalysisResult
   ) {
-    const sheet = workbook.addWorksheet('Fuentes Citadas', {
+    const sheet = workbook.addWorksheet('Fuentes Web', {
       views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
     });
 
     // Headers
     sheet.getRow(1).values = [
       'Pregunta',
-      'Fuente',
-      'Tipo',
+      'Título',
+      'Dominio',
       'URL',
-      'Credibilidad',
-      'Contexto'
+      'Prioritaria',
+      'Extracto'
     ];
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     sheet.getRow(1).fill = {
@@ -352,26 +352,39 @@ class ExcelService {
       fgColor: { argb: 'FF1F4788' }
     };
 
-    // Datos
+    // Datos - usar sources[] (fuentes web reales de OpenAI)
     let row = 2;
     analysis.questions.forEach(question => {
-      if (question.sourcesCited && question.sourcesCited.length > 0) {
-        question.sourcesCited.forEach(source => {
+      if (question.sources && question.sources.length > 0) {
+        question.sources.forEach(source => {
+          // Saltar fuentes sintéticas (generadas cuando no hay web search)
+          if (source.url === 'ai-generated-response' || source.url === 'generative-ai-response') {
+            return;
+          }
+
           sheet.getRow(row).values = [
             question.question.substring(0, 100) + (question.question.length > 100 ? '...' : ''),
-            source.name,
-            source.type,
+            source.title || 'Sin título',
+            source.domain || '',
             source.url || 'N/A',
-            source.credibility,
-            source.context || ''
+            source.isPriority ? 'Sí' : 'No',
+            source.snippet?.substring(0, 200) || ''
           ];
 
-          // Color de credibilidad
-          const credCell = sheet.getCell(`E${row}`);
-          if (source.credibility === 'high') {
-            credCell.font = { color: { argb: 'FF008000' } };
-          } else if (source.credibility === 'low') {
-            credCell.font = { color: { argb: 'FFFF0000' } };
+          // Color para fuentes prioritarias
+          const priorityCell = sheet.getCell(`E${row}`);
+          if (source.isPriority) {
+            priorityCell.font = { color: { argb: 'FF008000' }, bold: true };
+          }
+
+          // Hacer URL clicable
+          if (source.url && source.url !== 'N/A') {
+            const urlCell = sheet.getCell(`D${row}`);
+            urlCell.value = {
+              text: source.url,
+              hyperlink: source.url
+            };
+            urlCell.font = { color: { argb: 'FF0066CC' }, underline: true };
           }
 
           row++;
@@ -379,19 +392,19 @@ class ExcelService {
       }
     });
 
-    // Si no hay fuentes citadas
+    // Si no hay fuentes web reales
     if (row === 2) {
-      sheet.getRow(2).values = ['No se encontraron fuentes citadas en las respuestas del LLM', '', '', '', '', ''];
+      sheet.getRow(2).values = ['No se encontraron fuentes web reales. Verifica que el modelo tenga búsqueda web habilitada.', '', '', '', '', ''];
       sheet.mergeCells('A2:F2');
     }
 
     // Ajustar anchos
     sheet.getColumn(1).width = 50;
-    sheet.getColumn(2).width = 30;
-    sheet.getColumn(3).width = 15;
-    sheet.getColumn(4).width = 40;
-    sheet.getColumn(5).width = 15;
-    sheet.getColumn(6).width = 50;
+    sheet.getColumn(2).width = 35;
+    sheet.getColumn(3).width = 25;
+    sheet.getColumn(4).width = 50;
+    sheet.getColumn(5).width = 12;
+    sheet.getColumn(6).width = 60;
   }
 
   /**

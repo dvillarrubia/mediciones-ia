@@ -778,6 +778,77 @@ class AdminService {
     console.log(`🔄 Sincronización de modelos: ${added} añadidos, ${existing} existentes`);
     return { added, existing };
   }
+
+  /**
+   * Limpiar modelos antiguos sin búsqueda web (OpenAI sin 'search' en el ID)
+   * Solo mantiene modelos con búsqueda web real
+   */
+  async cleanupNonSearchModels(): Promise<{ removed: number; kept: number }> {
+    await this.ensureInitialized();
+
+    const existingModels = await this.getAllAIModels();
+    const validModelIds = new Set(AI_MODELS.map(m => m.id));
+
+    let removed = 0;
+    let kept = 0;
+
+    for (const model of existingModels) {
+      // Si el modelo es de OpenAI y NO tiene 'search' en el ID, eliminarlo
+      // A menos que esté en la lista actual de AI_MODELS
+      if (model.provider === 'openai' && !model.id.includes('search') && !validModelIds.has(model.id)) {
+        await this.deleteAIModel(model.id);
+        console.log(`🗑️ Modelo sin búsqueda web eliminado: ${model.name} (${model.id})`);
+        removed++;
+      } else {
+        kept++;
+      }
+    }
+
+    console.log(`🧹 Limpieza de modelos: ${removed} eliminados, ${kept} mantenidos`);
+    return { removed, kept };
+  }
+
+  /**
+   * Eliminar un modelo de IA por ID
+   */
+  async deleteAIModel(modelId: string): Promise<void> {
+    await this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      this.db!.run(
+        'DELETE FROM ai_models WHERE id = ?',
+        [modelId],
+        function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+  }
+
+  /**
+   * Sincronización completa: limpia modelos antiguos y añade nuevos
+   */
+  async fullModelSync(): Promise<{ added: number; removed: number; kept: number }> {
+    console.log('🔄 Iniciando sincronización completa de modelos...');
+
+    // Primero limpiar modelos antiguos sin búsqueda web
+    const cleanup = await this.cleanupNonSearchModels();
+
+    // Luego añadir los nuevos modelos
+    const sync = await this.syncAIModelsFromConstants();
+
+    console.log(`✅ Sincronización completa: ${sync.added} añadidos, ${cleanup.removed} eliminados, ${cleanup.kept} mantenidos`);
+
+    return {
+      added: sync.added,
+      removed: cleanup.removed,
+      kept: cleanup.kept
+    };
+  }
 }
 
 export const adminService = new AdminService();

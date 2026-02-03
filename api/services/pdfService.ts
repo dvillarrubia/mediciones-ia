@@ -863,14 +863,24 @@ class PDFService {
                   `).join('')}
                 </div>
               ` : ''}
-              ${q?.sourcesCited && q.sourcesCited.length > 0 ? `
-                <div class="question-brands" style="margin-top: 8px;">
-                  <strong>Fuentes citadas por el LLM:</strong>
-                  ${q.sourcesCited.map(s => `
-                    <span class="brand-chip" style="background: ${s?.credibility === 'high' ? '#dcfce7' : s?.credibility === 'low' ? '#fee2e2' : '#f3f4f6'}; color: ${s?.credibility === 'high' ? '#166534' : s?.credibility === 'low' ? '#991b1b' : '#4b5563'};">
-                      ${s?.name || 'N/A'} (${s?.type || 'other'})
-                    </span>
+              ${q?.sources && q.sources.filter(s => s?.url && s.url !== 'ai-generated-response' && s.url !== 'generative-ai-response').length > 0 ? `
+                <div class="sources-section" style="margin-top: 12px; padding: 10px; background: #f0f9ff; border-radius: 6px; border-left: 3px solid #0066cc;">
+                  <strong style="color: #0066cc;">Fuentes Web Consultadas:</strong>
+                  <div style="margin-top: 8px;">
+                  ${q.sources.filter(s => s?.url && s.url !== 'ai-generated-response' && s.url !== 'generative-ai-response').map(s => `
+                    <div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+                      <div style="font-weight: 600; color: #1a1a1a;">${s?.title || 'Sin título'}</div>
+                      <div style="font-size: 11px; color: #666; margin: 2px 0;">
+                        <span style="background: ${s?.isPriority ? '#dcfce7' : '#f3f4f6'}; color: ${s?.isPriority ? '#166534' : '#4b5563'}; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
+                          ${s?.isPriority ? 'Prioritaria' : 'General'}
+                        </span>
+                        <span style="margin-left: 8px;">${s?.domain || ''}</span>
+                      </div>
+                      <a href="${s?.url}" style="font-size: 11px; color: #0066cc; word-break: break-all;">${s?.url}</a>
+                      ${s?.snippet ? `<div style="font-size: 11px; color: #555; margin-top: 4px; font-style: italic;">"${s.snippet.substring(0, 150)}${s.snippet.length > 150 ? '...' : ''}"</div>` : ''}
+                    </div>
                   `).join('')}
+                  </div>
                 </div>
               ` : ''}
               ${this.buildGenerativeResponsesHTML(q)}

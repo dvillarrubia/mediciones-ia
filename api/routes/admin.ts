@@ -274,13 +274,18 @@ router.patch('/ai-models/:modelId/toggle', requireAdminAuth, async (req: Request
 });
 
 /**
- * Sincronizar modelos desde constants.ts
+ * Sincronización COMPLETA de modelos desde constants.ts
+ * Elimina modelos sin búsqueda web y añade los nuevos
  * POST /api/admin/ai-models/sync
  */
 router.post('/ai-models/sync', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await adminService.syncAIModelsFromConstants();
-    res.json({ success: true, ...result, message: `${result.added} modelos nuevos añadidos` });
+    const result = await adminService.fullModelSync();
+    res.json({
+      success: true,
+      ...result,
+      message: `Sincronización completa: ${result.added} añadidos, ${result.removed} eliminados (sin búsqueda web)`
+    });
   } catch (error: any) {
     console.error('Error sincronizando modelos:', error);
     res.status(500).json({ error: error.message || 'Error al sincronizar' });

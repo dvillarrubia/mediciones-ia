@@ -63,6 +63,15 @@ export interface SourceCited {
   credibility: 'high' | 'medium' | 'low';
 }
 
+// Fuentes web REALES extraídas de OpenAI Web Search
+export interface WebSearchSource {
+  url: string;
+  title: string;
+  snippet: string;
+  startIndex?: number;
+  endIndex?: number;
+}
+
 export interface QuestionAnalysis {
   questionId: string;
   question: string;
@@ -130,10 +139,10 @@ class OpenAIService {
   private readonly REQUEST_TIMEOUT = 60000; // 60 segundos
   private readonly ENABLE_CACHE = true; // Habilitar caché
 
-  // Configuración de modelos (OPTIMIZADO PARA CALIDAD Y COSTO)
-  private readonly GENERATION_MODEL = "gpt-4o"; // Modelo principal para GENERAR respuestas de IA (calidad)
-  private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Modelo económico para ANALIZAR menciones (costo) - SIEMPRE OpenAI
-  private readonly DEFAULT_MODEL = "gpt-4o"; // Fallback por compatibilidad
+  // Configuración de modelos (CON BÚSQUEDA WEB REAL)
+  private readonly GENERATION_MODEL = "gpt-4o-search-preview"; // Modelo con búsqueda web para GENERAR respuestas
+  private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Modelo económico para ANALIZAR menciones (no necesita web)
+  private readonly DEFAULT_MODEL = "gpt-4o-search-preview"; // Modelo con búsqueda web por defecto
 
   // Clientes para múltiples proveedores
   private anthropicClient: Anthropic | null = null;
@@ -429,22 +438,32 @@ class OpenAIService {
 
   /**
    * Obtiene el modelo de generación basado en la selección del usuario
+   * IMPORTANTE: Solo permite modelos con búsqueda web
    */
   private getGenerationModel(configuration: any): string {
-    if (configuration.selectedModel) {
-      console.log(`🤖 Modelo de generación seleccionado: ${configuration.selectedModel}`);
-      return configuration.selectedModel;
+    const selectedModel = configuration.selectedModel;
+
+    if (selectedModel) {
+      // Verificar que el modelo tenga búsqueda web
+      if (selectedModel.includes('search')) {
+        console.log(`🌐 Modelo con búsqueda web seleccionado: ${selectedModel}`);
+        return selectedModel;
+      } else {
+        console.log(`⚠️ Modelo ${selectedModel} no tiene búsqueda web, usando gpt-4o-search-preview`);
+        return 'gpt-4o-search-preview';
+      }
     }
-    // Fallback si no hay selección
-    console.log('⚠️ No hay modelo seleccionado, usando gpt-4o por defecto');
-    return 'gpt-4o';
+
+    // Fallback: modelo con búsqueda web por defecto
+    console.log('🌐 Usando modelo con búsqueda web por defecto: gpt-4o-search-preview');
+    return 'gpt-4o-search-preview';
   }
 
   /**
    * Genera contenido usando el proveedor correcto según el modelo seleccionado
    * FASE 1: Usa el modelo que el usuario eligió (sin fallback)
    */
-  private async generateContentWithProvider(question: string, modelId: string): Promise<string> {
+  private async generateContentWithProvider(question: string, modelId: string, configuration?: any): Promise<string> {
     const modelInfo = getModelById(modelId);
 
     if (!modelInfo) {
@@ -456,7 +475,7 @@ class OpenAIService {
 
     switch (provider) {
       case 'openai':
-        return await this.generateWithOpenAI(question, modelId);
+        return await this.generateWithOpenAI(question, modelId, configuration);
 
       case 'anthropic':
         return await this.generateWithAnthropic(question, modelId);
@@ -469,31 +488,110 @@ class OpenAIService {
     }
   }
 
+  // Almacenamiento temporal de fuentes web extraídas de la última llamada
+  private lastWebSources: WebSearchSource[] = [];
+
   /**
-   * Genera contenido con OpenAI
+   * Genera contenido con OpenAI usando búsqueda web
+   * IMPORTANTE: Solo usa modelos con web_search habilitado
    */
-  private async generateWithOpenAI(question: string, modelId: string): Promise<string> {
+  private async generateWithOpenAI(question: string, modelId: string, configuration?: any): Promise<string> {
     if (!this.client) {
       throw new Error('No hay API key de OpenAI configurada. Por favor, añade tu API key de OpenAI para usar este modelo.');
     }
 
+    // Verificar que el modelo tenga búsqueda web
+    const isSearchModel = modelId.includes('search');
+    if (!isSearchModel) {
+      throw new Error(`El modelo ${modelId} no tiene búsqueda web. Solo se permiten modelos con búsqueda web real.`);
+    }
+
+    // Construir prompt de sistema con país y hora actual
+    const countryName = configuration?.countryName || 'España';
+    const now = new Date();
+    const systemPrompt = `País: ${countryName}. Fecha y hora actual: ${now.toLocaleString('es-ES', {
+      timeZone: configuration?.timezone || 'Europe/Madrid',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    })}.`;
+
+    console.log(`🌐 [OpenAI] Ejecutando búsqueda web con modelo: ${modelId}`);
+    console.log(`📍 [OpenAI] Sistema: ${systemPrompt}`);
+
     const response = await Promise.race([
       this.client.chat.completions.create({
         model: modelId,
-        messages: [{ role: 'user', content: question }],
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ],
+        web_search_options: {
+          search_context_size: 'medium', // 'low' | 'medium' | 'high'
+        },
+      } as any), // TypeScript puede no tener los tipos actualizados
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 60 segundos')), 60000)
+        setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 90 segundos')), 90000)
       )
     ]) as any;
 
-    const content = response.choices[0]?.message?.content;
+    const message = response.choices[0]?.message;
+    const content = message?.content;
+
     if (!content) {
       throw new Error('OpenAI devolvió una respuesta vacía');
     }
+
+    // Extraer fuentes web de las annotations
+    this.lastWebSources = this.extractWebSources(message);
+    console.log(`📚 [OpenAI] Fuentes web extraídas: ${this.lastWebSources.length}`);
+
     return content;
+  }
+
+  /**
+   * Extrae las fuentes web de las annotations de OpenAI
+   */
+  private extractWebSources(message: any): WebSearchSource[] {
+    const sources: WebSearchSource[] = [];
+
+    if (!message?.annotations || !Array.isArray(message.annotations)) {
+      console.log('⚠️ No se encontraron annotations en la respuesta');
+      return sources;
+    }
+
+    for (const annotation of message.annotations) {
+      if (annotation.type === 'url_citation' && annotation.url) {
+        sources.push({
+          url: annotation.url,
+          title: annotation.title || this.extractDomainFromUrl(annotation.url),
+          snippet: annotation.text || '',
+          startIndex: annotation.start_index,
+          endIndex: annotation.end_index,
+        });
+        console.log(`  📎 Fuente: ${annotation.title || annotation.url}`);
+      }
+    }
+
+    return sources;
+  }
+
+  /**
+   * Extrae el dominio de una URL
+   */
+  private extractDomainFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.replace('www.', '');
+    } catch {
+      return url;
+    }
+  }
+
+  /**
+   * Obtiene las últimas fuentes web extraídas
+   */
+  public getLastWebSources(): WebSearchSource[] {
+    return this.lastWebSources;
   }
 
   /**
@@ -612,7 +710,7 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         // Si no está en caché, llamar al proveedor correspondiente
         if (!generatedContent) {
           // Usar el proveedor correcto según el modelo seleccionado (OpenAI, Anthropic, o Google)
-          generatedContent = await this.generateContentWithProvider(questionData.question, generationModel);
+          generatedContent = await this.generateContentWithProvider(questionData.question, generationModel, configuration);
 
           const responseTime = Date.now() - startTime;
           console.log(`📨 [${questionId}] Respuesta generativa recibida en ${responseTime}ms (${generatedContent.length} caracteres)`);
@@ -800,10 +898,11 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
 
   /**
    * Parsea la respuesta del análisis de contenido generativo
+   * ACTUALIZADO: Ahora usa fuentes web REALES de OpenAI Web Search
    */
   private parseGenerativeAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, configuration: any): QuestionAnalysis {
     const questionId = questionData.id;
-    
+
     console.log(`🔍 [${questionId}] Parseando respuesta de análisis generativo...`);
     console.log(`📄 [${questionId}] Respuesta a parsear (${analysisResponse.length} chars):`, analysisResponse.substring(0, 300));
 
@@ -816,7 +915,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       }
 
       let jsonStr = jsonMatch[0];
-      
+
       // Limpiar el JSON
       jsonStr = jsonStr
         .replace(/```json\s*/g, '')
@@ -829,15 +928,34 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       const parsedData = JSON.parse(jsonStr);
       console.log(`✅ [${questionId}] JSON parseado exitosamente`);
 
-      // Crear fuente sintética que representa el contenido generativo analizado
-      const syntheticSource: AnalysisSource = {
-        url: 'generative-ai-response',
-        title: `Respuesta Generativa: ${questionData.question.substring(0, 60)}...`,
-        snippet: generatedContent.substring(0, 2000) + '...',
-        domain: 'ChatGPT/OpenAI',
-        isPriority: true, // Las respuestas generativas son siempre prioritarias para este análisis
-        fullContent: generatedContent // Guardar el contenido completo del LLM
-      };
+      // =====================================================
+      // FUENTES WEB REALES de OpenAI Web Search
+      // =====================================================
+      const webSources = this.getLastWebSources();
+      const realSources: AnalysisSource[] = webSources.map((source, index) => ({
+        url: source.url,
+        title: source.title,
+        snippet: source.snippet || `Fuente ${index + 1} de búsqueda web`,
+        domain: this.extractDomainFromUrl(source.url),
+        isPriority: this.isSourcePriority(source.url, configuration),
+        fullContent: undefined
+      }));
+
+      // Si no hay fuentes de web search, crear una fuente indicando que es respuesta de IA
+      if (realSources.length === 0) {
+        console.log(`⚠️ [${questionId}] No se encontraron fuentes web, usando fuente sintética`);
+        realSources.push({
+          url: 'ai-generated-response',
+          title: `Respuesta IA sin fuentes web`,
+          snippet: generatedContent.substring(0, 500) + '...',
+          domain: 'OpenAI',
+          isPriority: false,
+          fullContent: generatedContent
+        });
+      } else {
+        console.log(`🌐 [${questionId}] ${realSources.length} FUENTES WEB REALES encontradas:`);
+        realSources.forEach((s, i) => console.log(`   ${i + 1}. ${s.domain}: ${s.title}`));
+      }
 
       // Procesar menciones de marca
       const brandMentions: BrandMention[] = (parsedData.brandMentions || []).map((mention: any) => ({
@@ -848,13 +966,13 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         evidence: Array.isArray(mention.evidence) ? mention.evidence : []
       }));
 
-      // Procesar fuentes citadas por el LLM
-      const sourcesCited: SourceCited[] = (parsedData.sourcesCited || []).map((source: any) => ({
-        name: source.name || 'Fuente desconocida',
-        type: source.type || 'other',
-        url: source.url || null,
-        context: source.context || '',
-        credibility: source.credibility || 'medium'
+      // Convertir fuentes web a SourceCited para compatibilidad
+      const sourcesCited: SourceCited[] = realSources.map(source => ({
+        name: source.title,
+        type: this.classifySourceType(source.domain) as any,
+        url: source.url,
+        context: source.snippet,
+        credibility: source.isPriority ? 'high' : 'medium' as any
       }));
 
       const result: QuestionAnalysis = {
@@ -862,22 +980,43 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         question: questionData.question,
         category: questionData.category || 'Análisis Generativo',
         summary: parsedData.summary || 'Análisis de respuesta generativa completado',
-        sources: [syntheticSource], // Una sola "fuente" que representa el contenido generativo
+        sources: realSources, // FUENTES WEB REALES
         brandMentions: brandMentions,
-        sourcesCited: sourcesCited, // Fuentes citadas por el LLM
+        sourcesCited: sourcesCited, // Fuentes como SourceCited para compatibilidad
         sentiment: parsedData.sentiment || 'neutral',
         confidenceScore: parsedData.confidenceScore || 0.5
       };
 
-      console.log(`✅ [${questionId}] Análisis generativo parseado: ${brandMentions.length} menciones de marca, ${sourcesCited.length} fuentes citadas`);
+      console.log(`✅ [${questionId}] Análisis completado: ${brandMentions.length} menciones, ${realSources.length} fuentes REALES`);
       return result;
 
     } catch (error) {
       console.error(`❌ [${questionId}] Error parseando análisis generativo:`, error);
       console.error(`📄 [${questionId}] Respuesta problemática:`, analysisResponse);
-      
+
       return this.createErrorAnalysis(questionData);
     }
+  }
+
+  /**
+   * Verifica si una fuente es prioritaria según la configuración
+   */
+  private isSourcePriority(url: string, configuration: any): boolean {
+    const prioritySources = configuration.prioritySources || PRIORITY_SOURCES;
+    const domain = this.extractDomainFromUrl(url).toLowerCase();
+    return prioritySources.some((ps: string) => domain.includes(ps.toLowerCase()));
+  }
+
+  /**
+   * Clasifica el tipo de fuente basado en el dominio
+   */
+  private classifySourceType(domain: string): string {
+    const d = domain.toLowerCase();
+    if (d.includes('.gov') || d.includes('.gob')) return 'government';
+    if (d.includes('news') || d.includes('noticias') || d.includes('periodico')) return 'media';
+    if (d.includes('edu') || d.includes('university') || d.includes('academic')) return 'study';
+    if (d.includes('org')) return 'organization';
+    return 'website';
   }
 
   /**
@@ -1997,12 +2136,15 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
   // PASO 1: Generar respuesta con la persona del modelo específico
   const generativePrompt = this.buildPersonaGenerativePrompt(questionData.question, modelPersona, configuration);
 
+  // El modelo de búsqueda web NO soporta temperature, usar web_search_options
   const generativeResponse = await this.client.chat.completions.create({
-    model: this.GENERATION_MODEL, // Usar modelo PRINCIPAL para generar respuestas de calidad
+    model: this.GENERATION_MODEL, // Modelo con búsqueda web para generar respuestas de calidad
     messages: [{ role: 'user', content: generativePrompt }],
-    temperature: this.getModelTemperature(modelPersona),
     max_tokens: configuration.maxTokens || 2000,
-  });
+    web_search_options: {
+      search_context_size: 'medium',
+    },
+  } as any);
 
   const generatedContent = generativeResponse.choices[0]?.message?.content || '';
 
