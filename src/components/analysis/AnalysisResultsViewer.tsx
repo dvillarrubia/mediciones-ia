@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  FileText, 
-  Download, 
-  Share2, 
-  ChevronDown, 
-  ChevronRight, 
+import {
+  FileText,
+  Download,
+  Share2,
+  ChevronDown,
+  ChevronRight,
   ExternalLink,
   TrendingUp,
   Target,
@@ -12,7 +12,8 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
-  BookOpen
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 
 interface AnalysisSource {
@@ -29,6 +30,9 @@ interface BrandMention {
   frequency: number;
   context: string;
   evidence: string[];
+  // Campos para tracking de aparición y descubrimiento
+  appearanceOrder?: number;      // Orden de aparición en la respuesta (1=primero)
+  isDiscovered?: boolean;        // true si NO estaba en la lista configurada
   // Nuevos campos para análisis mejorado
   detailedSentiment?: 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative';
   contextualAnalysis?: {
@@ -82,6 +86,7 @@ interface AnalysisResult {
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
+    otherCompetitors?: BrandMention[];  // Competidores descubiertos por la IA
   };
   brandSummaryByType?: {
     all: {
@@ -760,10 +765,17 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                     Marcas Objetivo
                   </h4>
                   <div className="grid gap-3">
-                    {targetBrands.map((brand, idx) => (
-                      <div key={idx} className="border rounded-lg p-4">
+                    {targetBrands
+                      .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                      .map((brand, idx) => (
+                      <div key={idx} className="border border-blue-200 rounded-lg p-4 bg-white relative">
+                        {brand.appearanceOrder && (
+                          <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                            #{brand.appearanceOrder}
+                          </div>
+                        )}
                         <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-medium text-gray-900">{brand.brand}</h5>
+                          <h5 className="font-medium text-gray-900 ml-4">{brand.brand}</h5>
                           <div className="flex items-center space-x-2">
                             <span className="text-sm text-gray-600">
                               {brand.frequency} menciones
@@ -774,7 +786,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                           </div>
                         </div>
                         {brand.evidence.length > 0 && (
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 ml-4">
                             <p className="font-medium mb-1">Evidencia:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
@@ -791,16 +803,23 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
 
                     {/* Competidores */}
                     {competitors.length > 0 && (
-                <div>
+                <div className="mb-6">
                   <h4 className="font-medium text-gray-900 mb-3 flex items-center">
                     <Users className="h-5 w-5 text-orange-600 mr-2" />
-                    Competidores
+                    Competidores Configurados
                   </h4>
                   <div className="grid gap-3">
-                    {competitors.map((brand, idx) => (
-                      <div key={idx} className="border rounded-lg p-4">
+                    {competitors
+                      .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                      .map((brand, idx) => (
+                      <div key={idx} className="border border-orange-200 rounded-lg p-4 bg-white relative">
+                        {brand.appearanceOrder && (
+                          <div className="absolute -top-2 -left-2 bg-orange-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                            #{brand.appearanceOrder}
+                          </div>
+                        )}
                         <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-medium text-gray-900">{brand.brand}</h5>
+                          <h5 className="font-medium text-gray-900 ml-4">{brand.brand}</h5>
                           <div className="flex items-center space-x-2">
                             <span className="text-sm text-gray-600">
                               {brand.frequency} menciones
@@ -811,7 +830,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                           </div>
                         </div>
                         {brand.evidence.length > 0 && (
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 ml-4">
                             <p className="font-medium mb-1">Evidencia:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
@@ -825,6 +844,133 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                   </div>
                 </div>
                     )}
+
+                    {/* Competidores Emergentes (descubiertos por IA) */}
+                    {(analysisResult?.brandSummary?.otherCompetitors?.length ?? 0) > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                    <Sparkles className="h-5 w-5 text-purple-600 mr-2" />
+                    Competidores Emergentes
+                    <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                      Descubiertos por IA
+                    </span>
+                  </h4>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-purple-800">
+                      Estas marcas fueron mencionadas por la IA pero no estaban en tu configuración original.
+                      Considera agregarlas a tu lista de competidores para futuros analisis.
+                    </p>
+                  </div>
+                  <div className="grid gap-3">
+                    {analysisResult?.brandSummary?.otherCompetitors
+                      ?.sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                      .map((brand, idx) => (
+                      <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-white relative">
+                        {brand.appearanceOrder && (
+                          <div className="absolute -top-2 -left-2 bg-purple-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                            #{brand.appearanceOrder}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center ml-4">
+                            <h5 className="font-medium text-gray-900">{brand.brand}</h5>
+                            <span className="ml-2 text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">
+                              Nuevo
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">
+                              {brand.frequency} menciones
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs ${getSentimentColor(brand.context)}`}>
+                              {getSentimentLabel(brand.context)}
+                            </span>
+                          </div>
+                        </div>
+                        {brand.evidence && brand.evidence.length > 0 && (
+                          <div className="text-sm text-gray-600 ml-4">
+                            <p className="font-medium mb-1">Evidencia:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {brand.evidence.slice(0, 3).map((evidence, evidenceIdx) => (
+                                <li key={evidenceIdx}>{evidence}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                    )}
+
+                    {/* Ranking Visual de Posicionamiento */}
+                    {(() => {
+                      const allBrands = [
+                        ...(targetBrands || []).map(b => ({ ...b, type: 'target' as const })),
+                        ...(competitors || []).map(b => ({ ...b, type: 'competitor' as const })),
+                        ...(analysisResult?.brandSummary?.otherCompetitors || []).map(b => ({ ...b, type: 'discovered' as const }))
+                      ].filter(b => b.appearanceOrder && b.mentioned)
+                       .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999));
+
+                      if (allBrands.length === 0) return null;
+
+                      const getTypeColor = (type: string) => {
+                        switch (type) {
+                          case 'target': return 'bg-blue-500';
+                          case 'competitor': return 'bg-orange-500';
+                          case 'discovered': return 'bg-purple-500';
+                          default: return 'bg-gray-500';
+                        }
+                      };
+
+                      const getTypeLabel = (type: string) => {
+                        switch (type) {
+                          case 'target': return 'Objetivo';
+                          case 'competitor': return 'Competidor';
+                          case 'discovered': return 'Descubierto';
+                          default: return '';
+                        }
+                      };
+
+                      return (
+                        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+                          <h4 className="font-medium text-gray-900 mb-4 flex items-center">
+                            <TrendingUp className="h-5 w-5 text-gray-600 mr-2" />
+                            Ranking de Aparicion en Respuestas IA
+                          </h4>
+                          <div className="space-y-2">
+                            {allBrands.slice(0, 10).map((brand, idx) => (
+                              <div key={idx} className="flex items-center">
+                                <div className={`w-8 h-8 ${getTypeColor(brand.type)} text-white text-sm font-bold rounded-full flex items-center justify-center mr-3`}>
+                                  {brand.appearanceOrder}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-gray-900">{brand.brand}</span>
+                                    <div className="flex items-center space-x-2">
+                                      <span className={`text-xs px-2 py-0.5 rounded ${
+                                        brand.type === 'target' ? 'bg-blue-100 text-blue-700' :
+                                        brand.type === 'competitor' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-purple-100 text-purple-700'
+                                      }`}>
+                                        {getTypeLabel(brand.type)}
+                                      </span>
+                                      <span className="text-xs text-gray-500">{brand.frequency} menciones</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                    <div
+                                      className={`h-2 rounded-full ${getTypeColor(brand.type)}`}
+                                      style={{ width: `${Math.min(100, (brand.frequency / Math.max(...allBrands.map(b => b.frequency))) * 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}

@@ -12,6 +12,9 @@ interface BrandMention {
   context: string;
   sentiment?: string;
   evidence?: string[];
+  // Campos para tracking de aparicion
+  appearanceOrder?: number;
+  isDiscovered?: boolean;
 }
 
 interface SourceCited {
@@ -45,6 +48,7 @@ interface AnalysisResult {
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
+    otherCompetitors?: BrandMention[];  // Competidores descubiertos por IA
   };
 }
 
@@ -136,7 +140,8 @@ class PDFService {
       questions: analysis?.questions || [],
       brandSummary: {
         targetBrands: analysis?.brandSummary?.targetBrands || [],
-        competitors: analysis?.brandSummary?.competitors || []
+        competitors: analysis?.brandSummary?.competitors || [],
+        otherCompetitors: analysis?.brandSummary?.otherCompetitors || []
       },
       overallConfidence: analysis?.overallConfidence || 0,
       timestamp: analysis?.timestamp || new Date().toISOString()
@@ -806,23 +811,30 @@ class PDFService {
           <tr>
             <th>Marca</th>
             <th>Tipo</th>
+            <th>Orden</th>
             <th>Menciones</th>
             <th>Sentimiento</th>
           </tr>
         </thead>
         <tbody>
-          ${safeAnalysis.brandSummary.targetBrands.map(brand => `
-            <tr>
+          ${safeAnalysis.brandSummary.targetBrands
+            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
+            .map(brand => `
+            <tr style="background: #eff6ff;">
               <td><span class="brand-name brand-target">${brand?.brand || 'N/A'}</span></td>
-              <td>Objetivo</td>
+              <td><span style="color: #1e40af; font-weight: 600;">Objetivo</span></td>
+              <td>${brand?.appearanceOrder ? `<span style="background: #1e40af; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
               <td><span class="frequency-badge">${brand?.frequency || 0}</span></td>
               <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
             </tr>
           `).join('')}
-          ${safeAnalysis.brandSummary.competitors.map(brand => `
-            <tr>
+          ${safeAnalysis.brandSummary.competitors
+            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
+            .map(brand => `
+            <tr style="background: #fff7ed;">
               <td><span class="brand-name">${brand?.brand || 'N/A'}</span></td>
-              <td>Competidor</td>
+              <td><span style="color: #ea580c; font-weight: 600;">Competidor</span></td>
+              <td>${brand?.appearanceOrder ? `<span style="background: #ea580c; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
               <td><span class="frequency-badge">${brand?.frequency || 0}</span></td>
               <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
             </tr>
@@ -831,6 +843,49 @@ class PDFService {
       </table>
       ` : '<p style="color: #64748b; text-align: center; padding: 20px;">No se detectaron menciones de marca en este análisis.</p>'}
     </div>
+
+    <!-- Competidores Descubiertos por IA -->
+    ${safeAnalysis.brandSummary.otherCompetitors && safeAnalysis.brandSummary.otherCompetitors.length > 0 ? `
+    <div class="section">
+      <h2 class="section-title" style="border-bottom-color: #7c3aed;">
+        <span class="icon" style="background: #7c3aed;">*</span>
+        Competidores Descubiertos por IA
+      </h2>
+
+      <div style="background: linear-gradient(135deg, #f3e8ff 0%, #faf5ff 100%); border: 1px solid #c4b5fd; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
+        <p style="color: #6b21a8; font-size: 12px; margin: 0;">
+          <strong>Importante:</strong> Estas marcas fueron mencionadas por la IA pero no estaban en tu configuracion original.
+          Considera agregarlas a tu lista de competidores para futuros analisis.
+        </p>
+      </div>
+
+      <table class="mentions-table">
+        <thead>
+          <tr style="background: #7c3aed;">
+            <th style="color: white;">Marca</th>
+            <th style="color: white;">Orden</th>
+            <th style="color: white;">Menciones</th>
+            <th style="color: white;">Sentimiento</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${safeAnalysis.brandSummary.otherCompetitors
+            .sort((a, b) => (a?.appearanceOrder || 999) - (b?.appearanceOrder || 999))
+            .map(brand => `
+            <tr style="background: #faf5ff;">
+              <td>
+                <span class="brand-name" style="color: #7c3aed;">${brand?.brand || 'N/A'}</span>
+                <span style="background: #f3e8ff; color: #7c3aed; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px;">NUEVO</span>
+              </td>
+              <td>${brand?.appearanceOrder ? `<span style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">#${brand.appearanceOrder}</span>` : '-'}</td>
+              <td><span class="frequency-badge" style="background: #f3e8ff; color: #7c3aed;">${brand?.frequency || 0}</span></td>
+              <td><span class="sentiment-badge sentiment-${brand?.context || 'neutral'}">${this.translateSentiment(brand?.context || 'neutral')}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
 
     <!-- Análisis por categoría -->
     <div class="section">

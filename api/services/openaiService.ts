@@ -45,6 +45,9 @@ export interface BrandMention {
   frequency: number;
   context: SentimentType;
   evidence: string[];
+  // Campos para tracking de aparición y descubrimiento
+  appearanceOrder?: number;      // Orden de aparición en la respuesta (1=primero)
+  isDiscovered?: boolean;        // true si NO estaba en la lista configurada
   // Nuevos campos para análisis más sofisticado
   detailedSentiment?: DetailedSentiment;
   contextualAnalysis?: ContextualAnalysis;
@@ -107,20 +110,24 @@ export interface AnalysisResult {
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
+    otherCompetitors?: BrandMention[];  // Competidores descubiertos por la IA (no configurados)
   };
   // Nuevo: Comparativas separadas por tipo de pregunta
   brandSummaryByType?: {
     all: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors?: BrandMention[];
     };
     generic: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors?: BrandMention[];
     };
     specific: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors?: BrandMention[];
     };
   };
 }
@@ -1386,8 +1393,11 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
   private consolidateBrandMentionsWithConfiguration(analyses: QuestionAnalysis[], configuration: any): {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
+    otherCompetitors: BrandMention[];
   } {
     const brandMap = new Map<string, BrandMention>();
+    const appearanceOrderMap = new Map<string, number>(); // Track order of first appearance
+    let orderCounter = 1;
 
     // Consolidar todas las menciones de TODAS las preguntas
     analyses.forEach(analysis => {
@@ -1398,27 +1408,53 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
           existing.evidence.push(...mention.evidence);
           existing.mentioned = existing.mentioned || mention.mentioned;
         } else {
+          // Track order of first appearance
+          if (mention.mentioned && mention.frequency > 0) {
+            appearanceOrderMap.set(mention.brand, orderCounter++);
+          }
           brandMap.set(mention.brand, { ...mention });
         }
       });
     });
 
-    // Separar marcas objetivo y competidores usando la configuración
+    // Separar marcas objetivo, competidores configurados y competidores descubiertos
     const targetBrands: BrandMention[] = [];
     const competitors: BrandMention[] = [];
+    const otherCompetitors: BrandMention[] = [];
 
     const configTargetBrands = configuration.targetBrands || (configuration.targetBrand ? [configuration.targetBrand] : TARGET_BRANDS);
     const configCompetitorBrands = configuration.competitorBrands || COMPETITOR_BRANDS;
 
     brandMap.forEach(mention => {
+      // Assign appearance order
+      const appearanceOrder = appearanceOrderMap.get(mention.brand);
+      const mentionWithOrder = {
+        ...mention,
+        appearanceOrder,
+        isDiscovered: false
+      };
+
       if (configTargetBrands.includes(mention.brand as any)) {
-        targetBrands.push(mention);
+        targetBrands.push(mentionWithOrder);
       } else if (configCompetitorBrands.includes(mention.brand as any)) {
-        competitors.push(mention);
+        competitors.push(mentionWithOrder);
+      } else if (mention.mentioned && mention.frequency > 0) {
+        // NUEVO: Capturar competidores descubiertos (no configurados)
+        otherCompetitors.push({ ...mentionWithOrder, isDiscovered: true });
       }
     });
 
-    return { targetBrands, competitors };
+    // Ordenar por orden de aparición
+    const sortByAppearance = (a: BrandMention, b: BrandMention) =>
+      (a.appearanceOrder || 999) - (b.appearanceOrder || 999);
+
+    targetBrands.sort(sortByAppearance);
+    competitors.sort(sortByAppearance);
+    otherCompetitors.sort(sortByAppearance);
+
+    console.log(`📊 Consolidación: ${targetBrands.length} objetivos, ${competitors.length} competidores, ${otherCompetitors.length} descubiertos`);
+
+    return { targetBrands, competitors, otherCompetitors };
   }
 
   /**
@@ -1439,8 +1475,11 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
   private consolidateBrandMentions(analyses: QuestionAnalysis[]): {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
+    otherCompetitors: BrandMention[];
   } {
     const brandMap = new Map<string, BrandMention>();
+    const appearanceOrderMap = new Map<string, number>();
+    let orderCounter = 1;
 
     // Consolidar todas las menciones
     analyses.forEach(analysis => {
@@ -1451,24 +1490,40 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
           existing.evidence.push(...mention.evidence);
           existing.mentioned = existing.mentioned || mention.mentioned;
         } else {
+          if (mention.mentioned && mention.frequency > 0) {
+            appearanceOrderMap.set(mention.brand, orderCounter++);
+          }
           brandMap.set(mention.brand, { ...mention });
         }
       });
     });
 
-    // Separar marcas objetivo y competidores
+    // Separar marcas objetivo, competidores y descubiertos
     const targetBrands: BrandMention[] = [];
     const competitors: BrandMention[] = [];
+    const otherCompetitors: BrandMention[] = [];
 
     brandMap.forEach(mention => {
+      const appearanceOrder = appearanceOrderMap.get(mention.brand);
+      const mentionWithOrder = { ...mention, appearanceOrder, isDiscovered: false };
+
       if (TARGET_BRANDS.includes(mention.brand as any)) {
-        targetBrands.push(mention);
+        targetBrands.push(mentionWithOrder);
       } else if (COMPETITOR_BRANDS.includes(mention.brand as any)) {
-        competitors.push(mention);
+        competitors.push(mentionWithOrder);
+      } else if (mention.mentioned && mention.frequency > 0) {
+        otherCompetitors.push({ ...mentionWithOrder, isDiscovered: true });
       }
     });
 
-    return { targetBrands, competitors };
+    const sortByAppearance = (a: BrandMention, b: BrandMention) =>
+      (a.appearanceOrder || 999) - (b.appearanceOrder || 999);
+
+    targetBrands.sort(sortByAppearance);
+    competitors.sort(sortByAppearance);
+    otherCompetitors.sort(sortByAppearance);
+
+    return { targetBrands, competitors, otherCompetitors };
   }
 
   /**
@@ -1486,14 +1541,17 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
     all: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors: BrandMention[];
     };
     generic: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors: BrandMention[];
     };
     specific: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors: BrandMention[];
     };
   } {
     // Determinar marcas objetivo y competidores de la configuración
@@ -2226,7 +2284,7 @@ Proporciona una respuesta completa, informativa y natural de 200-400 palabras. P
   private buildEnhancedAnalysisPrompt(originalQuestion: string, generatedContent: string, modelPersona: AIModelPersona, configuration: any): string {
     const targetBrands = configuration.targetBrands || configuration.targetBrand ? [configuration.targetBrand] : TARGET_BRANDS;
     const competitors = configuration.competitorBrands || COMPETITOR_BRANDS;
-    
+
     return `Analiza la siguiente respuesta de IA (generada por ${modelPersona}) para detectar menciones de marca y realizar un análisis contextual avanzado:
 
 PREGUNTA ORIGINAL: "${originalQuestion}"
@@ -2234,8 +2292,10 @@ PREGUNTA ORIGINAL: "${originalQuestion}"
 RESPUESTA DE IA A ANALIZAR:
 "${generatedContent}"
 
-MARCAS OBJETIVO: ${targetBrands.join(', ')}
-COMPETIDORES: ${competitors.join(', ')}
+MARCAS OBJETIVO (configuradas): ${targetBrands.join(', ')}
+COMPETIDORES CONOCIDOS (configurados): ${competitors.join(', ')}
+
+IMPORTANTE: Detecta TODAS las marcas mencionadas, incluyendo las que NO están en las listas anteriores. Asigna un número de orden de aparición (1=primera marca mencionada, 2=segunda, etc.)
 
 Realiza un análisis EXHAUSTIVO y responde en formato JSON con esta estructura exacta:
 
@@ -2244,9 +2304,10 @@ Realiza un análisis EXHAUSTIVO y responde en formato JSON con esta estructura e
   "contextualInsights": "Análisis detallado del contexto y tono general de la respuesta",
   "brandMentions": [
     {
-      "brand": "Nombre exacto de la marca",
+      "brand": "Nombre exacto de la marca (de las listas configuradas)",
       "mentioned": true/false,
       "frequency": número_de_menciones,
+      "appearanceOrder": número (1=primera, 2=segunda, etc. o null si no mencionada),
       "context": "positive|negative|neutral",
       "evidence": ["cita textual 1", "cita textual 2"],
       "detailedSentiment": "very_positive|positive|neutral|negative|very_negative",
@@ -2262,6 +2323,17 @@ Realiza un análisis EXHAUSTIVO y responde en formato JSON con esta estructura e
         "position": "better|worse|equal|not_compared",
         "reasoning": "Explicación de la comparación competitiva"
       }
+    }
+  ],
+  "otherBrandsMentioned": [
+    {
+      "brand": "Nombre de marca NO en las listas configuradas",
+      "mentioned": true,
+      "frequency": número_de_menciones,
+      "appearanceOrder": número (orden de aparición),
+      "context": "positive|negative|neutral",
+      "evidence": ["cita textual donde se menciona"],
+      "isDiscovered": true
     }
   ],
   "competitiveAnalysis": {
@@ -2287,11 +2359,29 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
     try {
       const cleanedResponse = this.cleanJSONResponse(analysisResponse);
       const parsed = JSON.parse(cleanedResponse);
-      
+
+      // Combinar marcas configuradas con marcas descubiertas
+      const configuredBrands = (parsed.brandMentions || []).map((b: any) => ({
+        ...b,
+        isDiscovered: false
+      }));
+
+      const discoveredBrands = (parsed.otherBrandsMentioned || []).map((b: any) => ({
+        ...b,
+        isDiscovered: true
+      }));
+
+      const allBrandMentions = [...configuredBrands, ...discoveredBrands];
+
+      // Log de marcas descubiertas
+      if (discoveredBrands.length > 0) {
+        console.log(`🔍 [${modelPersona}] Marcas descubiertas: ${discoveredBrands.map((b: any) => b.brand).join(', ')}`);
+      }
+
       return {
         modelPersona,
         response: generatedContent,
-        brandMentions: parsed.brandMentions || [],
+        brandMentions: allBrandMentions,
         overallSentiment: parsed.overallSentiment || 'neutral',
         contextualAnalysis: parsed.brandMentions?.map((brand: any) => brand.contextualAnalysis).filter(Boolean) || [],
         confidenceScore: parsed.confidenceScore || 0.75

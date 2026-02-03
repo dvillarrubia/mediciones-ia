@@ -19,7 +19,8 @@ import {
   Search,
   RefreshCw,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 
 interface SavedAnalysis {
@@ -55,6 +56,7 @@ interface AnalysisDetail {
     brandSummary: {
       targetBrands: BrandMention[];
       competitors: BrandMention[];
+      otherCompetitors?: BrandMention[];  // Competidores descubiertos por IA
     };
   };
   metadata?: {
@@ -90,6 +92,9 @@ interface BrandMention {
   frequency: number;
   context: string;
   evidence: string[];
+  // Campos para tracking de aparicion
+  appearanceOrder?: number;
+  isDiscovered?: boolean;
 }
 
 type SortField = 'timestamp' | 'targetBrand' | 'overallConfidence' | 'questionsCount';
@@ -730,15 +735,25 @@ const History: React.FC = () => {
             <TrendingUp className="w-5 h-5 text-blue-600" />
             Menciones de Marca
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Marcas Objetivo */}
             <div>
-              <h3 className="font-semibold mb-2 text-blue-700">Marcas Objetivo</h3>
+              <h3 className="font-semibold mb-2 text-blue-700 flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                Marcas Objetivo
+              </h3>
               {selectedAnalysis.results.brandSummary.targetBrands
                 .filter(b => b.mentioned)
+                .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
                 .map(brand => (
-                  <div key={brand.brand} className="mb-2 p-3 bg-blue-50 rounded-lg border border-blue-100 hover:border-blue-200 transition-colors">
-                    <div className="font-medium text-blue-800">{brand.brand}</div>
-                    <div className="text-sm text-blue-600">
+                  <div key={brand.brand} className="mb-2 p-3 bg-blue-50 rounded-lg border border-blue-100 hover:border-blue-200 transition-colors relative">
+                    {brand.appearanceOrder && (
+                      <span className="absolute -top-2 -left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {brand.appearanceOrder}
+                      </span>
+                    )}
+                    <div className="font-medium text-blue-800 ml-2">{brand.brand}</div>
+                    <div className="text-sm text-blue-600 ml-2">
                       {brand.frequency} menciones - {brand.context}
                     </div>
                   </div>
@@ -747,20 +762,70 @@ const History: React.FC = () => {
                 <div className="text-gray-500 italic">No se encontraron menciones</div>
               )}
             </div>
+
+            {/* Competidores Configurados */}
             <div>
-              <h3 className="font-semibold mb-2 text-gray-700">Competidores Mencionados</h3>
+              <h3 className="font-semibold mb-2 text-orange-700 flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+                Competidores Configurados
+              </h3>
               {selectedAnalysis.results.brandSummary.competitors
                 .filter(b => b.mentioned)
-                .slice(0, 5)
+                .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
                 .map(brand => (
-                  <div key={brand.brand} className="mb-2 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                    <div className="font-medium">{brand.brand}</div>
-                    <div className="text-sm text-gray-600">
+                  <div key={brand.brand} className="mb-2 p-3 bg-orange-50 rounded-lg border border-orange-100 hover:border-orange-200 transition-colors relative">
+                    {brand.appearanceOrder && (
+                      <span className="absolute -top-2 -left-2 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {brand.appearanceOrder}
+                      </span>
+                    )}
+                    <div className="font-medium text-orange-800 ml-2">{brand.brand}</div>
+                    <div className="text-sm text-orange-600 ml-2">
                       {brand.frequency} menciones - {brand.context}
                     </div>
                   </div>
                 ))}
+              {selectedAnalysis.results.brandSummary.competitors.filter(b => b.mentioned).length === 0 && (
+                <div className="text-gray-500 italic">No se encontraron menciones</div>
+              )}
             </div>
+
+            {/* Competidores Descubiertos */}
+            <div>
+              <h3 className="font-semibold mb-2 text-purple-700 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Descubiertos por IA
+                <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">Nuevo</span>
+              </h3>
+              {selectedAnalysis.results.brandSummary.otherCompetitors &&
+               selectedAnalysis.results.brandSummary.otherCompetitors.filter(b => b.mentioned).length > 0 ? (
+                selectedAnalysis.results.brandSummary.otherCompetitors
+                  .filter(b => b.mentioned)
+                  .sort((a, b) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
+                  .map(brand => (
+                    <div key={brand.brand} className="mb-2 p-3 bg-purple-50 rounded-lg border border-purple-100 hover:border-purple-200 transition-colors relative">
+                      {brand.appearanceOrder && (
+                        <span className="absolute -top-2 -left-2 bg-purple-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {brand.appearanceOrder}
+                        </span>
+                      )}
+                      <div className="font-medium text-purple-800 ml-2">{brand.brand}</div>
+                      <div className="text-sm text-purple-600 ml-2">
+                        {brand.frequency} menciones - {brand.context}
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-gray-500 italic p-3 bg-gray-50 rounded-lg">
+                  No se descubrieron marcas adicionales
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Leyenda de orden */}
+          <div className="mt-4 pt-4 border-t text-sm text-gray-600">
+            <span className="font-medium">Orden de aparicion:</span> Los numeros indican el orden en que cada marca fue mencionada en las respuestas de la IA (1 = primera mencion).
           </div>
         </div>
 

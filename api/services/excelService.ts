@@ -21,6 +21,9 @@ interface BrandInfo {
   context?: string;
   contexts?: string[];
   evidence?: string[];
+  // Nuevos campos para tracking de aparicion
+  appearanceOrder?: number;
+  isDiscovered?: boolean;
 }
 
 interface AnalysisResult {
@@ -30,6 +33,7 @@ interface AnalysisResult {
   brandSummary: {
     targetBrands?: BrandInfo[];
     competitors?: BrandInfo[];
+    otherCompetitors?: BrandInfo[];  // Competidores descubiertos por IA
   } | BrandInfo[]; // Soporta ambos formatos
   questions: Array<{
     questionId: string;
@@ -61,13 +65,16 @@ class ExcelService {
     if (Array.isArray(brandSummary)) {
       return brandSummary;
     }
-    // Es un objeto con targetBrands y competitors
+    // Es un objeto con targetBrands, competitors y otherCompetitors
     const allBrands: BrandInfo[] = [];
     if (brandSummary.targetBrands) {
       allBrands.push(...brandSummary.targetBrands);
     }
     if (brandSummary.competitors) {
       allBrands.push(...brandSummary.competitors);
+    }
+    if (brandSummary.otherCompetitors) {
+      allBrands.push(...brandSummary.otherCompetitors);
     }
     return allBrands;
   }
@@ -183,7 +190,7 @@ class ExcelService {
   }
 
   /**
-   * Hoja 2: Detalles de Marcas
+   * Hoja 2: Detalles de Marcas (con Tipo y Orden de Aparicion)
    */
   private async createBrandDetailsSheet(
     workbook: ExcelJS.Workbook,
@@ -194,9 +201,11 @@ class ExcelService {
       views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
     });
 
-    // Headers
+    // Headers actualizados con Tipo y Orden
     sheet.getRow(1).values = [
       'Marca',
+      'Tipo',
+      'Orden',
       'Mencionada',
       'Frecuencia',
       'Confianza Promedio',
@@ -210,30 +219,99 @@ class ExcelService {
       fgColor: { argb: 'FF1F4788' }
     };
 
+    // Colores por tipo
+    const typeColors = {
+      objetivo: 'FF1F4788',     // Azul
+      competidor: 'FFFF8C00',   // Naranja
+      descubierto: 'FF7C3AED'   // Morado
+    };
+
+    const bgColors = {
+      objetivo: 'FFE8F0FE',     // Azul claro
+      competidor: 'FFFFF4E6',   // Naranja claro
+      descubierto: 'FFF3E8FF'   // Morado claro
+    };
+
+    // Procesar por secciones para mantener tipo
+    interface BrandWithType extends BrandInfo {
+      type: 'objetivo' | 'competidor' | 'descubierto';
+    }
+
+    const brandsWithType: BrandWithType[] = [];
+
+    // Verificar formato de brandSummary
+    if (!Array.isArray(analysis.brandSummary)) {
+      // Formato nuevo con targetBrands, competitors, otherCompetitors
+      if (analysis.brandSummary.targetBrands) {
+        analysis.brandSummary.targetBrands.forEach(b => {
+          brandsWithType.push({ ...b, type: 'objetivo' });
+        });
+      }
+      if (analysis.brandSummary.competitors) {
+        analysis.brandSummary.competitors.forEach(b => {
+          brandsWithType.push({ ...b, type: 'competidor' });
+        });
+      }
+      if (analysis.brandSummary.otherCompetitors) {
+        analysis.brandSummary.otherCompetitors.forEach(b => {
+          brandsWithType.push({ ...b, type: 'descubierto' });
+        });
+      }
+    } else {
+      // Formato antiguo (array plano)
+      analysis.brandSummary.forEach(b => {
+        const type = configuration?.targetBrand === b.brand ? 'objetivo' :
+                     configuration?.competitorBrands?.includes(b.brand) ? 'competidor' : 'descubierto';
+        brandsWithType.push({ ...b, type });
+      });
+    }
+
+    // Ordenar por orden de aparicion (si existe) y luego por frecuencia
+    const sortedBrands = [...brandsWithType].sort((a, b) => {
+      // Primero por appearanceOrder si existe
+      if (a.appearanceOrder && b.appearanceOrder) {
+        return a.appearanceOrder - b.appearanceOrder;
+      }
+      if (a.appearanceOrder) return -1;
+      if (b.appearanceOrder) return 1;
+      // Luego por frecuencia
+      return b.frequency - a.frequency;
+    });
+
     // Datos
     let row = 2;
-    const allBrands = this.normalizeBrandSummary(analysis.brandSummary);
-    const sortedBrands = [...allBrands].sort((a, b) => b.frequency - a.frequency);
-
     sortedBrands.forEach(brand => {
       const confidence = brand.averageConfidence ?? brand.confidence ?? 0;
       const contexts = brand.contexts || brand.evidence || [];
+      const typeLabel = brand.type === 'objetivo' ? 'Objetivo' :
+                        brand.type === 'competidor' ? 'Competidor' : 'Descubierto';
+
       sheet.getRow(row).values = [
         brand.brand,
-        brand.mentioned ? 'Sí' : 'No',
+        typeLabel,
+        brand.appearanceOrder || '-',
+        brand.mentioned ? 'Si' : 'No',
         brand.frequency,
         `${(confidence * 100).toFixed(1)}%`,
         brand.sentiment || brand.context || 'N/A',
         Array.isArray(contexts) ? contexts.join(', ') : String(contexts)
       ];
 
-      // Color si es marca objetivo
-      if (configuration?.targetBrand === brand.brand) {
-        sheet.getRow(row).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFFFF4CC' }
-        };
+      // Color de fondo segun tipo
+      sheet.getRow(row).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: bgColors[brand.type] }
+      };
+
+      // Color de texto para la columna Tipo
+      const typeCell = sheet.getCell(`B${row}`);
+      typeCell.font = { bold: true, color: { argb: typeColors[brand.type] } };
+
+      // Badge de orden si existe
+      if (brand.appearanceOrder) {
+        const orderCell = sheet.getCell(`C${row}`);
+        orderCell.font = { bold: true };
       }
 
       row++;
@@ -241,11 +319,27 @@ class ExcelService {
 
     // Ajustar anchos
     sheet.getColumn(1).width = 25;
-    sheet.getColumn(2).width = 12;
-    sheet.getColumn(3).width = 12;
-    sheet.getColumn(4).width = 18;
-    sheet.getColumn(5).width = 15;
-    sheet.getColumn(6).width = 50;
+    sheet.getColumn(2).width = 14;
+    sheet.getColumn(3).width = 10;
+    sheet.getColumn(4).width = 12;
+    sheet.getColumn(5).width = 12;
+    sheet.getColumn(6).width = 18;
+    sheet.getColumn(7).width = 15;
+    sheet.getColumn(8).width = 50;
+
+    // Agregar leyenda al final
+    row += 2;
+    sheet.getCell(`A${row}`).value = 'Leyenda de Tipos:';
+    sheet.getCell(`A${row}`).font = { bold: true };
+    row++;
+    sheet.getCell(`A${row}`).value = 'Objetivo: Marcas objetivo configuradas';
+    sheet.getCell(`A${row}`).font = { color: { argb: typeColors.objetivo } };
+    row++;
+    sheet.getCell(`A${row}`).value = 'Competidor: Competidores configurados';
+    sheet.getCell(`A${row}`).font = { color: { argb: typeColors.competidor } };
+    row++;
+    sheet.getCell(`A${row}`).value = 'Descubierto: Marcas descubiertas por la IA (no estaban configuradas)';
+    sheet.getCell(`A${row}`).font = { color: { argb: typeColors.descubierto } };
   }
 
   /**
