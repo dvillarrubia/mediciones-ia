@@ -4,7 +4,7 @@
  */
 import { Router, Request, Response } from 'express';
 import OpenAIService from '../services/openaiService.js';
-import { QuestionCategory } from '../config/constants.js';
+import { QuestionCategory, getModelById } from '../config/constants.js';
 import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
@@ -114,14 +114,45 @@ router.post('/execute', async (req: Request, res: Response) => {
       }
     }
 
-    // Initialize OpenAI service with user API keys if provided
-    if (apiKeysToUse && (apiKeysToUse.openai || apiKeysToUse.anthropic || apiKeysToUse.google)) {
-      openaiService = new OpenAIService(apiKeysToUse);
-      console.log('🔑 Using user-provided API keys');
-    } else if (!openaiService) {
-      openaiService = new OpenAIService();
-      console.log('🔑 Using system API keys');
+    // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+      return res.status(400).json({
+        error: 'API Keys requeridas',
+        message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.',
+        code: 'API_KEYS_REQUIRED'
+      });
     }
+
+    // Validar que exista la API key del proveedor correspondiente al modelo seleccionado
+    const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
+    if (modelInfo) {
+      const provider = modelInfo.provider;
+      if (provider === 'openai' && !apiKeysToUse.openai) {
+        return res.status(400).json({
+          error: 'API Key de OpenAI requerida',
+          message: 'Para usar modelos de OpenAI, configura tu API Key de OpenAI en Configuración > API Keys.',
+          code: 'OPENAI_KEY_REQUIRED'
+        });
+      }
+      if (provider === 'anthropic' && !apiKeysToUse.anthropic) {
+        return res.status(400).json({
+          error: 'API Key de Anthropic requerida',
+          message: 'Para usar modelos Claude, configura tu API Key de Anthropic en Configuración > API Keys.',
+          code: 'ANTHROPIC_KEY_REQUIRED'
+        });
+      }
+      if (provider === 'google' && !apiKeysToUse.google) {
+        return res.status(400).json({
+          error: 'API Key de Google AI requerida',
+          message: 'Para usar modelos Gemini, configura tu API Key de Google AI en Configuración > API Keys.',
+          code: 'GOOGLE_KEY_REQUIRED'
+        });
+      }
+    }
+
+    // Crear servicio SOLO con keys del usuario (sin fallback a env)
+    openaiService = new OpenAIService(apiKeysToUse);
+    console.log('🔑 Using user-provided API keys');
 
     // Validar que se proporcione configuración
     if (!configuration) {
@@ -241,14 +272,46 @@ router.post('/multi-model', async (req: Request, res: Response) => {
       }
     }
 
-    // Initialize OpenAI service with user API keys if provided
-    if (apiKeysToUse && (apiKeysToUse.openai || apiKeysToUse.anthropic || apiKeysToUse.google)) {
-      openaiService = new OpenAIService(apiKeysToUse);
-      console.log('🔑 Using user-provided API keys for multi-model');
-    } else if (!openaiService) {
-      openaiService = new OpenAIService();
-      console.log('🔑 Using system API keys for multi-model');
+    // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+      return res.status(400).json({
+        error: 'API Keys requeridas',
+        message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis multi-modelo.',
+        code: 'API_KEYS_REQUIRED'
+      });
     }
+
+    // Validar API keys según los modelos configurados en el análisis multi-modelo
+    const aiModels = configuration?.aiModels || ['chatgpt', 'claude', 'gemini'];
+    const needsOpenAI = aiModels.some((m: string) => m === 'chatgpt' || m.includes('gpt'));
+    const needsAnthropic = aiModels.some((m: string) => m === 'claude');
+    const needsGoogle = aiModels.some((m: string) => m === 'gemini');
+
+    if (needsOpenAI && !apiKeysToUse.openai) {
+      return res.status(400).json({
+        error: 'API Key de OpenAI requerida',
+        message: 'Para usar modelos ChatGPT en análisis multi-modelo, configura tu API Key de OpenAI en Configuración > API Keys.',
+        code: 'OPENAI_KEY_REQUIRED'
+      });
+    }
+    if (needsAnthropic && !apiKeysToUse.anthropic) {
+      return res.status(400).json({
+        error: 'API Key de Anthropic requerida',
+        message: 'Para usar modelos Claude en análisis multi-modelo, configura tu API Key de Anthropic en Configuración > API Keys.',
+        code: 'ANTHROPIC_KEY_REQUIRED'
+      });
+    }
+    if (needsGoogle && !apiKeysToUse.google) {
+      return res.status(400).json({
+        error: 'API Key de Google AI requerida',
+        message: 'Para usar modelos Gemini en análisis multi-modelo, configura tu API Key de Google AI en Configuración > API Keys.',
+        code: 'GOOGLE_KEY_REQUIRED'
+      });
+    }
+
+    // Crear servicio SOLO con keys del usuario (sin fallback a env)
+    openaiService = new OpenAIService(apiKeysToUse);
+    console.log('🔑 Using user-provided API keys for multi-model');
 
     // Validar entrada
     if (!questions || !Array.isArray(questions) || questions.length === 0) {

@@ -180,32 +180,32 @@ class OpenAIService {
 
     console.log('🔧 AIService constructor - Inicializando proveedores:');
 
-    // Inicializar cliente OpenAI (requerido para fase 2 de análisis)
-    const openaiKey = userApiKeys?.openai || process.env.OPENAI_API_KEY;
+    // OpenAI - SOLO usar key del usuario (SIN fallback a process.env)
+    const openaiKey = userApiKeys?.openai;
     if (openaiKey) {
       this.client = new OpenAI({ apiKey: openaiKey });
-      console.log('✅ OpenAI client initialized');
+      console.log('✅ OpenAI client initialized con key del usuario');
     } else {
-      console.warn('⚠️ No OpenAI API key - análisis de menciones no funcionará');
+      console.log('⚠️ No hay API key de OpenAI del usuario');
       this.client = null as any; // Se validará antes de usar
     }
 
-    // Inicializar cliente Anthropic (opcional)
-    const anthropicKey = userApiKeys?.anthropic || process.env.ANTHROPIC_API_KEY;
+    // Anthropic - SOLO usar key del usuario (SIN fallback a process.env)
+    const anthropicKey = userApiKeys?.anthropic;
     if (anthropicKey) {
       this.anthropicClient = new Anthropic({ apiKey: anthropicKey });
-      console.log('✅ Anthropic client initialized');
+      console.log('✅ Anthropic client initialized con key del usuario');
     } else {
-      console.log('ℹ️ No Anthropic API key configured');
+      console.log('ℹ️ No hay API key de Anthropic del usuario');
     }
 
-    // Inicializar cliente Google (opcional)
-    const googleKey = userApiKeys?.google || process.env.GOOGLE_AI_API_KEY;
+    // Google - SOLO usar key del usuario (SIN fallback a process.env)
+    const googleKey = userApiKeys?.google;
     if (googleKey) {
       this.googleClient = new GoogleGenerativeAI(googleKey);
-      console.log('✅ Google AI client initialized');
+      console.log('✅ Google AI client initialized con key del usuario');
     } else {
-      console.log('ℹ️ No Google AI API key configured');
+      console.log('ℹ️ No hay API key de Google del usuario');
     }
 
     console.log(`⚙️ Configuración: Concurrencia=${this.CONCURRENT_REQUESTS}, Cache=${this.ENABLE_CACHE}`);
