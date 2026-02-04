@@ -5,7 +5,6 @@ import {
   Trash2,
   Filter,
   Calendar,
-  Tag,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -17,9 +16,9 @@ import {
   Search,
   RefreshCw,
   AlertCircle,
-  CheckCircle2,
-  Sparkles
+  CheckCircle2
 } from 'lucide-react';
+import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
 
 interface SavedAnalysis {
   id: string;
@@ -64,33 +63,17 @@ interface AnalysisDetail {
   };
 }
 
-interface MultiModelAnalysis {
-  modelPersona: string;
-  response?: string;
-  generatedContent?: string;
-  brandMentions?: BrandMention[];
-  overallSentiment?: string;
-}
-
+// Interfaces locales - QuestionAnalysis y BrandMention están en AnalysisResultsViewer
 interface QuestionAnalysis {
   questionId: string;
   question: string;
   category: string;
   summary: string;
-  sources: AnalysisSource[];
-  brandMentions: BrandMention[];
+  sources: any[];
+  brandMentions: any[];
   sentiment: string;
   confidenceScore: number;
-  multiModelAnalysis?: MultiModelAnalysis[];
-}
-
-interface AnalysisSource {
-  url: string;
-  title: string;
-  snippet: string;
-  domain: string;
-  isPriority: boolean;
-  fullContent?: string;
+  multiModelAnalysis?: any[];
 }
 
 interface BrandMention {
@@ -99,7 +82,6 @@ interface BrandMention {
   frequency: number;
   context: string;
   evidence: string[];
-  // Campos para tracking de aparicion
   appearanceOrder?: number;
   isDiscovered?: boolean;
   detailedSentiment?: string;
@@ -115,7 +97,6 @@ const History: React.FC = () => {
   const [selectedAnalysis, setSelectedAnalysis] = useState<AnalysisDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'detail' | 'compare'>('list');
-  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
 
   // Filtros mejorados
   const [filterBrand, setFilterBrand] = useState<string>('');
@@ -292,16 +273,6 @@ const History: React.FC = () => {
     } finally {
       setExportingId(null);
     }
-  };
-
-  const toggleQuestionExpand = (questionId: string) => {
-    const newExpanded = new Set(expandedQuestions);
-    if (newExpanded.has(questionId)) {
-      newExpanded.delete(questionId);
-    } else {
-      newExpanded.add(questionId);
-    }
-    setExpandedQuestions(newExpanded);
   };
 
   const toggleCompareSelection = (id: string) => {
@@ -595,245 +566,35 @@ const History: React.FC = () => {
     );
   }
 
-  // Helper para obtener color de sentimiento
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case 'very_positive':
-        return 'bg-green-100 text-green-800';
-      case 'positive':
-        return 'bg-green-50 text-green-700';
-      case 'neutral':
-        return 'bg-gray-100 text-gray-700';
-      case 'negative':
-        return 'bg-red-50 text-red-700';
-      case 'very_negative':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
-  };
-
-  const getSentimentLabel = (sentiment: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case 'very_positive':
-        return 'Muy Positivo';
-      case 'positive':
-        return 'Positivo';
-      case 'neutral':
-        return 'Neutral';
-      case 'negative':
-        return 'Negativo';
-      case 'very_negative':
-        return 'Muy Negativo';
-      default:
-        return sentiment || 'No definido';
-    }
-  };
-
-  // Helper para determinar el tipo de marca
-  const getBrandType = (brand: BrandMention, selectedAnalysis: AnalysisDetail): 'objetivo' | 'competidor' | 'descubierto' => {
-    if (brand.isDiscovered) return 'descubierto';
-    if (selectedAnalysis.results.brandSummary.targetBrands.some(t => t.brand === brand.brand)) return 'objetivo';
-    return 'competidor';
-  };
-
-  // Vista de detalle SIMPLIFICADA
+  // Vista de detalle - Usa AnalysisResultsViewer para consistencia
   if (viewMode === 'detail' && selectedAnalysis) {
+    const handleDownload = async (format: 'pdf' | 'excel') => {
+      if (format === 'pdf') {
+        await generatePDFReport(selectedAnalysis.id);
+      } else {
+        await generateExcelReport(selectedAnalysis.id);
+      }
+    };
+
     return (
       <div className="container mx-auto p-6 space-y-6">
         <Notification />
 
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <button
-              onClick={() => { setViewMode('list'); setSelectedAnalysis(null); }}
-              className="text-blue-600 hover:text-blue-800 mb-2 flex items-center gap-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Volver al listado
-            </button>
-            <h1 className="text-3xl font-bold">Detalle del Analisis</h1>
-            <p className="text-gray-600">
-              {selectedAnalysis.configuration.brand} - {new Date(selectedAnalysis.timestamp).toLocaleString('es-ES')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => generatePDFReport(selectedAnalysis.id)}
-              disabled={exportingId === selectedAnalysis.id}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              PDF
-            </button>
-            <button
-              onClick={() => generateExcelReport(selectedAnalysis.id)}
-              disabled={exportingId === selectedAnalysis.id}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              Excel
-            </button>
-          </div>
-        </div>
+        {/* Botón volver */}
+        <button
+          onClick={() => { setViewMode('list'); setSelectedAnalysis(null); }}
+          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Volver al listado
+        </button>
 
-        {/* Analisis por Pregunta - SIMPLIFICADO */}
-        <div className="space-y-6">
-          {selectedAnalysis.results.questions.map((question: QuestionAnalysis, index: number) => (
-            <div key={question.questionId} className="bg-white rounded-lg shadow overflow-hidden">
-              {/* Cabecera de pregunta */}
-              <div
-                className="flex items-start justify-between cursor-pointer p-4 hover:bg-gray-50 transition-colors border-b"
-                onClick={() => toggleQuestionExpand(question.questionId)}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
-                      {index + 1}
-                    </span>
-                    <h3 className="font-semibold text-lg">{question.question}</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-3 mt-2 ml-10 text-sm text-gray-600">
-                    <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
-                      <Tag className="w-3 h-3" />
-                      {question.category}
-                    </span>
-                  </div>
-                </div>
-                <button className="text-blue-600 hover:text-blue-800 p-2">
-                  {expandedQuestions.has(question.questionId) ? (
-                    <ChevronLeft className="w-5 h-5 rotate-90" />
-                  ) : (
-                    <ChevronLeft className="w-5 h-5 -rotate-90" />
-                  )}
-                </button>
-              </div>
-
-              {expandedQuestions.has(question.questionId) && (
-                <div className="p-4 space-y-6">
-
-                  {/* 1. RESPUESTA COMPLETA DEL LLM */}
-                  <div>
-                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
-                      <span className="text-lg">🤖</span>
-                      Respuesta Completa de ChatGPT
-                    </h4>
-                    <div className="bg-gray-50 rounded-lg p-4 border text-sm text-gray-700 max-h-96 overflow-y-auto whitespace-pre-wrap">
-                      {question.multiModelAnalysis?.[0]?.response ||
-                       question.summary ||
-                       'Respuesta no disponible'}
-                    </div>
-                  </div>
-
-                  {/* 2. RANKING POR ORDEN DE APARICION */}
-                  {question.brandMentions?.filter((m: BrandMention) => m.mentioned).length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
-                        <span className="text-lg">📊</span>
-                        Ranking por Orden de Aparicion
-                        <span className="ml-2 text-xs text-gray-500 font-normal">
-                          (posicion en la que aparece cada marca en la respuesta)
-                        </span>
-                      </h4>
-                      <div className="bg-gray-50 rounded-lg border overflow-hidden">
-                        <table className="min-w-full">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Pos.</th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Marca</th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sentimiento</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {question.brandMentions
-                              .filter((m: BrandMention) => m.mentioned)
-                              .sort((a: BrandMention, b: BrandMention) => (a.appearanceOrder || 999) - (b.appearanceOrder || 999))
-                              .map((brand: BrandMention, idx: number) => {
-                                const brandType = getBrandType(brand, selectedAnalysis);
-                                return (
-                                  <tr key={idx} className={idx === 0 ? 'bg-yellow-50' : idx === 1 ? 'bg-gray-50' : idx === 2 ? 'bg-orange-50' : 'bg-white'}>
-                                    <td className="px-4 py-3">
-                                      <span className="text-xl">
-                                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${brand.appearanceOrder || idx + 1}`}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <span className="font-medium text-gray-900">{brand.brand}</span>
-                                      {brand.isDiscovered && (
-                                        <span title="Descubierta por IA">
-                                          <Sparkles className="h-3 w-3 text-purple-500 ml-1 inline" />
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                                        brandType === 'objetivo' ? 'bg-blue-100 text-blue-800' :
-                                        brandType === 'competidor' ? 'bg-orange-100 text-orange-800' :
-                                        'bg-purple-100 text-purple-800'
-                                      }`}>
-                                        {brandType === 'objetivo' ? 'Objetivo' :
-                                         brandType === 'competidor' ? 'Competidor' : 'Descubierto'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                      <span className={`px-2 py-1 text-xs rounded-full ${getSentimentColor(brand.detailedSentiment || brand.context)}`}>
-                                        {getSentimentLabel(brand.detailedSentiment || brand.context)}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3. FUENTES WEB */}
-                  {(() => {
-                    const webSources = question.sources?.filter((s: AnalysisSource) =>
-                      s.url &&
-                      !s.url.includes('ai-generated') &&
-                      !s.url.includes('generative') &&
-                      s.url.startsWith('http')
-                    ) || [];
-
-                    if (webSources.length === 0) return null;
-
-                    return (
-                      <div>
-                        <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
-                          <span className="text-lg">🔗</span>
-                          Fuentes Web ({webSources.length})
-                        </h4>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <ul className="space-y-2">
-                            {webSources.map((source: AnalysisSource, sourceIndex: number) => (
-                              <li key={sourceIndex} className="flex items-start text-sm">
-                                <span className="text-green-600 mr-2 mt-0.5">•</span>
-                                <a
-                                  href={source.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-green-700 hover:text-green-900 hover:underline break-all"
-                                >
-                                  {source.title || source.url}
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        {/* Usar el mismo componente que en la vista de análisis */}
+        <AnalysisResultsViewer
+          analysisResult={selectedAnalysis.results}
+          onDownload={handleDownload}
+          configurationName={selectedAnalysis.configuration.brand}
+        />
       </div>
     );
   }

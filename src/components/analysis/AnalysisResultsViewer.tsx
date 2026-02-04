@@ -73,11 +73,11 @@ interface QuestionAnalysis {
 interface AnalysisResult {
   analysisId: string;
   timestamp: string;
-  categories: string[];
+  categories?: string[];
   questions: QuestionAnalysis[];
   overallConfidence: number;
-  totalSources: number;
-  prioritySources: number;
+  totalSources?: number;
+  prioritySources?: number;
   brandSummary: {
     targetBrands: BrandMention[];
     competitors: BrandMention[];
@@ -100,7 +100,8 @@ interface AnalysisResult {
 }
 
 interface AnalysisResultsViewerProps {
-  analysisResult: AnalysisResult | null | undefined;
+  // Usar 'any' para compatibilidad con distintas fuentes de datos (analisis reciente, historial, etc.)
+  analysisResult: AnalysisResult | any | null | undefined;
   onDownload: (format: 'pdf' | 'excel') => void;
   onDownloadTable?: () => void;
   configurationName?: string;
@@ -430,7 +431,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                                       <td className="px-4 py-2">
                                         <span className="font-medium text-gray-900">{brand.brand}</span>
                                         {brand.isDiscovered && (
-                                          <Sparkles className="h-3 w-3 text-purple-500 ml-1 inline" title="Descubierta por IA" />
+                                          <span title="Descubierta por IA"><Sparkles className="h-3 w-3 text-purple-500 ml-1 inline" /></span>
                                         )}
                                       </td>
                                       <td className="px-4 py-2">

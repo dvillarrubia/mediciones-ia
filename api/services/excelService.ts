@@ -2,7 +2,7 @@
  * Excel Export Service - Simplificado
  * Genera reportes Excel con la informacion esencial del analisis
  */
-import * as ExcelJS from 'exceljs';
+import ExcelJS from 'exceljs';
 
 interface BrandMention {
   brand: string;
@@ -10,6 +10,7 @@ interface BrandMention {
   frequency: number;
   confidence?: number;
   sentiment?: string;
+  detailedSentiment?: string;
   context?: string;
   appearanceOrder?: number;
   isDiscovered?: boolean;
@@ -179,8 +180,8 @@ class ExcelService {
           }
         }
 
-        // Normalizar sentimiento
-        const sentimiento = this.normalizeSentiment(brand.sentiment || brand.context);
+        // Normalizar sentimiento - usar detailedSentiment primero (igual que UI)
+        const sentimiento = this.normalizeSentiment(brand.detailedSentiment || brand.sentiment || brand.context);
 
         sheet.getRow(row).values = [
           question.question.substring(0, 100) + (question.question.length > 100 ? '...' : ''),
@@ -245,13 +246,15 @@ class ExcelService {
         return;
       }
 
-      // Filtrar URLs reales (excluir sintéticas)
+      // Filtrar URLs reales (excluir sinteticas)
+      // Consistente con filtrado en AnalysisResultsViewer.tsx
       const realSources = question.sources.filter(source => {
         if (!source.url) return false;
-        if (source.url === 'ai-generated-response') return false;
-        if (source.url === 'generative-ai-response') return false;
+        // Filtro igual que UI: excluir URLs sinteticas
+        if (source.url.includes('ai-generated')) return false;
+        if (source.url.includes('generative')) return false;
         if (source.url === 'N/A') return false;
-        // Validar que parece una URL real
+        // Solo URLs HTTP reales
         return source.url.startsWith('http://') || source.url.startsWith('https://');
       });
 

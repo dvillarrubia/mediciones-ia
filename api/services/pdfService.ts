@@ -11,6 +11,7 @@ interface BrandMention {
   frequency: number;
   context: string;
   sentiment?: string;
+  detailedSentiment?: string;
   evidence?: string[];
   appearanceOrder?: number;
   isDiscovered?: boolean;
@@ -592,13 +593,15 @@ class PDFService {
       return {
         brand: b?.brand || 'N/A',
         type,
-        sentiment: b?.sentiment || b?.context || 'neutral'
+        // Usar detailedSentiment primero (igual que UI), luego sentiment, luego context
+        sentiment: b?.detailedSentiment || b?.sentiment || b?.context || 'neutral'
       };
     });
   }
 
   /**
    * Obtiene las URLs de fuentes web (excluyendo ai-generated)
+   * Consistente con filtrado en AnalysisResultsViewer.tsx
    */
   private getWebSources(question: any): string[] {
     const sources = question?.sources;
@@ -609,12 +612,13 @@ class PDFService {
     return sources
       .filter((s: any) => {
         const url = s?.url;
-        return url &&
-               typeof url === 'string' &&
-               url !== 'ai-generated' &&
-               url !== 'ai-generated-response' &&
-               url !== 'generative-ai-response' &&
-               url.startsWith('http');
+        if (!url || typeof url !== 'string') return false;
+        // Filtro igual que UI: excluir URLs sinteticas
+        if (url.includes('ai-generated')) return false;
+        if (url.includes('generative')) return false;
+        if (url === 'N/A') return false;
+        // Solo URLs HTTP reales
+        return url.startsWith('http');
       })
       .map((s: any) => s.url);
   }
@@ -634,18 +638,26 @@ class PDFService {
 
   /**
    * Traduce el sentimiento a espanol
+   * Consistente con normalizeSentiment de excelService
    */
   private translateSentiment(sentiment: string): string {
-    const translations: Record<string, string> = {
-      'positive': 'Positivo',
-      'negative': 'Negativo',
-      'neutral': 'Neutral',
-      'muy_positivo': 'Muy Positivo',
-      'muy_negativo': 'Muy Negativo',
-      'very_positive': 'Muy Positivo',
-      'very_negative': 'Muy Negativo'
-    };
-    return translations[sentiment] || sentiment || 'Neutral';
+    if (!sentiment) return 'Neutral';
+
+    const s = sentiment.toLowerCase();
+
+    // Muy positivo
+    if (s.includes('very_positive') || s.includes('muy_positiv')) return 'Muy Positivo';
+    // Positivo
+    if (s.includes('positive') || s.includes('positiv')) return 'Positivo';
+    // Muy negativo
+    if (s.includes('very_negative') || s.includes('muy_negativ')) return 'Muy Negativo';
+    // Negativo
+    if (s.includes('negative') || s.includes('negativ')) return 'Negativo';
+    // Neutral
+    if (s.includes('neutral')) return 'Neutral';
+
+    // Fallback: capitalizar primera letra
+    return sentiment.charAt(0).toUpperCase() + sentiment.slice(1);
   }
 }
 
