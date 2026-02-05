@@ -809,27 +809,6 @@ class AdminService {
   }
 
   /**
-   * Eliminar un modelo de IA por ID
-   */
-  async deleteAIModel(modelId: string): Promise<void> {
-    await this.ensureInitialized();
-
-    return new Promise((resolve, reject) => {
-      this.db!.run(
-        'DELETE FROM ai_models WHERE id = ?',
-        [modelId],
-        function (err) {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve();
-        }
-      );
-    });
-  }
-
-  /**
    * Sincronización completa: limpia modelos antiguos y añade nuevos
    */
   async fullModelSync(): Promise<{ added: number; removed: number; kept: number }> {

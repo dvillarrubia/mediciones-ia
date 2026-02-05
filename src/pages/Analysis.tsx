@@ -496,6 +496,46 @@ const Analysis = () => {
     }
   };
 
+  const handleDownload = async (format: 'pdf' | 'excel') => {
+    if (!analysisResult) return;
+
+    try {
+      const configuration = selectedConfig ? {
+        targetBrand: 'targetBrand' in selectedConfig ? selectedConfig.targetBrand : undefined,
+        targetBrands: 'targetBrands' in selectedConfig ? selectedConfig.targetBrands : undefined,
+        industry: 'industry' in selectedConfig ? selectedConfig.industry : undefined
+      } : undefined;
+
+      const endpoint = format === 'pdf' ? API_ENDPOINTS.analysisReportPDF : API_ENDPOINTS.analysisReportExcel;
+
+      if (format === 'pdf') {
+        notifySuccess('Generando PDF', 'Esto puede tardar unos segundos...');
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysisResult, configuration })
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = format === 'pdf' ? `informe-${Date.now()}.pdf` : `analisis-${Date.now()}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        notifySuccess('Descarga Completada', `Informe ${format.toUpperCase()} descargado exitosamente.`);
+      } else {
+        throw new Error(`Error al generar ${format.toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error(`Error generando informe ${format}:`, error);
+      notifyError('Error de Descarga', `No se pudo generar el informe ${format.toUpperCase()}`);
+    }
+  };
+
   const groupQuestionsByCategory = (questions: AnalysisQuestion[]) => {
     return questions.reduce((acc, question) => {
       if (!acc[question.category]) {
@@ -1003,7 +1043,7 @@ const Analysis = () => {
       {analysisResult && (
         <AnalysisResultsViewer
           analysisResult={analysisResult}
-          onDownload={generateReport}
+          onDownload={handleDownload}
           onDownloadTable={generateTableReport}
           configurationName={selectedConfig?.name}
         />
