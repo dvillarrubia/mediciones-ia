@@ -1,0 +1,23 @@
+{
+  "target_domain": "iberdrola.es",
+  "target_aliases": ["iberdrolaespana.com", "iberdrola.com"],
+  "competitors": ["endesa.com", "naturgy.es", "repsol.es"],
+  "market": {
+    "location": "Spain",
+    "language_code": "es",
+    "location_code": 2724
+  },
+  "source_categories": {
+    "comparadores": ["papernest.es", "selectra.es", "rastreator.com", "comparadorluz.com", "kelisto.es", "tarifaluzhora.es", "ocu.org", "ahorreluz.es", "hellowatt.es", "tarifasgasluz.com", "roams.es", "factorialenergia.com"],
+    "electricas": ["iberdrola.es", "iberdrolaespana.com", "endesa.com", "naturgy.es", "repsol.es", "holaluz.com", "octopusenergy.es", "totalenergies.es", "ganaenergia.com", "lucera.es", "som-energia.coop"],
+    "institucional": ["ree.es", "miteco.gob.es", "cnmc.gob.es", "planderecuperacion.gob.es", "idae.es", "boe.es"],
+    "medios": ["expansion.com", "marca.com", "elperiodico.com", "elpais.com", "abc.es", "20minutos.es", "lavanguardia.com", "eleconomista.es", "cincodias.elpais.com", "energiaxxi.com"],
+    "educacion": ["wikipedia.org", "youtube.com", "reddit.com"]
+  },
+  "files": {
+    "iberdrola.es": "labs_ai_ref_iberdrola.json",
+    "endesa.com": "labs_ai_ref_endesa.json",
+    "naturgy.es": "labs_ai_ref_naturgy.json",
+    "repsol.es": "labs_ai_ref_repsol.json"
+  }
+}

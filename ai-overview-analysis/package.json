@@ -1,0 +1,15 @@
+{
+  "name": "ai-overview-analysis",
+  "version": "1.0.0",
+  "description": "Pipeline determinista para analisis de AI Overviews - Share of Voice",
+  "scripts": {
+    "parse": "node parse.js",
+    "analyze": "node analyze.js",
+    "report": "node report.js",
+    "run": "node run.js",
+    "save": "node save-raw.js"
+  },
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": true
+}

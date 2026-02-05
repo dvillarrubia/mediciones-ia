@@ -1,0 +1,119 @@
+{
+  "analisis": {
+    "empresa": "iberdrola.es",
+    "mercado": "Spain",
+    "idioma": "es",
+    "fecha": "2026-02-20",
+    "competidores": ["endesa.com", "naturgy.es", "repsol.es"]
+  },
+  "domain_overview": {
+    "iberdrola.es": {
+      "keywords_total": 27851,
+      "etv": 719319,
+      "paid_traffic_cost": 2181422,
+      "pos_top3": 1524,
+      "pos_top10": 3198
+    },
+    "endesa.com": {
+      "keywords_interseccion": 9207,
+      "etv_interseccion": 337524
+    },
+    "naturgy.es": {
+      "keywords_interseccion": 6369,
+      "etv_interseccion": 455734
+    },
+    "repsol.es": {
+      "keywords_interseccion": 6033,
+      "etv_interseccion": 275969
+    }
+  },
+  "keywords_analizadas": [
+    {
+      "keyword": "precio luz hoy",
+      "search_volume": 1000000,
+      "ai_overview": true,
+      "ai_overview_type": "PAA_only",
+      "iberdrola_en_ai_overview": false,
+      "iberdrola_pos_organica": null,
+      "competidores_en_ai_overview": [],
+      "fuentes_ai_overview": ["tarifaluzhora.es", "energiaxxi.com", "samsung.com", "beko.com", "mipodo.com", "tucasaclub.com"],
+      "top_organico": ["tarifaluzhora.es", "energiaxxi.com", "totalenergies.es", "naturgy.es", "endesa.com", "ganaenergia.com", "marca.com", "holaluz.com", "octopusenergy.es"]
+    },
+    {
+      "keyword": "mejor compania electrica espana",
+      "search_volume": null,
+      "ai_overview": true,
+      "ai_overview_type": "bloque_principal",
+      "iberdrola_en_ai_overview": false,
+      "iberdrola_pos_organica": null,
+      "competidores_en_ai_overview": [],
+      "fuentes_ai_overview": ["rastreator.com", "comparadorluz.com", "papernest.es", "kelisto.es", "ahorreluz.es", "hellowatt.es", "diariodenavarra.es", "expansion.com"],
+      "top_organico": ["rastreator.com", "ocu.org", "papernest.es", "selectra.es", "reddit.com", "cnmc.gob.es", "innovaspain.com", "octopusenergy.es", "tarifaluzhora.es"]
+    },
+    {
+      "keyword": "tarifas luz iberdrola",
+      "search_volume": null,
+      "ai_overview": true,
+      "ai_overview_type": "PAA_only",
+      "iberdrola_en_ai_overview": true,
+      "iberdrola_ai_overview_share": "62.5% en branded PAA",
+      "iberdrola_pos_organica": 1,
+      "notas": "Solo aparece en PAA branded. En PAA genericas (compania mas barata) NO aparece.",
+      "top_organico": ["iberdrola.es", "iberdrola.es", "iberdrola.es", "contrataenergia.com", "papernest.es"]
+    },
+    {
+      "keyword": "energia renovable espana",
+      "search_volume": null,
+      "ai_overview": true,
+      "ai_overview_type": "bloque_principal",
+      "iberdrola_en_ai_overview": true,
+      "iberdrola_ai_overview_share": "1 de 15 referencias (6.7%)",
+      "iberdrola_pos_organica": 4,
+      "fuentes_ai_overview": ["ree.es", "youtube.com", "planderecuperacion.gob.es", "lineaverdesanjavier.es", "energiaestrategica.com", "iberdrolaespana.com", "smartgridsinfo.es", "ecodes.org", "luxida.es"],
+      "top_organico": ["ree.es", "miteco.gob.es", "sistemaelectrico-ree.es", "iberdrolaespana.com", "appa.es", "wikipedia.org"]
+    },
+    {
+      "keyword": "placas solares precio",
+      "search_volume": null,
+      "ai_overview": false,
+      "ai_overview_type": null,
+      "iberdrola_en_ai_overview": false,
+      "iberdrola_pos_organica": null,
+      "notas": "Endesa aparece como fuente en PAA. Iberdrola ausente completamente.",
+      "top_organico": ["autosolar.es", "islasolar.com", "sotysolar.es", "leroymerlin.es", "tienda-solar.es", "atersa.shop"]
+    },
+    {
+      "keyword": "cambiar compania electrica",
+      "search_volume": null,
+      "ai_overview": true,
+      "ai_overview_type": "bloque_principal",
+      "iberdrola_en_ai_overview": false,
+      "iberdrola_pos_organica": 1,
+      "fuentes_ai_overview": ["naturgy.es", "selectra.es", "contigoenergia.com", "youtube.com", "autosolar.es", "tarifasgasluz.com", "audinforsystem.es", "ganaenergia.com", "idealista.com"],
+      "notas": "ANOMALIA: Iberdrola es #1 organico pero NO aparece en AI Overview. Naturgy SI.",
+      "top_organico": ["iberdrola.es", "endesa.com", "naturgy.es", "holaluz.com", "miteco.gob.es"]
+    }
+  ],
+  "dominios_top_ai_overview": {
+    "comparadores": {
+      "papernest.es": 8,
+      "selectra.es": 5,
+      "rastreator.com": 4,
+      "comparadorluz.com": 4,
+      "kelisto.es": 3,
+      "tarifaluzhora.es": 5,
+      "ocu.org": 4
+    },
+    "electricas": {
+      "iberdrola.es": "solo_branded",
+      "endesa.com": 1,
+      "naturgy.es": 1,
+      "repsol.es": 1
+    },
+    "informativos": {
+      "energiaxxi.com": 3,
+      "youtube.com": 5,
+      "ree.es": 3
+    }
+  }
+}

@@ -1,0 +1,4023 @@
+{
+  "metadata": {
+    "analyzed_at": "2026-02-20T13:24:54.913Z",
+    "unique_keywords": 3340,
+    "domains_analyzed": 4,
+    "target_domain": "iberdrola.es",
+    "competitors": [
+      "endesa.com",
+      "naturgy.es",
+      "repsol.es"
+    ]
+  },
+  "share_of_voice": [
+    {
+      "domain": "iberdrola.es",
+      "is_target": true,
+      "keywords_count": 1000,
+      "share_by_count_pct": 25,
+      "total_search_volume": 1122480,
+      "share_by_volume_pct": 17.04,
+      "total_etv": 128260.173,
+      "share_by_etv_pct": 20.62
+    },
+    {
+      "domain": "endesa.com",
+      "is_target": false,
+      "keywords_count": 1000,
+      "share_by_count_pct": 25,
+      "total_search_volume": 2469270,
+      "share_by_volume_pct": 37.49,
+      "total_etv": 269687.94700000016,
+      "share_by_etv_pct": 43.36
+    },
+    {
+      "domain": "naturgy.es",
+      "is_target": false,
+      "keywords_count": 1000,
+      "share_by_count_pct": 25,
+      "total_search_volume": 1397080,
+      "share_by_volume_pct": 21.21,
+      "total_etv": 79399.46399999932,
+      "share_by_etv_pct": 12.77
+    },
+    {
+      "domain": "repsol.es",
+      "is_target": false,
+      "keywords_count": 1000,
+      "share_by_count_pct": 25,
+      "total_search_volume": 1597440,
+      "share_by_volume_pct": 24.25,
+      "total_etv": 144648.44099999938,
+      "share_by_etv_pct": 23.26
+    }
+  ],
+  "overlap_matrix": {
+    "iberdrola.es": {
+      "iberdrola.es": 1000,
+      "endesa.com": 150,
+      "naturgy.es": 170,
+      "repsol.es": 142
+    },
+    "endesa.com": {
+      "iberdrola.es": 150,
+      "endesa.com": 1000,
+      "naturgy.es": 128,
+      "repsol.es": 96
+    },
+    "naturgy.es": {
+      "iberdrola.es": 170,
+      "endesa.com": 128,
+      "naturgy.es": 1000,
+      "repsol.es": 121
+    },
+    "repsol.es": {
+      "iberdrola.es": 142,
+      "endesa.com": 96,
+      "naturgy.es": 121,
+      "repsol.es": 1000
+    }
+  },
+  "gap_analysis": {
+    "total_gaps": 2340,
+    "total_gap_volume": 3627570,
+    "top_gaps": [
+      {
+        "keyword": "precio de luz",
+        "search_volume": 301000,
+        "search_intent": "commercial",
+        "keyword_difficulty": 13,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 14116.9,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 2257.5,
+            "url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 19835.9,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 3
+      },
+      {
+        "keyword": "horario tarifa luz",
+        "search_volume": 201000,
+        "search_intent": "commercial",
+        "keyword_difficulty": 4,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1829.1,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/precio-de-la-luz-hoy"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 19557.301,
+            "url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 2271.3,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 3
+      },
+      {
+        "keyword": "tarifas luz ahora",
+        "search_volume": 201000,
+        "search_intent": "navigational",
+        "keyword_difficulty": 11,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 2271.3,
+            "url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "gasolinera near me",
+        "search_volume": 135000,
+        "search_intent": "informational",
+        "keyword_difficulty": 27,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 21870,
+            "url": "https://www.repsol.es/buscador-eess-y-puntos-de-recarga/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando cambia el horario",
+        "search_volume": 74000,
+        "search_intent": "informational",
+        "keyword_difficulty": 8,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 22496,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "horarios",
+        "search_volume": 60500,
+        "search_intent": "informational",
+        "keyword_difficulty": 59,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 9801,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio de hora en españa",
+        "search_volume": 49500,
+        "search_intent": "informational",
+        "keyword_difficulty": 3,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 15048,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando se cambia el horario",
+        "search_volume": 49500,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3262.05,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando se cambia la hora",
+        "search_volume": 49500,
+        "search_intent": "informational",
+        "keyword_difficulty": 2,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 15048,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuándo se cambia el horario",
+        "search_volume": 49500,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 15048,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando cambian la hora en españa",
+        "search_volume": 40500,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 6561,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "empalma",
+        "search_volume": 40500,
+        "search_intent": "commercial",
+        "keyword_difficulty": 5,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1368.9,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/empalmes-electricos"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "empalmes",
+        "search_volume": 40500,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 6561,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/empalmes-electricos"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 3940.65,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-son-empalmes-electricos/"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "cambia el horario",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 374.03,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambia la hora",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": 12,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 374.03,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambiar-hora",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": 18,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3220.63,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio de hora en octubre",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 496.5,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio de horario",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": 16,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 5362.2,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio hora",
+        "search_volume": 33100,
+        "search_intent": "informational",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1552.39,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando cambio de horario",
+        "search_volume": 27100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 8238.4,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando el cambio de horario",
+        "search_volume": 27100,
+        "search_intent": "informational",
+        "keyword_difficulty": 7,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 306.23,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando es el cambio de hora",
+        "search_volume": 27100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 8238.4,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuándo es el cambio de hora",
+        "search_volume": 27100,
+        "search_intent": "informational",
+        "keyword_difficulty": 3,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 4390.2,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "horarios precio luz",
+        "search_volume": 22200,
+        "search_intent": "commercial",
+        "keyword_difficulty": 2,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 6748.8,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 437.34,
+            "url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 53.28,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 3
+      },
+      {
+        "keyword": "gasera cerca de mi",
+        "search_volume": 22200,
+        "search_intent": "informational",
+        "keyword_difficulty": 18,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 113.22,
+            "url": "https://www.naturgy.es/hogar/blog/requisitos-instalacion-gas-natural"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "precio hora luz",
+        "search_volume": 22200,
+        "search_intent": "commercial",
+        "keyword_difficulty": 5,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 3596.4,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "apagon hoy",
+        "search_volume": 18100,
+        "search_intent": "navigational",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 848.89,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "energía renovable",
+        "search_volume": 18100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 43,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1761.13,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/energias-renovables"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "stand by",
+        "search_volume": 18100,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 356.57,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/consejos-de-ahorro/que-es-consumo-fantasma"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambia la hora en españa",
+        "search_volume": 14800,
+        "search_intent": "informational",
+        "keyword_difficulty": 3,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 500.24,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambiar la hora en españa",
+        "search_volume": 14800,
+        "search_intent": "informational",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 500.24,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio hora españa",
+        "search_volume": 14800,
+        "search_intent": "navigational",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 4499.2,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio-hora españa",
+        "search_volume": 14800,
+        "search_intent": "navigational",
+        "keyword_difficulty": 10,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 222,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "precio de una bombona de butano",
+        "search_volume": 14800,
+        "search_intent": "commercial",
+        "keyword_difficulty": 21,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 167.24,
+            "url": "https://www.repsol.es/particulares/hogar/bombona-butano-propano/precio/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "centrales nuclear",
+        "search_volume": 12100,
+        "search_intent": "informational",
+        "keyword_difficulty": 23,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 90.75,
+            "url": "https://www.endesa.com/es/la-cara-e/sector-energetico/seguridad-centrales-nucleares"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando cambiamos la hora",
+        "search_volume": 12100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 238.37,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando cambio la hora",
+        "search_volume": 12100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 110.11,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "horario mas barato de luz",
+        "search_volume": 12100,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 181.5,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/precio-de-la-luz-hoy"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 110.11,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "horas mas baratas de luz",
+        "search_volume": 12100,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 797.39,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz-3periodos"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 136.73,
+            "url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "autolavados cerca de mi",
+        "search_volume": 12100,
+        "search_intent": "informational",
+        "keyword_difficulty": 24,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 3678.4,
+            "url": "https://www.repsol.es/particulares/vehiculos/estaciones-de-servicio/servicios/lavado-de-coche/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "gas licuado del petroleo",
+        "search_volume": 12100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 309.76,
+            "url": "https://www.repsol.es/particulares/faqs/glp/que-son-los-gases-licuados-del-petroleo/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "gas licuado propano",
+        "search_volume": 12100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 12,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 67.76,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/glp-que-es-para-que-sirve/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "resistencia",
+        "search_volume": 12100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 33,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 797.39,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-resistencia-electrica/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "a que hora es más barata la luz endesa hoy",
+        "search_volume": 9900,
+        "search_intent": "navigational",
+        "keyword_difficulty": 23,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3009.6,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz-3periodos"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio horario invierno españa",
+        "search_volume": 9900,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 652.41,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando se cambia la hora en españa",
+        "search_volume": 9900,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3009.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuando se cambio la hora en españa",
+        "search_volume": 9900,
+        "search_intent": "informational",
+        "keyword_difficulty": 1,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3009.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "que dia cambian la hora",
+        "search_volume": 9900,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 3009.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "rele",
+        "search_volume": 9900,
+        "search_intent": "transactional",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 42.57,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/proteger-instalacion-electrica-rele-termico"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "relé",
+        "search_volume": 9900,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 74.25,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/proteger-instalacion-electrica-rele-termico"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "batch cooking",
+        "search_volume": 9900,
+        "search_intent": "commercial",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 3009.6,
+            "url": "https://www.naturgy.es/hogar/blog/que_es_el_batch_cooking_significado_ejemplos_y_recetas"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "precio luz hoy naturgy por horas",
+        "search_volume": 9900,
+        "search_intent": "navigational",
+        "keyword_difficulty": 20,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 1603.8,
+            "url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "gasolinera cerca de mi ubicación",
+        "search_volume": 9900,
+        "search_intent": "informational",
+        "keyword_difficulty": 53,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 1603.8,
+            "url": "https://www.repsol.es/buscador-eess-y-puntos-de-recarga/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "lavado de autos",
+        "search_volume": 9900,
+        "search_intent": "commercial",
+        "keyword_difficulty": 4,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 90.09,
+            "url": "https://www.repsol.es/particulares/faqs/eess/se-puede-lavar-el-coche-en-la-calle/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "limpiar coche",
+        "search_volume": 9900,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 652.41,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/guia-completa-para-limpiar-el-coche/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "limpiar un coche",
+        "search_volume": 9900,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 3009.6,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/guia-completa-para-limpiar-el-coche/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "abbey road",
+        "search_volume": 8100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 11,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 73.71,
+            "url": "https://www.endesa.com/es/la-cara-e/cultura/estudios-abbey-road"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cortes de luz hoy endesa",
+        "search_volume": 8100,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 121.5,
+            "url": "https://www.endesa.com/es/te-ayudamos/contactanos/averias-y-cortes"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "que pasa con la luz",
+        "search_volume": 8100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 4,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 34.83,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/que-hacer-saltan-plomos"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "telefono gratuito endesa",
+        "search_volume": 8100,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 2462.4,
+            "url": "https://www.endesa.com/es/te-ayudamos"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "teléfono gratuito endesa",
+        "search_volume": 8100,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 2462.4,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/climatizacion/telefono-endesa"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "hidrogeno verde",
+        "search_volume": 8100,
+        "search_intent": "commercial",
+        "keyword_difficulty": 35,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 18.63,
+            "url": "https://www.naturgy.es/blog/hogar/hidrogeno_verde_que_es_y_como_se_produce"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "adblue que es",
+        "search_volume": 8100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 533.79,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "adblue qué es",
+        "search_volume": 8100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 2462.4,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "que es el adblue",
+        "search_volume": 8100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 1312.2,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "qué es adblue",
+        "search_volume": 8100,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 73.71,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "a que hora es mas barata la luz",
+        "search_volume": 6600,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 642.18,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 60.06,
+            "url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 38.94,
+            "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+          }
+        ],
+        "total_competitors": 3
+      },
+      {
+        "keyword": "a que hora es más barata la luz",
+        "search_volume": 6600,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1069.2,
+            "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz-3periodos"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 38.94,
+            "url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "energia cinética",
+        "search_volume": 6600,
+        "search_intent": "informational",
+        "keyword_difficulty": 3,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 33.66,
+            "url": "https://www.endesa.com/es/la-cara-e/eficiencia-energetica/energia-cinetica-que-es-tipos-aplicaciones-practicas"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "luz por horas",
+        "search_volume": 6600,
+        "search_intent": "navigational",
+        "keyword_difficulty": 2,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 2006.4,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "precio kwh endesa hoy",
+        "search_volume": 6600,
+        "search_intent": "navigational",
+        "keyword_difficulty": 25,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 2006.4,
+            "url": "https://www.endesa.com/es/ofertas-luz-gas"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cambio de hora hoy",
+        "search_volume": 5400,
+        "search_intent": "informational",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 81,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuándo es el cambio de hora en españa",
+        "search_volume": 5400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "endesa averias telefono",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "endesa averías teléfono",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "endesa averías: teléfono",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "energía hidráulica",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 2,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 355.86,
+            "url": "https://www.endesa.com/es/la-cara-e/energias-renovables/energia-hidraulica"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "energías hidráulicas",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 40.5,
+            "url": "https://www.endesa.com/es/la-cara-e/energias-renovables/energia-hidraulica"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "porque se ha ido la luz",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 12.96,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-va-luz"
+          },
+          {
+            "domain": "repsol.es",
+            "etv": 1641.6,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-hacer-cuando-se-va-la-luz/"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "quien invento el bombilla",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 7,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/la-cara-e/biografias/quien-invento-bombilla"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "silvicultura",
+        "search_volume": 5400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 31.86,
+            "url": "https://www.endesa.com/es/la-cara-e/biodiversidad/que-es-la-silvicultura"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "telefono averias endesa",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1641.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "teléfono averías endesa",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 525.42,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "tension",
+        "search_volume": 5400,
+        "search_intent": "informational",
+        "keyword_difficulty": 6,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 27.54,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/electrodomesticos/voltios-vatios-amperios"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "teléfono naturgy gratuito",
+        "search_volume": 5400,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 1641.6,
+            "url": "https://www.naturgy.es/hogar/ayuda/contacto"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "apagon causas",
+        "search_volume": 5400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 14.58,
+            "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-hacer-cuando-se-va-la-luz/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "a que hora cambian la hora",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": 9,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 428.12,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "endesa clientes telefono gratuito",
+        "search_volume": 4400,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1337.6,
+            "url": "https://www.endesa.com/es/te-ayudamos/factura-gas-ml"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "hora valle luz",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": 3,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1337.6,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+          },
+          {
+            "domain": "naturgy.es",
+            "etv": 289.96,
+            "url": "https://www.naturgy.es/hogar/luz/tarifa_noche"
+          }
+        ],
+        "total_competitors": 2
+      },
+      {
+        "keyword": "que día se cambia la hora",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 86.68,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "significado stand by",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 428.12,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/consejos-de-ahorro/que-es-consumo-fantasma"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "stand by: significado",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 289.96,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/consejos-de-ahorro/que-es-consumo-fantasma"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "standby significado",
+        "search_volume": 4400,
+        "search_intent": "informational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 112.64,
+            "url": "https://www.endesa.com/es/blog/blog-de-endesa/consejos-de-ahorro/que-es-consumo-fantasma"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "teléfono gratuito endesa clientes",
+        "search_volume": 4400,
+        "search_intent": "navigational",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "endesa.com",
+            "etv": 1337.6,
+            "url": "https://www.endesa.com/es/te-ayudamos/factura-gas-ml"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "compañia barata de luz",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 42,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 49.72,
+            "url": "https://www.naturgy.es/hogar/luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "compañias baratas de luz",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 53,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 10.56,
+            "url": "https://www.naturgy.es/hogar/luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "compañias de luz baratas",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 44,
+        "competitors_present": [
+          {
+            "domain": "naturgy.es",
+            "etv": 24.64,
+            "url": "https://www.naturgy.es/hogar/luz"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuanto vale la bombona de butano",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 2,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 1337.6,
+            "url": "https://www.repsol.es/particulares/hogar/bombona-butano-propano/precio/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "cuanto vale una bombona de butano",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": 14,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 1337.6,
+            "url": "https://www.repsol.es/particulares/hogar/bombona-butano-propano/precio/"
+          }
+        ],
+        "total_competitors": 1
+      },
+      {
+        "keyword": "gasóleo a es diesel",
+        "search_volume": 4400,
+        "search_intent": "commercial",
+        "keyword_difficulty": null,
+        "competitors_present": [
+          {
+            "domain": "repsol.es",
+            "etv": 1337.6,
+            "url": "https://www.repsol.es/particulares/faqs/carburantes/que-es-el-diesel-y-que-propiedades-tiene/"
+          }
+        ],
+        "total_competitors": 1
+      }
+    ]
+  },
+  "target_exclusive": {
+    "count": 643,
+    "total_volume": 655490,
+    "top": [
+      {
+        "keyword": "aerotermia",
+        "search_volume": 40500,
+        "etv": 12312,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/smart-clima/aerotermia"
+      },
+      {
+        "keyword": "aerotermias",
+        "search_volume": 40500,
+        "etv": 1036.8,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-aerotermia"
+      },
+      {
+        "keyword": "bono social de electricidad",
+        "search_volume": 18100,
+        "etv": 1761.13,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-bono-social"
+      },
+      {
+        "keyword": "se ha ido la luz",
+        "search_volume": 14800,
+        "etv": 378.88,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "averias iberdrola",
+        "search_volume": 12100,
+        "etv": 238.37,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "averías iberdrola",
+        "search_volume": 12100,
+        "etv": 3678.4,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "gas licuado del petróleo",
+        "search_volume": 12100,
+        "etv": 567.49,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/gas/que-es-gas-licuado-de-petroleo"
+      },
+      {
+        "keyword": "iberdrola averias",
+        "search_volume": 12100,
+        "etv": 797.39,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/informacion/informacion-legal"
+      },
+      {
+        "keyword": "iberdrola averías",
+        "search_volume": 12100,
+        "etv": 1177.33,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "pia",
+        "search_volume": 12100,
+        "etv": 90.75,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/pia-electricidad"
+      },
+      {
+        "keyword": "precio luz hoy iberdrola",
+        "search_volume": 12100,
+        "etv": 1960.2,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "energías eólica",
+        "search_volume": 9900,
+        "etv": 55.44,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/sostenibilidad/que-es-energia-eolica-ventajas"
+      },
+      {
+        "keyword": "que ha pasado con la luz",
+        "search_volume": 9900,
+        "etv": 195.03,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "cuando vuelve la luz",
+        "search_volume": 8100,
+        "etv": 379.89,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "cuándo vuelve la luz",
+        "search_volume": 8100,
+        "etv": 533.79,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "que pasó con la luz",
+        "search_volume": 8100,
+        "etv": 379.89,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "qué pasa con la luz",
+        "search_volume": 8100,
+        "etv": 47.79,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "certificación energetica vivienda",
+        "search_volume": 6600,
+        "etv": 21.78,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/eu/blog/energia/precio-certificado-eficiencia-energetica"
+      },
+      {
+        "keyword": "certificado energético viviendas",
+        "search_volume": 6600,
+        "etv": 130.02,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-certificado-energetico-de-una-vivienda-como-obtenerlo"
+      },
+      {
+        "keyword": "energia cinètica",
+        "search_volume": 6600,
+        "etv": 28.38,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/sostenibilidad/que-es-energia-cinetica-usos"
+      },
+      {
+        "keyword": "sin luz",
+        "search_volume": 6600,
+        "etv": 642.18,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "que es la aerotermia",
+        "search_volume": 5400,
+        "etv": 1641.6,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/smart-clima/aerotermia"
+      },
+      {
+        "keyword": "teléfono iberdrola gratuito",
+        "search_volume": 5400,
+        "etv": 1641.6,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "a que hora es más barata la luz iberdrola",
+        "search_volume": 4400,
+        "etv": 428.12,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/hora-punta-llana-valle-guia"
+      },
+      {
+        "keyword": "averia iberdrola telefono",
+        "search_volume": 4400,
+        "etv": 1337.6,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "cambio titular iberdrola",
+        "search_volume": 4400,
+        "etv": 1337.6,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/como-cambiar-titular-luz-y-gas"
+      },
+      {
+        "keyword": "carnet b1",
+        "search_volume": 4400,
+        "etv": 1337.6,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/transporte/carnet-b1-coches-electricos"
+      },
+      {
+        "keyword": "iberdrola averias telefono",
+        "search_volume": 4400,
+        "etv": 206.36,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "purgar radiadores",
+        "search_volume": 4400,
+        "etv": 428.12,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/energia/como-purgar-radiadores"
+      },
+      {
+        "keyword": "teléfono averías iberdrola",
+        "search_volume": 4400,
+        "etv": 1337.6,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "bono social iberdrola",
+        "search_volume": 3600,
+        "etv": 1094.4,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-bono-social"
+      },
+      {
+        "keyword": "iberdrola telefono gratuito",
+        "search_volume": 3600,
+        "etv": 1094.4,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "precio luz iberdrola",
+        "search_volume": 3600,
+        "etv": 583.2,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "certificado de eficiencia energetica",
+        "search_volume": 2900,
+        "etv": 43.5,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/eu/blog/energia/precio-certificado-eficiencia-energetica"
+      },
+      {
+        "keyword": "heat en el aire acondicionado",
+        "search_volume": 2900,
+        "etv": 881.6,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/energia/modos-aire-acondicionado"
+      },
+      {
+        "keyword": "vatio",
+        "search_volume": 2900,
+        "etv": 43.5,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/diferencia-voltios-vatios-amperios"
+      },
+      {
+        "keyword": "apagon de luz en españa",
+        "search_volume": 2400,
+        "etv": 13.44,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "b b1",
+        "search_volume": 2400,
+        "etv": 61.44,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/transporte/carnet-b1-coches-electricos"
+      },
+      {
+        "keyword": "bono social luz iberdrola",
+        "search_volume": 2400,
+        "etv": 10.32,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-bono-social"
+      },
+      {
+        "keyword": "coche eléctrico chino",
+        "search_volume": 2400,
+        "etv": 158.16,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/transporte/coches-chinos-electricos"
+      },
+      {
+        "keyword": "https finanzasdomesticas com como ahorrar en la factura del agua",
+        "search_volume": 2400,
+        "etv": 47.28,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/sostenibilidad/buenas-practicas-para-ahorrar-agua-en-casa"
+      },
+      {
+        "keyword": "iberdrola precio luz hoy",
+        "search_volume": 2400,
+        "etv": 81.12,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "se fue la luz",
+        "search_volume": 2400,
+        "etv": 388.8,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "aerotermia en un piso",
+        "search_volume": 1900,
+        "etv": 184.87,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/smart-clima/aerotermia"
+      },
+      {
+        "keyword": "energeticos",
+        "search_volume": 1900,
+        "etv": 48.64,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/energia/empresa-servicio-energetico"
+      },
+      {
+        "keyword": "fórmula del butano",
+        "search_volume": 1900,
+        "etv": 577.6,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/gas/butano-y-propano-es-lo-mismo"
+      },
+      {
+        "keyword": "iberdrola distribucion telefono",
+        "search_volume": 1900,
+        "etv": 184.87,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "iberdrola distribución teléfono",
+        "search_volume": 1900,
+        "etv": 48.64,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "obtener certificado energético gratis",
+        "search_volume": 1900,
+        "etv": 184.87,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/eficiencia-energetica/certificado-energetico"
+      },
+      {
+        "keyword": "quien invento la luz",
+        "search_volume": 1900,
+        "etv": 184.87,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/quien-invento-la-luz"
+      }
+    ]
+  },
+  "exclusive_keywords": {
+    "iberdrola.es": {
+      "count": 643,
+      "total_volume": 655490,
+      "top": [
+        {
+          "keyword": "aerotermia",
+          "search_volume": 40500,
+          "etv": 12312,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "aerotermias",
+          "search_volume": 40500,
+          "etv": 1036.8,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "bono social de electricidad",
+          "search_volume": 18100,
+          "etv": 1761.13,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "se ha ido la luz",
+          "search_volume": 14800,
+          "etv": 378.88,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "averias iberdrola",
+          "search_volume": 12100,
+          "etv": 238.37,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "averías iberdrola",
+          "search_volume": 12100,
+          "etv": 3678.4,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "gas licuado del petróleo",
+          "search_volume": 12100,
+          "etv": 567.49,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "iberdrola averias",
+          "search_volume": 12100,
+          "etv": 797.39,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "iberdrola averías",
+          "search_volume": 12100,
+          "etv": 1177.33,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "pia",
+          "search_volume": 12100,
+          "etv": 90.75,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "precio luz hoy iberdrola",
+          "search_volume": 12100,
+          "etv": 1960.2,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "energías eólica",
+          "search_volume": 9900,
+          "etv": 55.44,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "que ha pasado con la luz",
+          "search_volume": 9900,
+          "etv": 195.03,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando vuelve la luz",
+          "search_volume": 8100,
+          "etv": 379.89,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "cuándo vuelve la luz",
+          "search_volume": 8100,
+          "etv": 533.79,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "que pasó con la luz",
+          "search_volume": 8100,
+          "etv": 379.89,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "qué pasa con la luz",
+          "search_volume": 8100,
+          "etv": 47.79,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "certificación energetica vivienda",
+          "search_volume": 6600,
+          "etv": 21.78,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "certificado energético viviendas",
+          "search_volume": 6600,
+          "etv": 130.02,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "energia cinètica",
+          "search_volume": 6600,
+          "etv": 28.38,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "sin luz",
+          "search_volume": 6600,
+          "etv": 642.18,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "que es la aerotermia",
+          "search_volume": 5400,
+          "etv": 1641.6,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "teléfono iberdrola gratuito",
+          "search_volume": 5400,
+          "etv": 1641.6,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "a que hora es más barata la luz iberdrola",
+          "search_volume": 4400,
+          "etv": 428.12,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "averia iberdrola telefono",
+          "search_volume": 4400,
+          "etv": 1337.6,
+          "search_intent": "navigational"
+        }
+      ]
+    },
+    "endesa.com": {
+      "count": 732,
+      "total_volume": 1537240,
+      "top": [
+        {
+          "keyword": "cuando cambia el horario",
+          "search_volume": 74000,
+          "etv": 22496,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "horarios",
+          "search_volume": 60500,
+          "etv": 9801,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambio de hora en españa",
+          "search_volume": 49500,
+          "etv": 15048,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando se cambia el horario",
+          "search_volume": 49500,
+          "etv": 3262.05,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando se cambia la hora",
+          "search_volume": 49500,
+          "etv": 15048,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuándo se cambia el horario",
+          "search_volume": 49500,
+          "etv": 15048,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando cambian la hora en españa",
+          "search_volume": 40500,
+          "etv": 6561,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "empalma",
+          "search_volume": 40500,
+          "etv": 1368.9,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "cambia el horario",
+          "search_volume": 33100,
+          "etv": 374.03,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambia la hora",
+          "search_volume": 33100,
+          "etv": 374.03,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambiar-hora",
+          "search_volume": 33100,
+          "etv": 3220.63,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambio de hora en octubre",
+          "search_volume": 33100,
+          "etv": 496.5,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambio de horario",
+          "search_volume": 33100,
+          "etv": 5362.2,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambio hora",
+          "search_volume": 33100,
+          "etv": 1552.39,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando cambio de horario",
+          "search_volume": 27100,
+          "etv": 8238.4,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando el cambio de horario",
+          "search_volume": 27100,
+          "etv": 306.23,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuando es el cambio de hora",
+          "search_volume": 27100,
+          "etv": 8238.4,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cuándo es el cambio de hora",
+          "search_volume": 27100,
+          "etv": 4390.2,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "apagon hoy",
+          "search_volume": 18100,
+          "etv": 848.89,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "energía renovable",
+          "search_volume": 18100,
+          "etv": 1761.13,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "stand by",
+          "search_volume": 18100,
+          "etv": 356.57,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "cambia la hora en españa",
+          "search_volume": 14800,
+          "etv": 500.24,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambiar la hora en españa",
+          "search_volume": 14800,
+          "etv": 500.24,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "cambio hora españa",
+          "search_volume": 14800,
+          "etv": 4499.2,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "cambio-hora españa",
+          "search_volume": 14800,
+          "etv": 222,
+          "search_intent": "navigational"
+        }
+      ]
+    },
+    "naturgy.es": {
+      "count": 696,
+      "total_volume": 572970,
+      "top": [
+        {
+          "keyword": "tarifas luz ahora",
+          "search_volume": 201000,
+          "etv": 2271.3,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "gasera cerca de mi",
+          "search_volume": 22200,
+          "etv": 113.22,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "batch cooking",
+          "search_volume": 9900,
+          "etv": 3009.6,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "precio luz hoy naturgy por horas",
+          "search_volume": 9900,
+          "etv": 1603.8,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "hidrogeno verde",
+          "search_volume": 8100,
+          "etv": 18.63,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "teléfono naturgy gratuito",
+          "search_volume": 5400,
+          "etv": 1641.6,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "compañia barata de luz",
+          "search_volume": 4400,
+          "etv": 49.72,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "compañias baratas de luz",
+          "search_volume": 4400,
+          "etv": 10.56,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "compañias de luz baratas",
+          "search_volume": 4400,
+          "etv": 24.64,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "electricidad españa",
+          "search_volume": 3600,
+          "etv": 168.84,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "energia electrica",
+          "search_volume": 3600,
+          "etv": 237.24,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "fans en español",
+          "search_volume": 3600,
+          "etv": 168.84,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "subvenciones placas solares",
+          "search_volume": 3600,
+          "etv": 32.76,
+          "search_intent": "navigational"
+        },
+        {
+          "keyword": "combustibles fosiles",
+          "search_volume": 2900,
+          "etv": 17.11,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "el sol que es",
+          "search_volume": 2900,
+          "etv": 32.77,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "energias no renovables",
+          "search_volume": 2900,
+          "etv": 469.8,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "energía no renovables",
+          "search_volume": 2900,
+          "etv": 469.8,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "energías no renovables",
+          "search_volume": 2900,
+          "etv": 282.17,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "fuente de energia",
+          "search_volume": 2900,
+          "etv": 12.47,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "fuente de energía",
+          "search_volume": 2900,
+          "etv": 74.24,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "fuentes de energía",
+          "search_volume": 2900,
+          "etv": 191.11,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "grafeno que es",
+          "search_volume": 2900,
+          "etv": 469.8,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "que es el grafeno",
+          "search_volume": 2900,
+          "etv": 469.8,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "que es el sol",
+          "search_volume": 2900,
+          "etv": 16.24,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "quien es el sol",
+          "search_volume": 2900,
+          "etv": 98.02,
+          "search_intent": "informational"
+        }
+      ]
+    },
+    "repsol.es": {
+      "count": 736,
+      "total_volume": 812060,
+      "top": [
+        {
+          "keyword": "gasolinera near me",
+          "search_volume": 135000,
+          "etv": 21870,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "precio hora luz",
+          "search_volume": 22200,
+          "etv": 3596.4,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "precio de una bombona de butano",
+          "search_volume": 14800,
+          "etv": 167.24,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "autolavados cerca de mi",
+          "search_volume": 12100,
+          "etv": 3678.4,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "gas licuado del petroleo",
+          "search_volume": 12100,
+          "etv": 309.76,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "gas licuado propano",
+          "search_volume": 12100,
+          "etv": 67.76,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "resistencia",
+          "search_volume": 12100,
+          "etv": 797.39,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "gasolinera cerca de mi ubicación",
+          "search_volume": 9900,
+          "etv": 1603.8,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "lavado de autos",
+          "search_volume": 9900,
+          "etv": 90.09,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "limpiar coche",
+          "search_volume": 9900,
+          "etv": 652.41,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "limpiar un coche",
+          "search_volume": 9900,
+          "etv": 3009.6,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "adblue que es",
+          "search_volume": 8100,
+          "etv": 533.79,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "adblue qué es",
+          "search_volume": 8100,
+          "etv": 2462.4,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "que es el adblue",
+          "search_volume": 8100,
+          "etv": 1312.2,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "qué es adblue",
+          "search_volume": 8100,
+          "etv": 73.71,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "apagon causas",
+          "search_volume": 5400,
+          "etv": 14.58,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "cuanto vale la bombona de butano",
+          "search_volume": 4400,
+          "etv": 1337.6,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "cuanto vale una bombona de butano",
+          "search_volume": 4400,
+          "etv": 1337.6,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "gasóleo a es diesel",
+          "search_volume": 4400,
+          "etv": 1337.6,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "gasóleo a es diésel",
+          "search_volume": 4400,
+          "etv": 712.8,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "mejor tarifa luz",
+          "search_volume": 4400,
+          "etv": 11.88,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "precio bombona butano repsol 12 5 kg",
+          "search_volume": 4400,
+          "etv": 49.72,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "red eléctrica española precio luz hoy",
+          "search_volume": 4400,
+          "etv": 148.72,
+          "search_intent": "commercial"
+        },
+        {
+          "keyword": "area servicios",
+          "search_volume": 3600,
+          "etv": 583.2,
+          "search_intent": "informational"
+        },
+        {
+          "keyword": "b 10",
+          "search_volume": 3600,
+          "etv": 583.2,
+          "search_intent": "informational"
+        }
+      ]
+    }
+  },
+  "intent_distribution": {
+    "iberdrola.es": {
+      "informational": {
+        "count": 215,
+        "total_volume": 294450
+      },
+      "commercial": {
+        "count": 506,
+        "total_volume": 518740
+      },
+      "navigational": {
+        "count": 256,
+        "total_volume": 288890
+      },
+      "transactional": {
+        "count": 23,
+        "total_volume": 20400
+      }
+    },
+    "endesa.com": {
+      "commercial": {
+        "count": 532,
+        "total_volume": 1173810
+      },
+      "informational": {
+        "count": 282,
+        "total_volume": 1044810
+      },
+      "navigational": {
+        "count": 158,
+        "total_volume": 221690
+      },
+      "transactional": {
+        "count": 28,
+        "total_volume": 28960
+      }
+    },
+    "naturgy.es": {
+      "commercial": {
+        "count": 563,
+        "total_volume": 872710
+      },
+      "navigational": {
+        "count": 234,
+        "total_volume": 372330
+      },
+      "informational": {
+        "count": 193,
+        "total_volume": 147590
+      },
+      "transactional": {
+        "count": 10,
+        "total_volume": 4450
+      }
+    },
+    "repsol.es": {
+      "commercial": {
+        "count": 610,
+        "total_volume": 1115260
+      },
+      "informational": {
+        "count": 188,
+        "total_volume": 338190
+      },
+      "navigational": {
+        "count": 168,
+        "total_volume": 122990
+      },
+      "transactional": {
+        "count": 34,
+        "total_volume": 21000
+      }
+    }
+  },
+  "volume_distribution": {
+    "iberdrola.es": {
+      "100k+": 0,
+      "10k-100k": 19,
+      "1k-10k": 188,
+      "100-1k": 793,
+      "<100": 0
+    },
+    "endesa.com": {
+      "100k+": 2,
+      "10k-100k": 38,
+      "1k-10k": 208,
+      "100-1k": 752,
+      "<100": 0
+    },
+    "naturgy.es": {
+      "100k+": 3,
+      "10k-100k": 6,
+      "1k-10k": 131,
+      "100-1k": 860,
+      "<100": 0
+    },
+    "repsol.es": {
+      "100k+": 3,
+      "10k-100k": 10,
+      "1k-10k": 190,
+      "100-1k": 797,
+      "<100": 0
+    }
+  },
+  "top_keywords": {
+    "iberdrola.es": [
+      {
+        "keyword": "aerotermia",
+        "search_volume": 40500,
+        "etv": 12312,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/smart-clima/aerotermia"
+      },
+      {
+        "keyword": "aerotermias",
+        "search_volume": 40500,
+        "etv": 1036.8,
+        "ai_ref_position": 7,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-aerotermia"
+      },
+      {
+        "keyword": "volt ampere",
+        "search_volume": 33100,
+        "etv": 2181.29,
+        "ai_ref_position": 4,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/diferencia-voltios-vatios-amperios"
+      },
+      {
+        "keyword": "luz españa",
+        "search_volume": 27100,
+        "etv": 915.98,
+        "ai_ref_position": 6,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "bono social de electricidad",
+        "search_volume": 18100,
+        "etv": 1761.13,
+        "ai_ref_position": 3,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/blog/energia/que-es-bono-social"
+      },
+      {
+        "keyword": "tarifa de la luz",
+        "search_volume": 18100,
+        "etv": 1761.13,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "tarifa de luz",
+        "search_volume": 18100,
+        "etv": 135.75,
+        "ai_ref_position": 12,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/luz"
+      },
+      {
+        "keyword": "tarifas de luz",
+        "search_volume": 18100,
+        "etv": 1761.13,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/luz"
+      },
+      {
+        "keyword": "la velocidad de la luz",
+        "search_volume": 14800,
+        "etv": 4499.2,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/ca/blog/luz/velocidad-de-la-luz"
+      },
+      {
+        "keyword": "se ha ido la luz",
+        "search_volume": 14800,
+        "etv": 378.88,
+        "ai_ref_position": 7,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "velocidad de la luz",
+        "search_volume": 14800,
+        "etv": 2397.6,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/velocidad-de-la-luz"
+      },
+      {
+        "keyword": "averias iberdrola",
+        "search_volume": 12100,
+        "etv": 238.37,
+        "ai_ref_position": 8,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/atencion-cliente"
+      },
+      {
+        "keyword": "averías iberdrola",
+        "search_volume": 12100,
+        "etv": 3678.4,
+        "ai_ref_position": 1,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "cups",
+        "search_volume": 12100,
+        "etv": 1177.33,
+        "ai_ref_position": 3,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/cups-luz"
+      },
+      {
+        "keyword": "gas licuado del petróleo",
+        "search_volume": 12100,
+        "etv": 567.49,
+        "ai_ref_position": 5,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/gas/que-es-gas-licuado-de-petroleo"
+      },
+      {
+        "keyword": "iberdrola averias",
+        "search_volume": 12100,
+        "etv": 797.39,
+        "ai_ref_position": 4,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/informacion/informacion-legal"
+      },
+      {
+        "keyword": "iberdrola averías",
+        "search_volume": 12100,
+        "etv": 1177.33,
+        "ai_ref_position": 3,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/negocios/luz/asistencia-electrica"
+      },
+      {
+        "keyword": "pia",
+        "search_volume": 12100,
+        "etv": 90.75,
+        "ai_ref_position": 12,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/pia-electricidad"
+      },
+      {
+        "keyword": "precio luz hoy iberdrola",
+        "search_volume": 12100,
+        "etv": 1960.2,
+        "ai_ref_position": 2,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "energías eólica",
+        "search_volume": 9900,
+        "etv": 55.44,
+        "ai_ref_position": 14,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/sostenibilidad/que-es-energia-eolica-ventajas"
+      },
+      {
+        "keyword": "precio kwh hoy",
+        "search_volume": 9900,
+        "etv": 652.41,
+        "ai_ref_position": 4,
+        "search_intent": "navigational",
+        "cited_url": "https://www.iberdrola.es/luz/precio-luz-hoy"
+      },
+      {
+        "keyword": "que ha pasado con la luz",
+        "search_volume": 9900,
+        "etv": 195.03,
+        "ai_ref_position": 8,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "caída luz",
+        "search_volume": 8100,
+        "etv": 788.13,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "cuando vuelve la luz",
+        "search_volume": 8100,
+        "etv": 379.89,
+        "ai_ref_position": 5,
+        "search_intent": "commercial",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "cuándo vuelve la luz",
+        "search_volume": 8100,
+        "etv": 533.79,
+        "ai_ref_position": 4,
+        "search_intent": "informational",
+        "cited_url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz"
+      }
+    ],
+    "endesa.com": [
+      {
+        "keyword": "precio de luz",
+        "search_volume": 301000,
+        "etv": 14116.9,
+        "ai_ref_position": 5,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz"
+      },
+      {
+        "keyword": "horario tarifa luz",
+        "search_volume": 201000,
+        "etv": 1829.1,
+        "ai_ref_position": 11,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/luz-y-gas/luz/precio-de-la-luz-hoy"
+      },
+      {
+        "keyword": "cuando cambia el horario",
+        "search_volume": 74000,
+        "etv": 22496,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "horarios",
+        "search_volume": 60500,
+        "etv": 9801,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+      },
+      {
+        "keyword": "cambio de hora en españa",
+        "search_volume": 49500,
+        "etv": 15048,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuando se cambia el horario",
+        "search_volume": 49500,
+        "etv": 3262.05,
+        "ai_ref_position": 4,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuando se cambia la hora",
+        "search_volume": 49500,
+        "etv": 15048,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuándo se cambia el horario",
+        "search_volume": 49500,
+        "etv": 15048,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuando cambian la hora en españa",
+        "search_volume": 40500,
+        "etv": 6561,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "empalma",
+        "search_volume": 40500,
+        "etv": 1368.9,
+        "ai_ref_position": 6,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/empalmes-electricos"
+      },
+      {
+        "keyword": "empalmes",
+        "search_volume": 40500,
+        "etv": 6561,
+        "ai_ref_position": 2,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/empalmes-electricos"
+      },
+      {
+        "keyword": "cambia el horario",
+        "search_volume": 33100,
+        "etv": 374.03,
+        "ai_ref_position": 10,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cambia la hora",
+        "search_volume": 33100,
+        "etv": 374.03,
+        "ai_ref_position": 10,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cambiar-hora",
+        "search_volume": 33100,
+        "etv": 3220.63,
+        "ai_ref_position": 3,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cambio de hora en octubre",
+        "search_volume": 33100,
+        "etv": 496.5,
+        "ai_ref_position": 9,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cambio de horario",
+        "search_volume": 33100,
+        "etv": 5362.2,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cambio hora",
+        "search_volume": 33100,
+        "etv": 1552.39,
+        "ai_ref_position": 5,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "volt ampere",
+        "search_volume": 33100,
+        "etv": 847.36,
+        "ai_ref_position": 7,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/electrodomesticos/voltios-vatios-amperios"
+      },
+      {
+        "keyword": "cuando cambio de horario",
+        "search_volume": 27100,
+        "etv": 8238.4,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuando el cambio de horario",
+        "search_volume": 27100,
+        "etv": 306.23,
+        "ai_ref_position": 10,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuando es el cambio de hora",
+        "search_volume": 27100,
+        "etv": 8238.4,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "cuándo es el cambio de hora",
+        "search_volume": 27100,
+        "etv": 4390.2,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora"
+      },
+      {
+        "keyword": "horarios precio luz",
+        "search_volume": 22200,
+        "etv": 6748.8,
+        "ai_ref_position": 1,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano"
+      },
+      {
+        "keyword": "apagon hoy",
+        "search_volume": 18100,
+        "etv": 848.89,
+        "ai_ref_position": 5,
+        "search_intent": "navigational",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz"
+      },
+      {
+        "keyword": "energía renovable",
+        "search_volume": 18100,
+        "etv": 1761.13,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/energias-renovables"
+      }
+    ],
+    "naturgy.es": [
+      {
+        "keyword": "precio de luz",
+        "search_volume": 301000,
+        "etv": 2257.5,
+        "ai_ref_position": 12,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "horario tarifa luz",
+        "search_volume": 201000,
+        "etv": 19557.301,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+      },
+      {
+        "keyword": "tarifas luz ahora",
+        "search_volume": 201000,
+        "etv": 2271.3,
+        "ai_ref_position": 10,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "luz españa",
+        "search_volume": 27100,
+        "etv": 693.76,
+        "ai_ref_position": 7,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "gasera cerca de mi",
+        "search_volume": 22200,
+        "etv": 113.22,
+        "ai_ref_position": 15,
+        "search_intent": "informational",
+        "cited_url": "https://www.naturgy.es/hogar/blog/requisitos-instalacion-gas-natural"
+      },
+      {
+        "keyword": "horarios precio luz",
+        "search_volume": 22200,
+        "etv": 437.34,
+        "ai_ref_position": 8,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+      },
+      {
+        "keyword": "tarifa de luz",
+        "search_volume": 18100,
+        "etv": 848.89,
+        "ai_ref_position": 5,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz/tarifa_noche"
+      },
+      {
+        "keyword": "tarifas de luz",
+        "search_volume": 18100,
+        "etv": 271.5,
+        "ai_ref_position": 9,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz"
+      },
+      {
+        "keyword": "horas mas baratas de luz",
+        "search_volume": 12100,
+        "etv": 136.73,
+        "ai_ref_position": 10,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+      },
+      {
+        "keyword": "batch cooking",
+        "search_volume": 9900,
+        "etv": 3009.6,
+        "ai_ref_position": 1,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/blog/que_es_el_batch_cooking_significado_ejemplos_y_recetas"
+      },
+      {
+        "keyword": "precio kwh hoy",
+        "search_volume": 9900,
+        "etv": 334.62,
+        "ai_ref_position": 6,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "precio luz hoy naturgy por horas",
+        "search_volume": 9900,
+        "etv": 1603.8,
+        "ai_ref_position": 2,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "hidrogeno verde",
+        "search_volume": 8100,
+        "etv": 18.63,
+        "ai_ref_position": 21,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/blog/hogar/hidrogeno_verde_que_es_y_como_se_produce"
+      },
+      {
+        "keyword": "a que hora es mas barata la luz",
+        "search_volume": 6600,
+        "etv": 60.06,
+        "ai_ref_position": 11,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+      },
+      {
+        "keyword": "a que hora es más barata la luz",
+        "search_volume": 6600,
+        "etv": 38.94,
+        "ai_ref_position": 13,
+        "search_intent": "informational",
+        "cited_url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata"
+      },
+      {
+        "keyword": "certificación energética vivienda",
+        "search_volume": 6600,
+        "etv": 642.18,
+        "ai_ref_position": 3,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/blog/certificado_energetico_de_una_vivienda_que_es_y_como_obtenerlo"
+      },
+      {
+        "keyword": "certificado energetico vivienda",
+        "search_volume": 6600,
+        "etv": 2006.4,
+        "ai_ref_position": 1,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/blog/certificado_energetico_de_una_vivienda_que_es_y_como_obtenerlo"
+      },
+      {
+        "keyword": "teléfono naturgy gratuito",
+        "search_volume": 5400,
+        "etv": 1641.6,
+        "ai_ref_position": 1,
+        "search_intent": "navigational",
+        "cited_url": "https://www.naturgy.es/hogar/ayuda/contacto"
+      },
+      {
+        "keyword": "compañia barata de luz",
+        "search_volume": 4400,
+        "etv": 49.72,
+        "ai_ref_position": 10,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz"
+      },
+      {
+        "keyword": "compañias baratas de luz",
+        "search_volume": 4400,
+        "etv": 10.56,
+        "ai_ref_position": 20,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz"
+      },
+      {
+        "keyword": "compañias de luz baratas",
+        "search_volume": 4400,
+        "etv": 24.64,
+        "ai_ref_position": 14,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz"
+      },
+      {
+        "keyword": "hora valle luz",
+        "search_volume": 4400,
+        "etv": 289.96,
+        "ai_ref_position": 4,
+        "search_intent": "informational",
+        "cited_url": "https://www.naturgy.es/hogar/luz/tarifa_noche"
+      },
+      {
+        "keyword": "horas valle luz",
+        "search_volume": 4400,
+        "etv": 1337.6,
+        "ai_ref_position": 1,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+      },
+      {
+        "keyword": "precio kwh",
+        "search_volume": 4400,
+        "etv": 22.44,
+        "ai_ref_position": 15,
+        "search_intent": "commercial",
+        "cited_url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz"
+      },
+      {
+        "keyword": "a qué hora es hoy la luz más barata",
+        "search_volume": 3600,
+        "etv": 168.84,
+        "ai_ref_position": 5,
+        "search_intent": "informational",
+        "cited_url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora"
+      }
+    ],
+    "repsol.es": [
+      {
+        "keyword": "precio de luz",
+        "search_volume": 301000,
+        "etv": 19835.9,
+        "ai_ref_position": 4,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "horario tarifa luz",
+        "search_volume": 201000,
+        "etv": 2271.3,
+        "ai_ref_position": 10,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "gasolinera near me",
+        "search_volume": 135000,
+        "etv": 21870,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/buscador-eess-y-puntos-de-recarga/"
+      },
+      {
+        "keyword": "empalmes",
+        "search_volume": 40500,
+        "etv": 3940.65,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-son-empalmes-electricos/"
+      },
+      {
+        "keyword": "horarios precio luz",
+        "search_volume": 22200,
+        "etv": 53.28,
+        "ai_ref_position": 20,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "precio hora luz",
+        "search_volume": 22200,
+        "etv": 3596.4,
+        "ai_ref_position": 2,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "precio de una bombona de butano",
+        "search_volume": 14800,
+        "etv": 167.24,
+        "ai_ref_position": 10,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/bombona-butano-propano/precio/"
+      },
+      {
+        "keyword": "autolavados cerca de mi",
+        "search_volume": 12100,
+        "etv": 3678.4,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/vehiculos/estaciones-de-servicio/servicios/lavado-de-coche/"
+      },
+      {
+        "keyword": "cups",
+        "search_volume": 12100,
+        "etv": 1960.2,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/faqs/luz-y-gas/que-es-codigo-cups/"
+      },
+      {
+        "keyword": "gas licuado del petroleo",
+        "search_volume": 12100,
+        "etv": 309.76,
+        "ai_ref_position": 7,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/faqs/glp/que-son-los-gases-licuados-del-petroleo/"
+      },
+      {
+        "keyword": "gas licuado propano",
+        "search_volume": 12100,
+        "etv": 67.76,
+        "ai_ref_position": 14,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/glp-que-es-para-que-sirve/"
+      },
+      {
+        "keyword": "horario mas barato de luz",
+        "search_volume": 12100,
+        "etv": 110.11,
+        "ai_ref_position": 11,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "resistencia",
+        "search_volume": 12100,
+        "etv": 797.39,
+        "ai_ref_position": 4,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-resistencia-electrica/"
+      },
+      {
+        "keyword": "gasolinera cerca de mi ubicación",
+        "search_volume": 9900,
+        "etv": 1603.8,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/buscador-eess-y-puntos-de-recarga/"
+      },
+      {
+        "keyword": "lavado de autos",
+        "search_volume": 9900,
+        "etv": 90.09,
+        "ai_ref_position": 11,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/faqs/eess/se-puede-lavar-el-coche-en-la-calle/"
+      },
+      {
+        "keyword": "limpiar coche",
+        "search_volume": 9900,
+        "etv": 652.41,
+        "ai_ref_position": 4,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/guia-completa-para-limpiar-el-coche/"
+      },
+      {
+        "keyword": "limpiar un coche",
+        "search_volume": 9900,
+        "etv": 3009.6,
+        "ai_ref_position": 1,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/guia-completa-para-limpiar-el-coche/"
+      },
+      {
+        "keyword": "precio kwh hoy",
+        "search_volume": 9900,
+        "etv": 55.44,
+        "ai_ref_position": 14,
+        "search_intent": "navigational",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "adblue que es",
+        "search_volume": 8100,
+        "etv": 533.79,
+        "ai_ref_position": 4,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+      },
+      {
+        "keyword": "adblue qué es",
+        "search_volume": 8100,
+        "etv": 2462.4,
+        "ai_ref_position": 1,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+      },
+      {
+        "keyword": "que es el adblue",
+        "search_volume": 8100,
+        "etv": 1312.2,
+        "ai_ref_position": 2,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+      },
+      {
+        "keyword": "qué es adblue",
+        "search_volume": 8100,
+        "etv": 73.71,
+        "ai_ref_position": 11,
+        "search_intent": "informational",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-adblue/"
+      },
+      {
+        "keyword": "a que hora es mas barata la luz",
+        "search_volume": 6600,
+        "etv": 38.94,
+        "ai_ref_position": 13,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/"
+      },
+      {
+        "keyword": "propano",
+        "search_volume": 6600,
+        "etv": 642.18,
+        "ai_ref_position": 3,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-propano/"
+      },
+      {
+        "keyword": "apagon causas",
+        "search_volume": 5400,
+        "etv": 14.58,
+        "ai_ref_position": 19,
+        "search_intent": "commercial",
+        "cited_url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-hacer-cuando-se-va-la-luz/"
+      }
+    ]
+  },
+  "top_pages": {
+    "iberdrola.es": [
+      {
+        "url": "https://www.iberdrola.es/luz/precio-luz-hoy",
+        "title": "Precio de la luz hoy por horas - 5 de ENERO 2026 - Iberdrola",
+        "count": 53,
+        "total_volume": 110800,
+        "total_etv": 8121.012999999999
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/energia/temperatura-ideal-nevera",
+        "title": "¿Cuál es la temperatura ideal de la nevera? - Iberdrola",
+        "count": 37,
+        "total_volume": 30400,
+        "total_etv": 6891.239999999998
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/que-hacer-donde-llamar-cuando-se-va-la-luz",
+        "title": "¿Qué hacer y dónde llamar cuando se va la luz? - Iberdrola",
+        "count": 32,
+        "total_volume": 102350,
+        "total_etv": 5677.955
+      },
+      {
+        "url": "https://www.iberdrola.es/atencion-cliente",
+        "title": "Puntos de atención al cliente para hogares - IBERDROLA",
+        "count": 32,
+        "total_volume": 44800,
+        "total_etv": 7579.6619999999975
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/diferencia-voltios-vatios-amperios",
+        "title": "Diferencia entre voltios, vatios y amperios - Iberdrola",
+        "count": 31,
+        "total_volume": 52260,
+        "total_etv": 4152.33
+      },
+      {
+        "url": "https://www.iberdrola.es/eu/blog/energia/precio-certificado-eficiencia-energetica",
+        "title": "Cuánto cuesta y cómo se solicita el certificado de eficiencia energética",
+        "count": 29,
+        "total_volume": 36500,
+        "total_etv": 2571.141
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/hora-punta-llana-valle-guia",
+        "title": "Hora punta, llana y valle: qué son y cuándo aplican - Iberdrola",
+        "count": 22,
+        "total_volume": 20810,
+        "total_etv": 1287.832
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/quien-invento-la-luz",
+        "title": "Quién inventó la luz - Iberdrola",
+        "count": 21,
+        "total_volume": 28770,
+        "total_etv": 2733.66
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/transporte/carnet-b1-coches-electricos",
+        "title": "Carnet de conducir B1, el acceso a la movilidad eléctrica para los jóvenes",
+        "count": 18,
+        "total_volume": 15770,
+        "total_etv": 2957.8730000000014
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/tipos-cables-electricos-y-su-color",
+        "title": "Tipos de cables eléctricos y su color - Iberdrola",
+        "count": 18,
+        "total_volume": 9630,
+        "total_etv": 550.479
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/energia/que-es-bono-social",
+        "title": "¿Qué es el bono social? Todo lo que necesitas saber - IBERDROLA",
+        "count": 17,
+        "total_volume": 32210,
+        "total_etv": 3714.250000000001
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/como-cambiar-titular-luz-y-gas",
+        "title": "¿Por qué cambiar el titular de la luz y del gas? - Iberdrola",
+        "count": 15,
+        "total_volume": 9760,
+        "total_etv": 2486.488
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/toma-de-tierra",
+        "title": "Toma de tierra: para qué sirve y por qué es importante - Iberdrola",
+        "count": 15,
+        "total_volume": 9470,
+        "total_etv": 750.205
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/energia/deduccion-irpf-cambio-ventanas",
+        "title": "Deducción del IRPF 2025 por cambio de ventanas - Iberdrola",
+        "count": 14,
+        "total_volume": 6980,
+        "total_etv": 100.121
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/energia/temperatura-ideal-calefaccion",
+        "title": "Cuál es la temperatura ideal de la calefacción en casa - Iberdrola",
+        "count": 14,
+        "total_volume": 7460,
+        "total_etv": 526.078
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/sostenibilidad/energia-renovable-y-energia-no-renovable",
+        "title": "Diferencias entre energías renovables y no renovables - Iberdrola",
+        "count": 14,
+        "total_volume": 4370,
+        "total_etv": 47.577999999999996
+      },
+      {
+        "url": "https://www.iberdrola.es/luz",
+        "title": "Tarifas de luz y ofertas de electricidad para tu hogar - Iberdrola",
+        "count": 13,
+        "total_volume": 41540,
+        "total_etv": 2260.8400000000006
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/energia/como-purgar-radiadores",
+        "title": "Cómo se purgan los radiadores paso a paso - Iberdrola",
+        "count": 13,
+        "total_volume": 11830,
+        "total_etv": 1331.338
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/que-es-voltaje-electrico-como-medirlo",
+        "title": "¿Qué es el voltaje eléctrico? Tipos y cómo medirlo - IBERDROLA",
+        "count": 13,
+        "total_volume": 13450,
+        "total_etv": 3048.6440000000002
+      },
+      {
+        "url": "https://www.iberdrola.es/blog/luz/por-que-salta-el-diferencial",
+        "title": "Por qué salta el diferencial - Iberdrola",
+        "count": 12,
+        "total_volume": 7690,
+        "total_etv": 1298.82
+      }
+    ],
+    "endesa.com": [
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/por-que-se-cambia-hora",
+        "title": "¿Cuándo y por qué se cambia la hora? - Endesa",
+        "count": 85,
+        "total_volume": 795630,
+        "total_etv": 134337.21099999978
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/horarios-luz-valle-punta-llano",
+        "title": "Horarios punta, llano y valle: qué son, cuándo aplican y cómo ahorrar en ...",
+        "count": 64,
+        "total_volume": 148460,
+        "total_etv": 27400.651999999987
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/tipos-cables-toma-tierra-fase",
+        "title": "¿Cómo diferenciar un cable de otro? - Endesa",
+        "count": 54,
+        "total_volume": 30770,
+        "total_etv": 3372.5549999999994
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/a-quien-llamar-cuando-se-va-la-luz",
+        "title": "A quién llamar cuando se va la luz: pasos y teléfonos de averías",
+        "count": 39,
+        "total_volume": 68580,
+        "total_etv": 10774.981
+      },
+      {
+        "url": "https://www.endesa.com/es/luz-y-gas/luz",
+        "title": "Tarifas de Luz: Encuentra tu oferta de luz - Endesa",
+        "count": 19,
+        "total_volume": 70010,
+        "total_etv": 2257.6919999999996
+      },
+      {
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/conecta-de-endesa",
+        "title": "Tarifa Conecta Luz - Endesa",
+        "count": 18,
+        "total_volume": 17870,
+        "total_etv": 506.4599999999998
+      },
+      {
+        "url": "https://www.endesa.com/es/te-ayudamos/contactanos/averias-y-cortes",
+        "title": "Averías y cortes - Endesa",
+        "count": 17,
+        "total_volume": 21410,
+        "total_etv": 865.1680000000002
+      },
+      {
+        "url": "https://www.endesa.com/es/la-cara-e/biografias/quien-invento-bombilla",
+        "title": "¿Quién inventó realmente la bombilla? - Endesa",
+        "count": 17,
+        "total_volume": 32120,
+        "total_etv": 3037.339999999999
+      },
+      {
+        "url": "https://www.endesa.com/es/la-cara-e/historia/inventor-inteligencia-artificial-origen-evolucion",
+        "title": "¿Quién inventó la inteligencia artificial? Origen y evolución - Endesa",
+        "count": 16,
+        "total_volume": 4690,
+        "total_etv": 221.90900000000002
+      },
+      {
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz-3periodos",
+        "title": "Tarifa One Luz 3 Periodos - Endesa",
+        "count": 15,
+        "total_volume": 41500,
+        "total_etv": 7030.396000000002
+      },
+      {
+        "url": "https://www.endesa.com/es/te-ayudamos/factura-gas-ml",
+        "title": "Tu factura de gas Endesa",
+        "count": 13,
+        "total_volume": 15600,
+        "total_etv": 4321.992
+      },
+      {
+        "url": "https://www.endesa.com/es/la-cara-e/sector-energetico/energia-termica-que-es-funcionamiento",
+        "title": "¿Qué es la energía térmica y cómo funciona? - Endesa",
+        "count": 12,
+        "total_volume": 12850,
+        "total_etv": 293.271
+      },
+      {
+        "url": "https://www.endesa.com/es/te-ayudamos/bonosocial/bono-social",
+        "title": "¿Qué es el Bono Social y como solicitarlo? - Endesa",
+        "count": 12,
+        "total_volume": 9020,
+        "total_etv": 510.49500000000006
+      },
+      {
+        "url": "https://www.endesa.com/es/te-ayudamos",
+        "title": "Atención al cliente Endesa",
+        "count": 11,
+        "total_volume": 17110,
+        "total_etv": 3346.499000000001
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/climatizacion/telefono-endesa",
+        "title": "¿Cuáles son los teléfonos gratuitos de Endesa?",
+        "count": 11,
+        "total_volume": 18380,
+        "total_etv": 4090.769
+      },
+      {
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz",
+        "title": "Tarifa One Luz: ahorra con la Tarifa con precio fijo el kWh - Endesa",
+        "count": 10,
+        "total_volume": 305080,
+        "total_etv": 14170.649999999998
+      },
+      {
+        "url": "https://www.endesa.com/es/te-ayudamos/gestiones-contratos/dudas-con-tu-contrato/costes-reconexion",
+        "title": "Reenganchar la luz y el gas - Endesa",
+        "count": 10,
+        "total_volume": 14510,
+        "total_etv": 523.423
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/luz/quien-invento-luz",
+        "title": "La luz no solo la inventó quien imaginas - Endesa",
+        "count": 10,
+        "total_volume": 7400,
+        "total_etv": 1729.6680000000001
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/climatizacion/calderas-gas-revision",
+        "title": "Calderas de gas: revisiones e inspecciones - Endesa",
+        "count": 10,
+        "total_volume": 5180,
+        "total_etv": 866.5579999999999
+      },
+      {
+        "url": "https://www.endesa.com/es/blog/blog-de-endesa/climatizacion/modos-aire-acondicionado",
+        "title": "¿Qué modo del aire acondicionado te permite ahorrar más? - Endesa",
+        "count": 10,
+        "total_volume": 3470,
+        "total_etv": 427.288
+      }
+    ],
+    "naturgy.es": [
+      {
+        "url": "https://www.naturgy.es/hogar/luz/precio_de_la_luz",
+        "title": "Precio de la luz hoy por horas | 29/12/2025 - Naturgy",
+        "count": 47,
+        "total_volume": 568600,
+        "total_etv": 8500.540000000006
+      },
+      {
+        "url": "https://www.naturgy.es/blog/hogar/hora_luz_mas_barata",
+        "title": "¿A qué hora es más barata la luz? - Naturgy",
+        "count": 38,
+        "total_volume": 256330,
+        "total_etv": 22299.293999999998
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/la_estructura_del_sol_creando_vida",
+        "title": "Qué es el sol, cuál es su estructura y características - Naturgy",
+        "count": 30,
+        "total_volume": 23390,
+        "total_etv": 1052.182
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/ayuda/contacto",
+        "title": "Teléfono y datos de contacto de atención al cliente | Naturgy",
+        "count": 26,
+        "total_volume": 17500,
+        "total_etv": 4333.562000000002
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/conoce_los_tipos_de_enchufes_segun_el_pais_antes_de_viajar",
+        "title": "Conoce los tipos de enchufes según el país antes de viajar",
+        "count": 22,
+        "total_volume": 16010,
+        "total_etv": 1187.517
+      },
+      {
+        "url": "https://www.naturgy.es/ayuda/preguntas_gestiones_frecuentes/que_hacer_en_caso_de_urgencia_instalacion_luz_gas",
+        "title": "¿Qué hacer en caso de urgencia con la instalación de luz o gas?",
+        "count": 22,
+        "total_volume": 7380,
+        "total_etv": 799.74
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/luz/tarifa_noche",
+        "title": "Tarifa Noche - Tarifa nocturna con discriminación horaria - Naturgy",
+        "count": 20,
+        "total_volume": 30360,
+        "total_etv": 1948.1059999999995
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/luz",
+        "title": "Tarifas de Luz - Contrata tarifas y ofertas de luz - Naturgy",
+        "count": 19,
+        "total_volume": 40790,
+        "total_etv": 1712.1800000000003
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/fuentes_energia",
+        "title": "Fuentes de energía, ¿qué son y tipos que existen? - Naturgy",
+        "count": 19,
+        "total_volume": 17520,
+        "total_etv": 1632.0240000000001
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/hora_mas_barata_poner_lavadora",
+        "title": "¿A qué hora es más barata poner la lavadora según el horario actual?",
+        "count": 17,
+        "total_volume": 33650,
+        "total_etv": 2305.496
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/certificado_energetico_de_una_vivienda_que_es_y_como_obtenerlo",
+        "title": "Certificado Energético de una vivienda - Naturgy",
+        "count": 17,
+        "total_volume": 18980,
+        "total_etv": 3195.7950000000005
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/solar/subvenciones_placas_solares",
+        "title": "Subvenciones placas solares",
+        "count": 17,
+        "total_volume": 9690,
+        "total_etv": 910.2369999999997
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/potencia_contratada_en_el_hogar",
+        "title": "¿Qué potencia contratar para mi hogar? | Blog - Naturgy",
+        "count": 17,
+        "total_volume": 6210,
+        "total_etv": 127.53000000000003
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/las_energias_renovables_y_no_renovables_diferencias",
+        "title": "Las energías renovables y no renovables: diferencias - Naturgy",
+        "count": 16,
+        "total_volume": 13140,
+        "total_etv": 1589.9359999999997
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/urgencias_y_averias",
+        "title": "Urgencias y Averías - Naturgy",
+        "count": 16,
+        "total_volume": 7200,
+        "total_etv": 655.515
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/calefaccion-temperatura-ideal",
+        "title": "Temperatura ideal en calefacción - Naturgy",
+        "count": 15,
+        "total_volume": 4680,
+        "total_etv": 416.637
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/cuanto_consume_un_aire_acondicionado",
+        "title": "¿Cuánto consume un aire acondicionado? - Naturgy",
+        "count": 14,
+        "total_volume": 8150,
+        "total_etv": 1380.831
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/que_es_la_toma_de_tierra_y_para_que_sirve",
+        "title": "Qué es la toma de tierra y para qué sirve - Naturgy",
+        "count": 14,
+        "total_volume": 5140,
+        "total_etv": 563.2719999999999
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/gas/precio_gas_hoy",
+        "title": "Precio del gas hoy - Naturgy",
+        "count": 14,
+        "total_volume": 4300,
+        "total_etv": 66.943
+      },
+      {
+        "url": "https://www.naturgy.es/hogar/blog/calor_sensible_y_calor_latente_que_son_y_como_influyen_en_el_consumo_de_energia_de_refrigeracion",
+        "title": "Calor LATENTE - Naturgy",
+        "count": 13,
+        "total_volume": 4150,
+        "total_etv": 721.432
+      }
+    ],
+    "repsol.es": [
+      {
+        "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/precio-luz-hoy/",
+        "title": "Precio de la luz por horas hoy 29/12/2025 - Repsol",
+        "count": 45,
+        "total_volume": 610910,
+        "total_etv": 28173.864999999998
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/diferencias-gasolina-95-98/",
+        "title": "Gasolina 95 y 98, ¿En qué se diferencian? - Repsol",
+        "count": 34,
+        "total_volume": 20660,
+        "total_etv": 2677.1659999999997
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/diferencias-gasolina-diesel/",
+        "title": "¿Qué diferencias hay entre la gasolina y el diésel? - Repsol",
+        "count": 27,
+        "total_volume": 18370,
+        "total_etv": 2328.7960000000007
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/cada-cuanto-cambiar-aceite-coche/",
+        "title": "¿Cada cuánto tiempo debes cambiar el aceite del coche? - Repsol",
+        "count": 26,
+        "total_volume": 22820,
+        "total_etv": 2652.6600000000003
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/temperatura-ideal-nevera/",
+        "title": "¿Cuál es la temperatura ideal para la nevera y el congelador? - Repsol",
+        "count": 23,
+        "total_volume": 18630,
+        "total_etv": 1076.4540000000002
+      },
+      {
+        "url": "https://www.repsol.es/particulares/hogar/bombona-butano-propano/precio/",
+        "title": "Precio Bombona de Butano y Propano | Repsol",
+        "count": 19,
+        "total_volume": 44940,
+        "total_etv": 3999.716999999999
+      },
+      {
+        "url": "https://www.repsol.es/particulares/vehiculos/estaciones-de-servicio/",
+        "title": "Estaciones de servicio y Gasolineras - Repsol",
+        "count": 17,
+        "total_volume": 23300,
+        "total_etv": 1060.992
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-resistencia-electrica/",
+        "title": "¿Qué es la resistencia eléctrica? - Repsol",
+        "count": 16,
+        "total_volume": 23570,
+        "total_etv": 1552.3989999999994
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-es-boletin-electrico-cie/",
+        "title": "Boletín Eléctrico: ¿Cómo se obtiene y cuánto cuesta? - Repsol",
+        "count": 16,
+        "total_volume": 8690,
+        "total_etv": 1200.78
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/glp-que-es-para-que-sirve/",
+        "title": "Qué es el GLP o AutoGas y para qué sirve - Repsol",
+        "count": 15,
+        "total_volume": 25270,
+        "total_etv": 932.322
+      },
+      {
+        "url": "https://www.repsol.es/buscador-eess-y-puntos-de-recarga/",
+        "title": "Estaciones de servicio y gasolineras cerca de mí - Repsol",
+        "count": 14,
+        "total_volume": 150770,
+        "total_etv": 24321.726
+      },
+      {
+        "url": "https://www.repsol.es/particulares/faqs/carburantes/que-es-el-diesel-y-que-propiedades-tiene/",
+        "title": "¿Qué es el diésel y qué propiedades tiene? | Repsol",
+        "count": 14,
+        "total_volume": 15730,
+        "total_etv": 2964.6709999999994
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/temperatura-ideal-aire-acondicionado/",
+        "title": "Cuál es la temperatura ideal para el aire acondicionado - Repsol",
+        "count": 14,
+        "total_volume": 11050,
+        "total_etv": 1094.1989999999998
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/cuanto-cuesta-cargar-un-coche-electrico/",
+        "title": "Cuánto cuesta cargar un coche eléctrico en España - Repsol",
+        "count": 12,
+        "total_volume": 9170,
+        "total_etv": 988.7460000000001
+      },
+      {
+        "url": "https://www.repsol.es/particulares/faqs/glp/cual-es-la-diferencia-entre-butano-y-propano/",
+        "title": "¿Cuál es la diferencia entre butano y propano? - Repsol",
+        "count": 11,
+        "total_volume": 9760,
+        "total_etv": 1751.6399999999996
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/agua-destilada-desmineralizada-que-es-para-que-sirve/",
+        "title": "¿Qué es el agua destilada y para qué sirve? | Repsol",
+        "count": 11,
+        "total_volume": 4470,
+        "total_etv": 478.60800000000006
+      },
+      {
+        "url": "https://www.repsol.es/particulares/vehiculos/estaciones-de-servicio/servicios/devoluciones-amazon/",
+        "title": "Dónde hacer devoluciones de Amazon cerca de mí | Repsol",
+        "count": 10,
+        "total_volume": 5410,
+        "total_etv": 1319.832
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/que-hacer-cuando-se-va-la-luz/",
+        "title": "¿Qué hacer cuando se va la luz? ✍ Causas y soluciones",
+        "count": 9,
+        "total_volume": 23430,
+        "total_etv": 2749.743
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/recarga-electrica/",
+        "title": "¿Cuánto tiempo tarda en cargarse un coche eléctrico? - Repsol",
+        "count": 9,
+        "total_volume": 5330,
+        "total_etv": 479.791
+      },
+      {
+        "url": "https://www.repsol.es/particulares/asesoramiento-consumo/se-puede-hacer-barbacoa-aire-libre/",
+        "title": "¿Se puede hacer barbacoa al aire libre? - Repsol",
+        "count": 9,
+        "total_volume": 3690,
+        "total_etv": 93.61500000000002
+      }
+    ]
+  }
+}
