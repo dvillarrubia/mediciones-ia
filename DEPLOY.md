@@ -68,8 +68,18 @@ docker logs root-traefik-1 --tail 30 | grep mediciones
 cd /opt/mediciones-ia
 docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml up -d --build --force-recreate
-docker network connect root_default mediciones-ia-app
 ```
+
+### Error 504 Gateway Timeout
+Si da 504 después de recrear el contenedor, verificar que Traefik detecta la red correcta:
+```bash
+# Ver qué IP está usando Traefik
+docker exec root-traefik-1 wget -q -O - 'http://localhost:8080/api/http/services/mediciones@docker'
+
+# La IP debe coincidir con la del contenedor en root_default
+docker network inspect root_default | grep -A 5 mediciones
+```
+El docker-compose.prod.yml ya incluye `traefik.docker.network=root_default` para evitar este problema.
 
 ---
 
