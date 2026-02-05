@@ -31,6 +31,7 @@ services:
     labels:
       # Traefik labels para reverse proxy automático
       - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
       - "traefik.http.routers.mediciones.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
       - "traefik.http.routers.mediciones.entrypoints=websecure"
       - "traefik.http.routers.mediciones.tls.certresolver=mytlschallenge"
