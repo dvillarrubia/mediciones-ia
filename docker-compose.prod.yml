@@ -33,7 +33,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.mediciones.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
       - "traefik.http.routers.mediciones.entrypoints=websecure"
-      - "traefik.http.routers.mediciones.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mediciones.tls.certresolver=mytlschallenge"
       - "traefik.http.services.mediciones.loadbalancer.server.port=3003"
       # Redirect HTTP to HTTPS
       - "traefik.http.routers.mediciones-http.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
@@ -63,4 +63,5 @@ networks:
   mediciones-network:
     driver: bridge
   traefik-public:
+    name: root_default
     external: true
