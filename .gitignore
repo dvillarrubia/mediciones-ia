@@ -57,6 +57,12 @@ nul
 
 # Claude settings locales
 .claude/settings.local.json
+.claude/settings.json
+.playwright-mcp/
+
+# Archivos de trabajo/planes
+PLAN_*.md
+update-selector.js
 
 # Configuraciones temporales
 api/data/configurations/config_*.json
