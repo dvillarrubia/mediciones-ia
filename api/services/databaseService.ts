@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
-import { AnalysisResult } from './openaiService';
+import { AnalysisResult } from './openaiService.js';
 import path from 'path';
 import fs from 'fs';
 

@@ -4,14 +4,10 @@
  */
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { PREDEFINED_TEMPLATES, type AnalysisTemplate, type CustomConfiguration } from '../config/templates.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Directorio base para configuraciones
-const CONFIGS_BASE_DIR = path.join(__dirname, '..', 'data', 'configurations');
+// Directorio base para configuraciones (consistente con databaseService y otros)
+const CONFIGS_BASE_DIR = path.join(process.cwd(), 'data', 'configurations');
 
 class ConfigService {
   constructor() {

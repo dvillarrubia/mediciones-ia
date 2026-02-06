@@ -1,20 +1,40 @@
 # ===========================================
-# Docker Compose para Producción en VPS
-# Uso: docker compose -f docker-compose.prod.yml up -d
+# Docker Compose para Producción (servidor)
+#
+# Este fichero NO hace build. Tira de imágenes del registry.
+# Las imágenes se construyen y pushean desde local con:
+#   ./devops/build-push.sh
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Watchtower las actualizará automáticamente cuando
+# se pusheen nuevas versiones al registry.
 # ===========================================
 
 services:
-  app:
-    image: mediciones-ia:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-    container_name: mediciones-ia-app
+  nginx:
+    image: registry.gitlab.example.com/tu-grupo/mediciones-ia/nginx:latest
+    container_name: mediciones-ia-nginx
     restart: always
-    expose:
-      - "3003"
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - mediciones
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  api:
+    image: registry.gitlab.example.com/tu-grupo/mediciones-ia/api:latest
+    container_name: mediciones-ia-api
+    restart: always
     environment:
       - NODE_ENV=production
       - PORT=3003
@@ -23,23 +43,10 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET}
     volumes:
-      - sqlite_data:/app/data
+      - mediciones_data:/app/data
       - ./logs:/app/logs
     networks:
-      - mediciones-network
-      - traefik-public
-    labels:
-      # Traefik labels para reverse proxy automático
-      - "traefik.enable=true"
-      - "traefik.http.routers.mediciones.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
-      - "traefik.http.routers.mediciones.entrypoints=websecure"
-      - "traefik.http.routers.mediciones.tls.certresolver=letsencrypt"
-      - "traefik.http.services.mediciones.loadbalancer.server.port=3003"
-      # Redirect HTTP to HTTPS
-      - "traefik.http.routers.mediciones-http.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
-      - "traefik.http.routers.mediciones-http.entrypoints=web"
-      - "traefik.http.routers.mediciones-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - mediciones
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/health"]
       interval: 30s
@@ -56,11 +63,9 @@ services:
           memory: 256M
 
 volumes:
-  sqlite_data:
+  mediciones_data:
     driver: local
 
 networks:
-  mediciones-network:
+  mediciones:
     driver: bridge
-  traefik-public:
-    external: true
