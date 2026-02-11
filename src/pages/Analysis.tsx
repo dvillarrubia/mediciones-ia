@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Settings, Eye, Edit3, Copy, Trash2, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Loader2, Info, Globe, Cpu, Sparkles, Zap, DollarSign } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Play, Settings, Eye, Edit3, Copy, Trash2, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Loader2, Info, Globe, Cpu, Sparkles, Zap, DollarSign, Key } from 'lucide-react';
 import { API_ENDPOINTS } from '../config/api';
 import NotificationSystem from '../components/NotificationSystem';
 import { useNotifications } from '../hooks/useNotifications';
@@ -116,6 +117,7 @@ interface AnalysisResult {
 }
 
 const Analysis = () => {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState<AnalysisTemplate[]>([]);
   const [customConfigurations, setCustomConfigurations] = useState<CustomConfiguration[]>([]);
   const [selectedConfig, setSelectedConfig] = useState<AnalysisTemplate | CustomConfiguration | null>(null);
@@ -125,6 +127,7 @@ const Analysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<{ code: string; message: string } | null>(null);
 
   // Nuevos estados para modelo y país
   const [aiModels, setAiModels] = useState<AIModelInfo[]>([]);
@@ -322,19 +325,38 @@ const Analysis = () => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Error del servidor:', errorText);
-        
+
         // Intentar parsear el error como JSON para obtener más detalles
         try {
           const errorData = JSON.parse(errorText);
+
+          // Detectar errores de API keys específicos
+          if (errorData.code === 'API_KEYS_REQUIRED' ||
+              errorData.code === 'OPENAI_KEY_REQUIRED' ||
+              errorData.code === 'ANTHROPIC_KEY_REQUIRED' ||
+              errorData.code === 'GOOGLE_KEY_REQUIRED') {
+            setApiKeyError({ code: errorData.code, message: errorData.message });
+            notifyError(
+              errorData.error || 'API Keys Requeridas',
+              errorData.message,
+              { duration: 10000 }
+            );
+            setIsAnalyzing(false);
+            return;
+          }
+
           if (errorData.error && errorData.invalidCategories) {
             throw new Error(`Error de validación: ${errorData.error}. Categorías inválidas: ${errorData.invalidCategories.join(', ')}`);
           }
         } catch (parseError) {
           // Si no se puede parsear, usar el error original
         }
-        
+
         throw new Error(`Error ${response.status}: ${errorText}`);
       }
+
+      // Limpiar error de API keys si la petición fue exitosa
+      setApiKeyError(null);
 
       const data = await response.json();
       console.log('Datos recibidos:', data);
@@ -499,6 +521,42 @@ const Analysis = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center">
           <AlertCircle className="h-5 w-5 text-red-500 mr-3" />
           <span className="text-red-700">{error}</span>
+        </div>
+      )}
+
+      {/* API Keys Error Alert - Prominente */}
+      {apiKeyError && (
+        <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-6 shadow-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <Key className="h-8 w-8 text-amber-500" />
+            </div>
+            <div className="ml-4 flex-1">
+              <h3 className="text-lg font-semibold text-amber-800">
+                {apiKeyError.code === 'API_KEYS_REQUIRED' ? 'API Keys No Configuradas' :
+                 apiKeyError.code === 'OPENAI_KEY_REQUIRED' ? 'API Key de OpenAI Requerida' :
+                 apiKeyError.code === 'ANTHROPIC_KEY_REQUIRED' ? 'API Key de Anthropic Requerida' :
+                 apiKeyError.code === 'GOOGLE_KEY_REQUIRED' ? 'API Key de Google AI Requerida' :
+                 'Configuración de API Keys'}
+              </h3>
+              <p className="mt-1 text-amber-700">{apiKeyError.message}</p>
+              <div className="mt-4 flex space-x-3">
+                <button
+                  onClick={() => navigate('/configuration')}
+                  className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                >
+                  <Key className="h-4 w-4 mr-2" />
+                  Ir a Configuración de API Keys
+                </button>
+                <button
+                  onClick={() => setApiKeyError(null)}
+                  className="inline-flex items-center px-4 py-2 bg-white text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-50 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
