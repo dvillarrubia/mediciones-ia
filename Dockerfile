@@ -10,9 +10,6 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-
 # Build: type check + vite (frontend) + tsc (backend)
 RUN npm run build
 
