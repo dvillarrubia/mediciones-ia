@@ -391,7 +391,9 @@ const Analysis = () => {
     }
   };
 
-  const generateReport = async (format: 'markdown' | 'json') => {
+  const generateReport = async (format: 'pdf' | 'excel') => {
+    const formatMap = { pdf: 'markdown', excel: 'json' } as const;
+    const apiFormat = formatMap[format];
     if (!analysisResult) return;
 
     try {
@@ -402,7 +404,7 @@ const Analysis = () => {
         industry: 'industry' in selectedConfig ? selectedConfig.industry : undefined
       } : undefined;
 
-      const response = await fetch(`${API_ENDPOINTS.analysisReport}/${format}`, {
+      const response = await fetch(`${API_ENDPOINTS.analysisReport}/${apiFormat}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -417,8 +419,8 @@ const Analysis = () => {
 
       if (data.success) {
         // Crear y descargar el archivo
-        const mimeType = format === 'markdown' ? 'text/markdown' : 'application/json';
-        const blob = new Blob([format === 'json' ? JSON.stringify(data.data.content, null, 2) : data.data.content], {
+        const mimeType = apiFormat === 'markdown' ? 'text/markdown' : 'application/json';
+        const blob = new Blob([apiFormat === 'json' ? JSON.stringify(data.data.content, null, 2) : data.data.content], {
           type: mimeType
         });
         const url = URL.createObjectURL(blob);
