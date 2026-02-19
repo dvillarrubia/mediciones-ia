@@ -695,28 +695,6 @@ class AdminService {
   }
 
   /**
-   * Eliminar un modelo de IA
-   */
-  async deleteAIModel(modelId: string): Promise<void> {
-    await this.ensureInitialized();
-
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error('DB not initialized'));
-        return;
-      }
-
-      this.db.run('DELETE FROM ai_models WHERE id = ?', [modelId], (err) => {
-        if (err) reject(err);
-        else {
-          console.log(`✅ Modelo de IA eliminado: ${modelId}`);
-          resolve();
-        }
-      });
-    });
-  }
-
-  /**
    * Activar/desactivar un modelo de IA
    */
   async toggleAIModel(modelId: string, enabled: boolean): Promise<void> {

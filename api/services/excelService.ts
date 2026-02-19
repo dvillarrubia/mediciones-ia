@@ -240,10 +240,44 @@ class ExcelService {
       fgColor: { argb: 'FF1F4788' }
     };
 
+    // Datos - usar sourcesCited[] (fuentes web reales)
     let row = 2;
     analysis.questions.forEach(question => {
-      if (!question.sources || question.sources.length === 0) {
-        return;
+      const sources = question?.['sourcesCited'] || (question as any).sources;
+      if (sources && sources.length > 0) {
+        sources.forEach((source: any) => {
+          // Saltar fuentes sintéticas (generadas cuando no hay web search)
+          if (source.url === 'ai-generated-response' || source.url === 'generative-ai-response') {
+            return;
+          }
+
+          sheet.getRow(row).values = [
+            question.question.substring(0, 100) + (question.question.length > 100 ? '...' : ''),
+            source.title || 'Sin título',
+            source.domain || '',
+            source.url || 'N/A',
+            source.isPriority ? 'Sí' : 'No',
+            source.snippet?.substring(0, 200) || ''
+          ];
+
+          // Color para fuentes prioritarias
+          const priorityCell = sheet.getCell(`E${row}`);
+          if (source.isPriority) {
+            priorityCell.font = { color: { argb: 'FF008000' }, bold: true };
+          }
+
+          // Hacer URL clicable
+          if (source.url && source.url !== 'N/A') {
+            const urlCell = sheet.getCell(`D${row}`);
+            urlCell.value = {
+              text: source.url,
+              hyperlink: source.url
+            };
+            urlCell.font = { color: { argb: 'FF0066CC' }, underline: true };
+          }
+
+          row++;
+        });
       }
 
       // Filtrar URLs reales (excluir sinteticas)

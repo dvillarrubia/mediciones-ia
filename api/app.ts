@@ -4,14 +4,9 @@
 
 import dotenv from 'dotenv'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-// for esm mode
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 // load env FIRST before any other imports
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
+dotenv.config({ path: path.resolve(process.cwd(), '.env') })
 
 // Debug: Log environment variables
 console.log('🔧 Environment variables loaded:')
@@ -63,28 +58,6 @@ app.use(
     })
   },
 )
-
-/**
- * Serve static files in production
- */
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.resolve(__dirname, '../dist')
-
-  // Serve static assets
-  app.use(express.static(distPath, {
-    maxAge: '1y',
-    etag: true,
-  }))
-
-  // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    // Skip API routes
-    if (req.path.startsWith('/api')) {
-      return next()
-    }
-    res.sendFile(path.join(distPath, 'index.html'))
-  })
-}
 
 /**
  * error handler middleware

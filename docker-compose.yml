@@ -1,14 +1,27 @@
 services:
-  # ===========================================
-  # Aplicación Principal
-  # ===========================================
-  app:
+  nginx:
     build:
       context: .
       dockerfile: Dockerfile
+      target: nginx
       args:
         - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
-    container_name: mediciones-ia-app
+    container_name: mediciones-ia-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - mediciones
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: mediciones-ia-api
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -18,18 +31,10 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
     volumes:
-      # Persistir datos de análisis (JSON files)
-      - mediciones_data:/app/api/data
-      # Persistir logs (opcional)
+      - mediciones_data:/app/data
       - ./logs:/app/logs
     networks:
-      - root_default
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.mediciones.rule=Host(`mediciones.srv817047.hstgr.cloud`)"
-      - "traefik.http.routers.mediciones.entrypoints=websecure"
-      - "traefik.http.routers.mediciones.tls.certresolver=myresolver"
-      - "traefik.http.services.mediciones.loadbalancer.server.port=3003"
+      - mediciones
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/health"]
       interval: 30s
@@ -42,5 +47,5 @@ volumes:
     driver: local
 
 networks:
-  root_default:
-    external: true
+  mediciones:
+    driver: bridge
