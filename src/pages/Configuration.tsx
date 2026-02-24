@@ -135,7 +135,14 @@ const Configuration: React.FC = () => {
 
   const saveApiKeys = () => {
     try {
-      localStorage.setItem('userApiKeys', JSON.stringify(apiKeys));
+      // Trim whitespace from all keys before saving
+      const trimmedKeys = {
+        openai: apiKeys.openai.trim(),
+        anthropic: apiKeys.anthropic.trim(),
+        google: apiKeys.google.trim()
+      };
+      setApiKeys(trimmedKeys);
+      localStorage.setItem('userApiKeys', JSON.stringify(trimmedKeys));
       setSuccess('API Keys guardadas correctamente');
     } catch (e) {
       setError('Error al guardar las API Keys');

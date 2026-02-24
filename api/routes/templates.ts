@@ -16,9 +16,13 @@ import {
   getCountryByCode
 } from '../config/constants.js';
 import { adminService } from '../services/adminService.js';
+import { optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 const configService = new ConfigService();
+
+// Aplicar autenticación opcional a todas las rutas
+router.use(optionalAuth);
 
 // ==========================================
 // ENDPOINTS DE MODELOS DE IA
@@ -239,11 +243,11 @@ router.get('/:id', (req: Request, res: Response) => {
 
 /**
  * GET /api/templates/configurations
- * Obtener todas las configuraciones personalizadas
+ * Obtener todas las configuraciones personalizadas del usuario
  */
 router.get('/configurations/all', async (req: Request, res: Response) => {
   try {
-    const configurations = await configService.getCustomConfigurations();
+    const configurations = await configService.getCustomConfigurations(req.userId);
     res.json({
       success: true,
       data: configurations
@@ -259,13 +263,13 @@ router.get('/configurations/all', async (req: Request, res: Response) => {
 
 /**
  * GET /api/templates/configurations/:id
- * Obtener una configuración personalizada específica
+ * Obtener una configuración personalizada específica del usuario
  */
 router.get('/configurations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const configuration = await configService.getCustomConfiguration(id);
-    
+    const configuration = await configService.getCustomConfiguration(id, req.userId);
+
     if (!configuration) {
       return res.status(404).json({
         success: false,
@@ -335,7 +339,7 @@ router.post('/configurations', async (req: Request, res: Response) => {
       competitorBrands,
       prioritySources,
       questions
-    });
+    }, req.userId);
 
     res.status(201).json({
       success: true,
@@ -352,15 +356,15 @@ router.post('/configurations', async (req: Request, res: Response) => {
 
 /**
  * PUT /api/templates/configurations/:id
- * Actualizar una configuración personalizada
+ * Actualizar una configuración personalizada del usuario
  */
 router.put('/configurations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    const updatedConfiguration = await configService.updateCustomConfiguration(id, updates);
-    
+    const updatedConfiguration = await configService.updateCustomConfiguration(id, updates, req.userId);
+
     if (!updatedConfiguration) {
       return res.status(404).json({
         success: false,
@@ -383,13 +387,13 @@ router.put('/configurations/:id', async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/templates/configurations/:id
- * Eliminar una configuración personalizada
+ * Eliminar una configuración personalizada del usuario
  */
 router.delete('/configurations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await configService.deleteCustomConfiguration(id);
-    
+    const deleted = await configService.deleteCustomConfiguration(id, req.userId);
+
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -412,7 +416,7 @@ router.delete('/configurations/:id', async (req: Request, res: Response) => {
 
 /**
  * POST /api/templates/duplicate
- * Duplicar una plantilla o configuración personalizada
+ * Duplicar una plantilla o configuración personalizada del usuario
  */
 router.post('/duplicate', async (req: Request, res: Response) => {
   try {
@@ -425,8 +429,8 @@ router.post('/duplicate', async (req: Request, res: Response) => {
       });
     }
 
-    const duplicatedConfiguration = await configService.duplicateConfiguration(sourceType, sourceId, newName);
-    
+    const duplicatedConfiguration = await configService.duplicateConfiguration(sourceType, sourceId, newName, req.userId);
+
     if (!duplicatedConfiguration) {
       return res.status(404).json({
         success: false,
@@ -449,7 +453,7 @@ router.post('/duplicate', async (req: Request, res: Response) => {
 
 /**
  * POST /api/templates/custom
- * Crear una nueva configuración personalizada
+ * Crear una nueva configuración personalizada del usuario
  */
 router.post('/custom', async (req: Request, res: Response) => {
   try {
@@ -462,7 +466,7 @@ router.post('/custom', async (req: Request, res: Response) => {
       });
     }
 
-    const newConfiguration = await configService.createCustomConfiguration(configData);
+    const newConfiguration = await configService.createCustomConfiguration(configData, req.userId);
 
     res.status(201).json({
       success: true,
@@ -479,14 +483,14 @@ router.post('/custom', async (req: Request, res: Response) => {
 
 /**
  * PUT /api/templates/custom/:id
- * Actualizar una configuración personalizada
+ * Actualizar una configuración personalizada del usuario
  */
 router.put('/custom/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    const updatedConfiguration = await configService.updateCustomConfiguration(id, updates);
+    const updatedConfiguration = await configService.updateCustomConfiguration(id, updates, req.userId);
 
     if (!updatedConfiguration) {
       return res.status(404).json({
@@ -510,14 +514,14 @@ router.put('/custom/:id', async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/templates/custom/:id
- * Eliminar una configuración personalizada
+ * Eliminar una configuración personalizada del usuario
  */
 router.delete('/custom/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const deleted = await configService.deleteCustomConfiguration(id);
-    
+    const deleted = await configService.deleteCustomConfiguration(id, req.userId);
+
     if (!deleted) {
       return res.status(404).json({
         success: false,

@@ -1,10 +1,15 @@
 /**
  * Dashboard routes - Métricas y estadísticas del sistema
+ * Soporta multi-tenant: filtra por userId
  */
 import express, { Request, Response } from 'express';
 import { databaseService } from '../services/databaseService.js';
+import { optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Aplicar autenticación opcional a todas las rutas
+router.use(optionalAuth);
 
 interface DashboardMetrics {
   totalAnalyses: number;
@@ -49,8 +54,8 @@ router.get('/', async (req: Request, res: Response) => {
     const period = req.query.period as string || 'month';
     const projectId = req.query.projectId as string | undefined;
 
-    // Obtener datos de análisis desde la base de datos (filtrados por proyecto si se especifica)
-    const analyses = await databaseService.getAllAnalyses(1000, projectId);
+    // Obtener datos de análisis desde la base de datos (filtrados por proyecto y usuario)
+    const analyses = await databaseService.getAllAnalyses(1000, projectId, req.userId);
 
     // Calcular métricas
     const metrics = calculateMetrics(analyses, period);
