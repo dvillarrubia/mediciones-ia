@@ -34,6 +34,7 @@ import {
 import { API_ENDPOINTS } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
+import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
   id: string;
@@ -164,9 +165,18 @@ const IntelligenceHub: React.FC = () => {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Proyecto seleccionado
+  const { selectedProjectId } = useProjectStore();
+
   useEffect(() => {
     loadAnalyses();
-  }, []);
+    // Limpiar selecciones al cambiar de proyecto
+    setSelectedIds(new Set());
+    setSelectedAnalysisDetail(null);
+    setShowDetailPanel(false);
+    setCompareAnalyses([]);
+    setAllAnalysesDetails([]);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (notification) {
@@ -182,7 +192,11 @@ const IntelligenceHub: React.FC = () => {
   const loadAnalyses = async () => {
     try {
       setLoading(true);
-      const response = await fetch(API_ENDPOINTS.analysisSaved);
+      let url = API_ENDPOINTS.analysisSaved;
+      if (selectedProjectId) {
+        url += `?projectId=${selectedProjectId}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success && data.data) {

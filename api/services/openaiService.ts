@@ -2222,7 +2222,15 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
       const modelAnalysis = await this.analyzeWithAIPersona(questionData, modelPersona, configuration);
       multiModelResults.push(modelAnalysis);
       console.log(`✅ [${questionId}] Análisis completado con ${modelPersona}`);
-    } catch (error) {
+    } catch (error: any) {
+      // Si es error de autenticación (API key inválida), propagar inmediatamente
+      if (error?.status === 401 || error?.code === 'invalid_api_key') {
+        console.error(`🔴 [${questionId}] API key inválida para ${modelPersona} - abortando análisis`);
+        const authError = new Error(`API_KEY_INVALID:${modelPersona}:${error.message || 'API key inválida'}`);
+        (authError as any).isAuthError = true;
+        (authError as any).provider = modelPersona;
+        throw authError;
+      }
       console.error(`🔴 [${questionId}] Error con modelo ${modelPersona}:`, error);
       failedModels.push(modelPersona);
       console.log(`⚠️ [${questionId}] Modelo ${modelPersona} omitido, continuando con otros modelos...`);
@@ -2287,18 +2295,28 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
 
   const targetBrand = configuration.targetBrand || (configuration.targetBrands?.[0]) || 'Coca-Cola';
   const competitors = configuration.competitorBrands || COMPETITOR_BRANDS;
+  const countryName = configuration.countryName || 'España';
+  const countryContext = configuration.countryContext || 'en España, considerando el mercado español';
+  const countryLanguage = configuration.countryLanguage || 'Español';
+  const countryCode = configuration.countryCode || 'ES';
 
   // ========== LLAMADA 1: Pregunta LIMPIA sin sesgo ==========
   // NO mencionamos marcas para obtener una respuesta natural
+  // PERO sí indicamos país e idioma para contextualizar la búsqueda
+  const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
+
   const cleanPrompt = `${questionData.question}
 
-Responde de forma completa y útil (200-400 palabras).`;
+Responde de forma completa y útil, enfocándote en ${countryName}.`;
 
-  console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia)...`);
+  console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia, país: ${countryName})...`);
 
   const searchResponse = await this.client.chat.completions.create({
     model: this.GENERATION_MODEL,
-    messages: [{ role: 'user', content: cleanPrompt }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: cleanPrompt }
+    ],
     max_tokens: configuration.maxTokens || 2000,
     web_search_options: {
       search_context_size: 'medium',
@@ -2317,6 +2335,9 @@ Responde de forma completa y útil (200-400 palabras).`;
   // ========== LLAMADA 2: Análisis con modelo BARATO ==========
   const analysisPrompt = `Analiza la siguiente respuesta de IA y extrae información sobre menciones de marcas.
 
+CONTEXTO GEOGRÁFICO: ${countryContext} (${countryName})
+IDIOMA: ${countryLanguage}
+
 RESPUESTA A ANALIZAR:
 """
 ${naturalResponse}
@@ -2325,7 +2346,7 @@ ${naturalResponse}
 MARCA OBJETIVO: ${targetBrand}
 COMPETIDORES CONOCIDOS: ${competitors.join(', ')}
 
-Responde SOLO con JSON válido (sin texto adicional):
+Responde SOLO con JSON válido (sin texto adicional, en ${countryLanguage}):
 {
   "targetBrand": {
     "name": "${targetBrand}",
@@ -2344,7 +2365,7 @@ Responde SOLO con JSON válido (sin texto adicional):
   "confidence": número entre 0.7 y 0.95
 }
 
-IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en la lista de competidores.`;
+IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en la lista de competidores. Ten en cuenta que el contexto es ${countryName} al evaluar las marcas.`;
 
   console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 

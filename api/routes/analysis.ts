@@ -242,8 +242,29 @@ router.post('/execute', async (req: Request, res: Response) => {
       modelsUsed: configuration.aiModels || ['chatgpt']
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error ejecutando análisis:', error);
+
+    // Detectar errores de API key inválida
+    if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
+      const provider = error?.provider || 'openai';
+      const providerNames: Record<string, string> = {
+        chatgpt: 'OpenAI',
+        openai: 'OpenAI',
+        claude: 'Anthropic',
+        anthropic: 'Anthropic',
+        gemini: 'Google AI',
+        google: 'Google AI'
+      };
+      const providerName = providerNames[provider] || provider;
+      return res.status(401).json({
+        error: `API Key de ${providerName} inválida`,
+        message: `La API Key de ${providerName} que configuraste es incorrecta o ha expirado. Ve a Configuración > API Keys y verifica que la key sea válida.`,
+        code: 'INVALID_API_KEY',
+        provider: provider
+      });
+    }
+
     res.status(500).json({
       error: 'Error ejecutando análisis',
       message: error instanceof Error ? error.message : 'Error desconocido'
@@ -584,12 +605,13 @@ router.post('/report/pdf', async (req: Request, res: Response) => {
 
 /**
  * GET /api/analysis/history
- * Obtiene el historial de análisis realizados
+ * Obtiene el historial de análisis realizados (filtrado por proyecto y usuario)
  */
 router.get('/history', async (req: Request, res: Response) => {
 try {
 const limit = parseInt(req.query.limit as string) || 50;
-const analyses = await databaseService.getAllAnalyses(limit, undefined, req.userId);
+const projectId = req.query.projectId as string | undefined;
+const analyses = await databaseService.getAllAnalyses(limit, projectId, req.userId);
 
 // Transformar los datos al formato esperado por el frontend
 const history = analyses.map(analysis => ({

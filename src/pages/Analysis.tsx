@@ -334,10 +334,11 @@ const Analysis = () => {
           if (errorData.code === 'API_KEYS_REQUIRED' ||
               errorData.code === 'OPENAI_KEY_REQUIRED' ||
               errorData.code === 'ANTHROPIC_KEY_REQUIRED' ||
-              errorData.code === 'GOOGLE_KEY_REQUIRED') {
+              errorData.code === 'GOOGLE_KEY_REQUIRED' ||
+              errorData.code === 'INVALID_API_KEY') {
             setApiKeyError({ code: errorData.code, message: errorData.message });
             notifyError(
-              errorData.error || 'API Keys Requeridas',
+              errorData.error || 'Error de API Key',
               errorData.message,
               { duration: 10000 }
             );

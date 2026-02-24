@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { useProjectStore } from '../store/projectStore';
 
 interface Report {
   id: string;
@@ -32,6 +33,7 @@ const Reports: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const { selectedProjectId } = useProjectStore();
   const [filters, setFilters] = useState<FilterOptions>({
     brand: '',
     template: '',
@@ -48,7 +50,7 @@ const Reports: React.FC = () => {
 
   useEffect(() => {
     loadReports();
-  }, []);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     applyFilters();
@@ -57,7 +59,11 @@ const Reports: React.FC = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}`);
+      let url = API_ENDPOINTS.analysisSaved;
+      if (selectedProjectId) {
+        url += `?projectId=${selectedProjectId}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success && data.data) {
