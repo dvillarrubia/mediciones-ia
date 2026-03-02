@@ -26,7 +26,7 @@ cd /opt/mediciones-ia && git pull origin main && docker compose -f docker-compos
 
 ```bash
 docker ps | grep mediciones
-docker logs mediciones-ia-app --tail 20
+docker logs mediciones-ia-api --tail 20
 curl -I https://mediciones.srv817047.hstgr.cloud
 ```
 
@@ -43,7 +43,7 @@ curl -I https://mediciones.srv817047.hstgr.cloud
 | Reverse Proxy | Traefik |
 | Red Traefik | `root_default` |
 | Cert Resolver | `mytlschallenge` |
-| Contenedor | `mediciones-ia-app` |
+| Contenedores | `mediciones-ia-nginx` + `mediciones-ia-api` |
 
 ---
 
@@ -52,7 +52,7 @@ curl -I https://mediciones.srv817047.hstgr.cloud
 ### Error 404 o no carga
 ```bash
 # Verificar que el contenedor esté en la red de Traefik
-docker network connect root_default mediciones-ia-app
+docker network connect root_default mediciones-ia-nginx
 ```
 
 ### Error de certificado SSL

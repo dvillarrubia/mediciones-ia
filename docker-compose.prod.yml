@@ -1,29 +1,35 @@
 # ===========================================
-# Docker Compose para Producción (servidor)
-#
-# Este fichero NO hace build. Tira de imágenes del registry.
-# Las imágenes se construyen y pushean desde local con:
-#   ./devops/build-push.sh
+# Docker Compose para Producción
 #
 # Uso:
-#   docker compose -f docker-compose.prod.yml up -d
-#
-# Watchtower las actualizará automáticamente cuando
-# se pusheen nuevas versiones al registry.
+#   docker compose -f docker-compose.prod.yml up -d --build
 # ===========================================
 
 services:
   nginx:
-    image: registry.gitlab.example.com/tu-grupo/mediciones-ia/nginx:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
     container_name: mediciones-ia-nginx
     restart: always
-    ports:
-      - "80:80"
     depends_on:
       api:
         condition: service_healthy
     networks:
       - mediciones
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.mediciones.rule=Host(`mediciones.srv817047.hstgr.cloud`)"
+      - "traefik.http.routers.mediciones.entrypoints=websecure"
+      - "traefik.http.routers.mediciones.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.mediciones.loadbalancer.server.port=80"
+      - "traefik.http.routers.mediciones-http.rule=Host(`mediciones.srv817047.hstgr.cloud`)"
+      - "traefik.http.routers.mediciones-http.entrypoints=web"
+      - "traefik.http.routers.mediciones-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -32,7 +38,10 @@ services:
       start_period: 10s
 
   api:
-    image: registry.gitlab.example.com/tu-grupo/mediciones-ia/api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
     container_name: mediciones-ia-api
     restart: always
     environment:
@@ -47,34 +56,12 @@ services:
       - ./logs:/app/logs
     networks:
       - mediciones
-      - traefik-public
-    labels:
-      # Traefik labels para reverse proxy automático
-      - "traefik.enable=true"
-      - "traefik.docker.network=root_default"
-      - "traefik.http.routers.mediciones.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
-      - "traefik.http.routers.mediciones.entrypoints=websecure"
-      - "traefik.http.routers.mediciones.tls.certresolver=mytlschallenge"
-      - "traefik.http.services.mediciones.loadbalancer.server.port=3003"
-      # Redirect HTTP to HTTPS
-      - "traefik.http.routers.mediciones-http.rule=Host(`${DOMAIN:-mediciones.tudominio.com}`)"
-      - "traefik.http.routers.mediciones-http.entrypoints=web"
-      - "traefik.http.routers.mediciones-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
 
 volumes:
   mediciones_data:
