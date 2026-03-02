@@ -1,0 +1,172 @@
+{
+  "name": "Monitorización Presencia IA - Saunier Duval",
+  "description": "Análisis de presencia orgánica en IA basado en puntos de dolor (SAT, conectividad) y fortalezas técnicas (alta Tª, silencio, R290)",
+  "targetBrand": "Saunier Duval",
+  "competitorBrands": [
+    "Vaillant",
+    "Daikin",
+    "Mitsubishi",
+    "Viessmann",
+    "Junkers"
+  ],
+  "prioritySources": [
+    "saunierduval.es",
+    "trustpilot.com/saunierduval.es",
+    "foros de climatización"
+  ],
+  "aiModels": [
+    "chatgpt",
+    "claude",
+    "gemini"
+  ],
+  "questions": [
+    {
+      "id": "q5",
+      "question": "Tengo una casa antigua con radiadores de hierro fundido y quiero poner aerotermia sin hacer obras ni cambiar los radiadores. ¿Qué modelos o marcas permiten impulsar agua a unos 75 ºC para no pasar frío con radiadores existentes?",
+      "category": "Modernizador Patrimonial - Alta Temperatura"
+    },
+    {
+      "id": "q6",
+      "question": "Vivo en un adosado y quiero instalar una bomba de calor, pero me preocupa mucho molestar al vecino con el ruido de la unidad exterior. ¿Qué bombas de calor son actualmente de las más silenciosas del mercado (por debajo de 30 dB en modo silencioso aproximadamente)?",
+      "category": "Modernizador Patrimonial - Silencio"
+    },
+    {
+      "id": "q7",
+      "question": "Me da miedo quitar mi caldera de gas y pasarme solo a electricidad por si sube el precio de la luz. ¿Existen sistemas híbridos que combinen caldera de gas y aerotermia y que elijan automáticamente, en cada momento, la energía más barata?",
+      "category": "Conservador Prudente - Ahorro Inteligente"
+    },
+    {
+      "id": "q8",
+      "question": "Vivo en una zona muy fría de España, de montaña. ¿Es más recomendable aerotermia pura o un sistema híbrido gas + aerotermia para climas extremos? ¿Qué marcas son más fiables en esas condiciones?",
+      "category": "Conservador Prudente - Resiliencia Climática"
+    },
+    {
+      "id": "q9",
+      "question": "Vivo en un piso pequeño en el centro y se me ha roto la caldera. No tengo espacio para aerotermia. ¿Qué marcas de calderas de condensación a gas ofrecen mejor relación calidad‑precio y agua caliente instantánea sin esperas?",
+      "category": "Reemplazador Urbano - Normativa y Espacio"
+    },
+    {
+      "id": "q10",
+      "question": "Quiero quitar mi termo eléctrico porque gasta mucho, pero no quiero poner una instalación completa de calefacción. He oído hablar de los 'aerotermos'. ¿Qué es exactamente un aerotermo para ACS y cuáles son los mejores modelos para una familia de 4 personas?",
+      "category": "Reemplazador Urbano - Agua Caliente Eficiente"
+    },
+    {
+      "id": "q11",
+      "question": "Estoy dudando entre varias marcas de climatización (alemanas, asiáticas, etc.). Más allá del producto, ¿qué marcas tienen actualmente en España el servicio técnico oficial más rápido y fiable, con mejores tiempos de respuesta y resolución de averías?",
+      "category": "Riesgos SAT - Fiabilidad Servicio Técnico"
+    },
+    {
+      "id": "q12",
+      "question": "¿Qué marcas de calderas o aerotermia tienen hoy en día las mejores aplicaciones móviles para controlar la calefacción desde el móvil, que sean estables, no se cuelguen y se conecten bien a los servidores?",
+      "category": "Riesgos Conectividad - Apps Móviles"
+    },
+    {
+      "id": "q13",
+      "question": "Soy fontanero acostumbrado a calderas y quiero empezar con aerotermia. ¿Qué marcas ofrecen bombas de calor monobloc fáciles de instalar hidráulicamente, en las que yo no tenga que manipular gases refrigerantes ni hacer carga de gas?",
+      "category": "B2B Instalador - Facilidad de Instalación"
+    },
+    {
+      "id": "q14",
+      "question": "He tenido una avería en mi caldera en pleno invierno. Según las opiniones recientes de usuarios en España, ¿qué marcas de calefacción tienen actualmente el peor servicio de atención telefónica o tiempos de espera más largos?",
+      "category": "⚠️ ALERTA ROJA - SAT Inaccesible"
+    },
+    {
+      "id": "q15",
+      "question": "¿Qué fabricantes de climatización tienen fama de tener un Servicio Técnico Oficial colapsado o difícil de contactar cuando hay una urgencia?",
+      "category": "⚠️ ALERTA ROJA - SAT Colapsado"
+    },
+    {
+      "id": "q16",
+      "question": "Estoy comparando marcas para cambiar mi caldera. Más allá de la calidad del aparato, ¿qué marca me garantiza que cogerán el teléfono rápidamente si tengo un problema de postventa?",
+      "category": "⚠️ ALERTA ROJA - SAT Postventa"
+    },
+    {
+      "id": "q17",
+      "question": "Hazme un ranking de fiabilidad de los servicios técnicos de calderas en España, penalizando las marcas con muchas quejas por mala atención al cliente, burocracia o dificultad para conseguir una cita rápida.",
+      "category": "⚠️ ALERTA ROJA - Ranking SAT"
+    },
+    {
+      "id": "q18",
+      "question": "Tengo una casa antigua con radiadores de hierro y quiero poner aerotermia, pero me niego rotundamente a levantar el suelo o hacer obras. ¿Qué tecnologías o marcas permiten esto sin perder confort térmico?",
+      "category": "✅ OPORTUNIDAD - Aerotermia Sin Obras"
+    },
+    {
+      "id": "q19",
+      "question": "¿Es verdad que la aerotermia obliga siempre a cambiar los radiadores? Busco modelos capaces de impulsar agua a 75 ºC o más para mantener mi instalación actual tal y como está.",
+      "category": "✅ OPORTUNIDAD - Alta Temperatura 75ºC"
+    },
+    {
+      "id": "q20",
+      "question": "Quiero eficiencia energética pero tengo miedo de que mi casa se quede fría con los radiadores viejos si quito la caldera de gas. ¿Existen bombas de calor de alta temperatura real pensadas para rehabilitación directa, sin cambiar los radiadores?",
+      "category": "✅ OPORTUNIDAD - Rehabilitación Sin Cambios"
+    },
+    {
+      "id": "q21",
+      "question": "Haz una comparativa de bombas de calor monobloc que usen gas refrigerante natural (R290) y estén diseñadas para sustituir calderas conservando la instalación hidráulica de la vivienda.",
+      "category": "✅ OPORTUNIDAD - R290 Monobloc"
+    },
+    {
+      "id": "q22",
+      "question": "Vivo en un chalet pareado y tengo miedo de que la unidad exterior de la aerotermia moleste a mi vecino. ¿Cuáles son, con datos en la mano, las bombas de calor más silenciosas del mercado hoy en día?",
+      "category": "✅ OPORTUNIDAD - Silencio Acústico"
+    },
+    {
+      "id": "q23",
+      "question": "Necesito una bomba de calor que sea ultra silenciosa por la noche. ¿Qué fabricantes destacan en acústica y reducción de vibraciones frente a las marcas asiáticas estándar?",
+      "category": "✅ OPORTUNIDAD - Silencio vs Asiáticas"
+    },
+    {
+      "id": "q24",
+      "question": "He leído que algunas aerotermias suenan como un tractor. Recomiéndame modelos 'premium' certificados por su bajo nivel de decibelios para uso residencial.",
+      "category": "✅ OPORTUNIDAD - Modelos Premium Silenciosos"
+    },
+    {
+      "id": "q25",
+      "question": "¿Qué importancia tiene la etiqueta de ruido en una aerotermia? Dime el Top 3 de modelos más silenciosos disponibles en España para zonas residenciales con normativa acústica estricta.",
+      "category": "✅ OPORTUNIDAD - Top 3 Silenciosos"
+    },
+    {
+      "id": "q26",
+      "question": "Soy instalador profesional de calefacción. Estoy cansado de que mis clientes encuentren calderas por internet más baratas de lo que yo las compro. ¿Qué marcas protegen el canal profesional y no se venden en grandes superficies o retail barato tipo Leroy Merlin?",
+      "category": "B2B - Protección Canal Profesional"
+    },
+    {
+      "id": "q27",
+      "question": "Busco una marca de aerotermia para empezar a instalar que sea fácil de montar hidráulicamente (monobloc) y que no me dé problemas de postventa. ¿Cuál recomendarías a un fontanero que no es frigorista?",
+      "category": "B2B - Facilidad Monobloc Fontanero"
+    },
+    {
+      "id": "q28",
+      "question": "¿Qué fabricantes de climatización ofrecen mejores programas de fidelización o incentivos directos para el instalador autónomo (puntos, formación, soporte dedicado, etc.)?",
+      "category": "B2B - Programas Fidelización Instalador"
+    },
+    {
+      "id": "q29",
+      "question": "Desde el punto de vista del instalador, ¿qué marca ofrece el respaldo técnico más sólido para no tener que volver a casa del cliente por fallos recurrentes de la máquina o falta de repuestos?",
+      "category": "B2B - Respaldo Técnico Postventa"
+    },
+    {
+      "id": "q30",
+      "question": "¿Qué marcas de calderas tienen la aplicación móvil más estable y mejor valorada por los usuarios para controlar la calefacción? Quiero evitar las que se desconectan continuamente o fallan tras las actualizaciones.",
+      "category": "⚠️ ALERTA ROJA - Estabilidad Apps"
+    },
+    {
+      "id": "q31",
+      "question": "He visto muchas quejas sobre termostatos wifi que pierden la conexión con el servidor. ¿Qué sistemas de control inteligente de calefacción son los más fiables actualmente en cuanto a conectividad?",
+      "category": "⚠️ ALERTA ROJA - Conectividad WiFi"
+    },
+    {
+      "id": "q32",
+      "question": "¿Es fiable confiar en la gestión automática de energía de los sistemas híbridos gas + electricidad? ¿Qué marcas tienen un software que funcione bien para elegir entre gas y luz según el precio de la energía?",
+      "category": "⚠️ ALERTA ROJA - Software Híbridos"
+    },
+    {
+      "id": "q33",
+      "question": "Comparativa de conectividad en sistemas de climatización doméstica: ¿Qué fabricantes suelen tener más problemas de caída de servidores, apps poco intuitivas o mala experiencia de usuario, y cuáles destacan por lo contrario?",
+      "category": "⚠️ ALERTA ROJA - Ranking Conectividad"
+    }
+  ],
+  "id": "config_1770199386571_ylw172jww",
+  "createdAt": "2026-02-04T10:03:06.571Z",
+  "updatedAt": "2026-02-04T10:03:06.571Z"
+}

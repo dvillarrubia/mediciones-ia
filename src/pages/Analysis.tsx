@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Settings, Eye, Edit3, Copy, Trash2, ChevronDown, ChevronRight, AlertCircle, CheckCircle, Loader2, Info, Globe, Cpu, Sparkles, Zap, DollarSign, Key } from 'lucide-react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 import NotificationSystem from '../components/NotificationSystem';
 import { useNotifications } from '../hooks/useNotifications';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
@@ -189,7 +189,7 @@ const Analysis = () => {
 
   const loadAIModels = async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.aiModels);
+      const response = await apiFetch(API_ENDPOINTS.aiModels);
       const data = await response.json();
       if (data.success) {
         setAiModels(data.data.models);
@@ -204,7 +204,7 @@ const Analysis = () => {
 
   const loadCountries = async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.countries);
+      const response = await apiFetch(API_ENDPOINTS.countries);
       const data = await response.json();
       if (data.success) {
         setCountries(data.data.countries);
@@ -219,7 +219,7 @@ const Analysis = () => {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.predefinedTemplates);
+      const response = await apiFetch(API_ENDPOINTS.predefinedTemplates);
       const data = await response.json();
       if (data.success) {
         setTemplates(data.data);
@@ -232,7 +232,7 @@ const Analysis = () => {
 
   const loadCustomConfigurations = async () => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.customConfigurations}/all`);
+      const response = await apiFetch(`${API_ENDPOINTS.customConfigurations}/all`);
       const data = await response.json();
       if (data.success) {
         setCustomConfigurations(data.data);
@@ -299,7 +299,7 @@ const Analysis = () => {
       // Obtener información del país seleccionado para el contexto
       const countryInfo = countries.find(c => c.code === selectedCountry);
 
-      const response = await fetch(API_ENDPOINTS.analysisExecute, {
+      const response = await apiFetch(API_ENDPOINTS.analysisExecute, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -405,7 +405,7 @@ const Analysis = () => {
         industry: 'industry' in selectedConfig ? selectedConfig.industry : undefined
       } : undefined;
 
-      const response = await fetch(`${API_ENDPOINTS.analysisReport}/${apiFormat}`, {
+      const response = await apiFetch(`${API_ENDPOINTS.analysisReport}/${apiFormat}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -458,7 +458,7 @@ const Analysis = () => {
         industry: 'industry' in selectedConfig ? selectedConfig.industry : undefined
       } : undefined;
 
-      const response = await fetch(`${API_ENDPOINTS.analysisReportTable}`, {
+      const response = await apiFetch(`${API_ENDPOINTS.analysisReportTable}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -515,7 +515,7 @@ const Analysis = () => {
         notifySuccess('Generando PDF', 'Esto puede tardar unos segundos...');
       }
 
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ analysisResult, configuration })

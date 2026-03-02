@@ -6,6 +6,7 @@ import sqlite3 from 'sqlite3';
 import { Database } from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAILS, RESTRICT_REGISTRATION, AI_MODELS, type AIModelInfo } from '../config/constants.js';
 
 export interface WhitelistConfig {
@@ -511,6 +512,42 @@ class AdminService {
         if (err) reject(err);
         else resolve();
       });
+    });
+  }
+
+  /**
+   * Resetear contraseña de un usuario (desde admin)
+   */
+  async resetUserPassword(userId: string, newPassword: string): Promise<void> {
+    await this.ensureInitialized();
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB not initialized'));
+        return;
+      }
+
+      this.db.run(
+        'UPDATE users SET password_hash = ?, updated_at = datetime(\'now\') WHERE id = ?',
+        [passwordHash, userId],
+        function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          if (this.changes === 0) {
+            reject(new Error('Usuario no encontrado'));
+            return;
+          }
+          resolve();
+        }
+      );
     });
   }
 

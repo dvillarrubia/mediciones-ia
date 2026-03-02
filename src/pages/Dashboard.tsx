@@ -23,7 +23,7 @@ import {
   Target,
   Award
 } from 'lucide-react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 import InsightsPanel from '../components/dashboard/InsightsPanel';
 import ShareOfVoiceChart from '../components/dashboard/ShareOfVoiceChart';
 import Sparkline from '../components/dashboard/Sparkline';
@@ -87,7 +87,7 @@ export default function Dashboard() {
         url += `&projectId=${selectedProjectId}`;
       }
 
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       const data = await response.json();
 
       if (data.success) {

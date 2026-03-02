@@ -25,7 +25,7 @@ import {
   Phone,
   Shield
 } from 'lucide-react';
-import API_BASE_URL from '../config/api';
+import API_BASE_URL, { apiFetch } from '../config/api';
 
 interface AnalysisQuestion {
   id: string;
@@ -162,7 +162,7 @@ const Configuration: React.FC = () => {
       setLoading(true);
 
       // Cargar plantillas
-      const templatesResponse = await fetch(`${API_BASE_URL}/api/templates`);
+      const templatesResponse = await apiFetch(`${API_BASE_URL}/api/templates`);
       if (templatesResponse.ok) {
         const data = await templatesResponse.json();
         if (data.success && data.data?.templates) {
@@ -171,7 +171,7 @@ const Configuration: React.FC = () => {
       }
 
       // Cargar configuraciones personalizadas
-      const configsResponse = await fetch(`${API_BASE_URL}/api/templates/configurations/all`);
+      const configsResponse = await apiFetch(`${API_BASE_URL}/api/templates/configurations/all`);
       if (configsResponse.ok) {
         const data = await configsResponse.json();
         if (data.success && data.data) {
@@ -356,7 +356,7 @@ const Configuration: React.FC = () => {
         ? `${API_BASE_URL}/api/templates/custom/${editingConfig.id}`
         : `${API_BASE_URL}/api/templates/custom`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: editingConfig ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -378,7 +378,7 @@ const Configuration: React.FC = () => {
     if (!window.confirm(`¿Eliminar "${config.name}"?`)) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/custom/${config.id}`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/templates/custom/${config.id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -392,7 +392,7 @@ const Configuration: React.FC = () => {
 
   const duplicateConfig = async (config: CustomConfiguration) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/duplicate`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/templates/duplicate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1151,6 +1151,7 @@ const Configuration: React.FC = () => {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

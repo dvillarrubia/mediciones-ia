@@ -4,12 +4,12 @@
  */
 import express, { Request, Response } from 'express';
 import { databaseService } from '../services/databaseService.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Aplicar autenticación opcional a todas las rutas
-router.use(optionalAuth);
+// Requiere autenticación: cada usuario solo ve sus datos
+router.use(requireAuth);
 
 interface DashboardMetrics {
   totalAnalyses: number;

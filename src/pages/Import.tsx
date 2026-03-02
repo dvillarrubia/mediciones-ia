@@ -18,7 +18,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import API_BASE_URL from '../config/api';
+import API_BASE_URL, { apiFetch } from '../config/api';
 
 interface ExcelQuestion {
   pregunta: string;
@@ -202,7 +202,7 @@ const Import: React.FC = () => {
         }))
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/templates/custom`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/templates/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(configuration)
@@ -408,7 +408,7 @@ const Import: React.FC = () => {
         }))
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/templates/custom`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/templates/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(template)

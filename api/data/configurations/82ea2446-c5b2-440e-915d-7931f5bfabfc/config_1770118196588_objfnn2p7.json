@@ -1,0 +1,143 @@
+{
+  "name": "Analisis de supermercados",
+  "description": "Plantilla basada en Análisis de presencia en IA - Sector supermercados España",
+  "isTemplate": true,
+  "targetBrand": "Aldi",
+  "competitorBrands": [
+    "Mercadona",
+    "Carrefour",
+    "Lidl",
+    "Aldi",
+    "Dia",
+    "Alcampo",
+    "Eroski",
+    "Consum",
+    "BonPreu",
+    "El Corte Inglés"
+  ],
+  "prioritySources": [
+    "ocu.org",
+    "facua.org",
+    "comparador-precios.es"
+  ],
+  "aiModels": [
+    "chatgpt",
+    "claude",
+    "gemini"
+  ],
+  "questions": [
+    {
+      "id": "q5",
+      "question": "¿Cuáles son las cadenas de supermercados más baratas de España para hacer la compra semanal?",
+      "category": "Valor y ahorro"
+    },
+    {
+      "id": "q6",
+      "question": "Si quiero ahorrar al máximo en la cesta básica, ¿en qué supermercados debería fijarme primero?",
+      "category": "Valor y ahorro"
+    },
+    {
+      "id": "q7",
+      "question": "¿Qué supermercados tienen mejor relación calidad-precio en sus marcas propias?",
+      "category": "Valor y ahorro"
+    },
+    {
+      "id": "q8",
+      "question": "¿En qué tipo de supermercados suele salir más barata la compra: hipermercados, supermercados de barrio o cadenas de descuento?",
+      "category": "Valor y ahorro"
+    },
+    {
+      "id": "q9",
+      "question": "¿Qué supermercados ofrecen más variedad de productos ecológicos a precios asequibles?",
+      "category": "Salud, bio y calidad"
+    },
+    {
+      "id": "q10",
+      "question": "Si busco productos sin gluten y sin lactosa sin gastar demasiado, ¿a qué supermercados me recomendarías ir?",
+      "category": "Salud, bio y calidad"
+    },
+    {
+      "id": "q11",
+      "question": "¿En qué cadenas de supermercados es más fácil encontrar productos bio de marca propia?",
+      "category": "Salud, bio y calidad"
+    },
+    {
+      "id": "q12",
+      "question": "¿Qué supermercados son conocidos por cuidar especialmente la calidad de sus productos frescos?",
+      "category": "Salud, bio y calidad"
+    },
+    {
+      "id": "q13",
+      "question": "¿Qué supermercados en España destacan por tener buenos servicios digitales (app, web, lista de la compra, etc.)?",
+      "category": "Logística, servicios y experiencia"
+    },
+    {
+      "id": "q14",
+      "question": "¿En qué cadenas de supermercados se puede hacer la compra de forma más rápida y cómoda?",
+      "category": "Logística, servicios y experiencia"
+    },
+    {
+      "id": "q15",
+      "question": "¿Qué supermercados ofrecen mejores facilidades para planificar la compra desde el móvil?",
+      "category": "Logística, servicios y experiencia"
+    },
+    {
+      "id": "q16",
+      "question": "¿Qué supermercados se han hecho populares por sus ofertas semanales de productos de bazar o no alimentarios?",
+      "category": "Lifestyle, bazar y tendencias"
+    },
+    {
+      "id": "q17",
+      "question": "¿Qué cadenas suelen lanzar colecciones especiales de hogar, juguetes o bricolaje que generan mucha conversación en redes?",
+      "category": "Lifestyle, bazar y tendencias"
+    },
+    {
+      "id": "q18",
+      "question": "Si quiero hacer un plan de batch cooking barato para toda la semana, ¿en qué supermercados me recomendarías comprar los ingredientes?",
+      "category": "Lifestyle, bazar y tendencias"
+    },
+    {
+      "id": "q19",
+      "question": "¿Qué supermercados venden productos de temporada (por ejemplo, juguetes en Navidad o artículos de jardín en primavera) a buen precio?",
+      "category": "Lifestyle, bazar y tendencias"
+    },
+    {
+      "id": "q20",
+      "question": "¿Qué cadenas de supermercados en España están mejor valoradas por su relación calidad-precio y confianza del consumidor?",
+      "category": "Marca, reputación y corporativo"
+    },
+    {
+      "id": "q21",
+      "question": "¿Qué supermercados se mencionan más cuando se habla de políticas de sostenibilidad y responsabilidad con el medioambiente?",
+      "category": "Marca, reputación y corporativo"
+    },
+    {
+      "id": "q22",
+      "question": "¿Cuáles son los supermercados mejor considerados para trabajar en España, según opiniones o rankings recientes?",
+      "category": "Marca, reputación y corporativo"
+    },
+    {
+      "id": "q23",
+      "question": "¿Qué cadenas de supermercados destacan por tener gamas de productos 'gourmet' o 'especiales' a precios ajustados?",
+      "category": "Marca, reputación y corporativo"
+    },
+    {
+      "id": "q24",
+      "question": "Si sigo una dieta baja en carbohidratos o cetogénica y no quiero arruinarme, ¿en qué supermercados me recomiendas comprar?",
+      "category": "Dietas, nichos y tecnología"
+    },
+    {
+      "id": "q25",
+      "question": "¿Qué supermercados son más recomendables para personas con necesidades alimentarias específicas (veganas, sin gluten, bio) que buscan buenos precios?",
+      "category": "Dietas, nichos y tecnología"
+    },
+    {
+      "id": "q26",
+      "question": "¿Qué aplicaciones de supermercados facilitan más organizar la lista de la compra y controlar el gasto mensual?",
+      "category": "Dietas, nichos y tecnología"
+    }
+  ],
+  "id": "config_1770118196588_objfnn2p7",
+  "createdAt": "2026-02-03T11:29:56.588Z",
+  "updatedAt": "2026-02-03T11:29:56.588Z"
+}

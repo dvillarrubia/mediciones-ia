@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { ArrowRight, ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
 import { useProjectStore } from '../store/projectStore';
 
@@ -78,7 +78,7 @@ export default function Comparator() {
       if (selectedProjectId) {
         url += `?projectId=${selectedProjectId}`;
       }
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       const data = await response.json();
 
       if (data.success && data.data) {

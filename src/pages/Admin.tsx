@@ -23,7 +23,8 @@ import {
   Edit2,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Key
 } from 'lucide-react';
 import API_BASE_URL from '../config/api';
 
@@ -83,6 +84,9 @@ export default function Admin() {
     requiresApiKey: 'OPENAI_API_KEY'
   });
   const [activeTab, setActiveTab] = useState<'users' | 'models'>('users');
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserInfo | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   // Verificar si ya hay token guardado
   useEffect(() => {
@@ -281,6 +285,40 @@ export default function Admin() {
       }
     } catch (error) {
       showMessage('error', 'Error al cambiar configuración');
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!authToken || !resetPasswordUser) return;
+
+    if (!resetNewPassword || resetNewPassword.length < 6) {
+      showMessage('error', 'La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${resetPasswordUser.id}/password`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Basic ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newPassword: resetNewPassword })
+      });
+
+      if (response.ok) {
+        showMessage('success', `Contraseña de ${resetPasswordUser.email} reseteada`);
+        setResetPasswordUser(null);
+        setResetNewPassword('');
+      } else {
+        const data = await response.json();
+        showMessage('error', data.error || 'Error al resetear contraseña');
+      }
+    } catch (error) {
+      showMessage('error', 'Error al resetear contraseña');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -784,7 +822,14 @@ export default function Admin() {
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {new Date(user.createdAt).toLocaleDateString('es-ES')}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => { setResetPasswordUser(user); setResetNewPassword(''); }}
+                          className="text-blue-500 hover:text-blue-700"
+                          title="Resetear contraseña"
+                        >
+                          <Key className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => deleteUser(user.id, user.email)}
                           className="text-red-500 hover:text-red-700"
@@ -1043,6 +1088,49 @@ export default function Admin() {
         </div>
         )}
       </div>
+
+      {/* Modal resetear contraseña */}
+      {resetPasswordUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Resetear contraseña</h3>
+              <button onClick={() => setResetPasswordUser(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Usuario: <span className="font-medium">{resetPasswordUser.email}</span>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+              <input
+                type="text"
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setResetPasswordUser(null)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={resetPassword}
+                disabled={resettingPassword || resetNewPassword.length < 6}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resettingPassword ? 'Reseteando...' : 'Resetear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

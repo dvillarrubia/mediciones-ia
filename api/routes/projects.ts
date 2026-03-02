@@ -4,7 +4,7 @@
  */
 import { Router, Request, Response } from 'express';
 import { databaseService } from '../services/databaseService.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -12,7 +12,7 @@ const router = Router();
 // Aplicar autenticación opcional a todas las rutas
 // Si hay usuario autenticado, filtra por userId
 // Si no, muestra datos globales (compatibilidad hacia atrás)
-router.use(optionalAuth);
+router.use(requireAuth);
 
 /**
  * GET /api/projects

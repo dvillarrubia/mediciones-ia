@@ -19,7 +19,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
@@ -157,7 +157,7 @@ const History: React.FC = () => {
       if (selectedProjectId) {
         url += `?projectId=${selectedProjectId}`;
       }
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -175,7 +175,7 @@ const History: React.FC = () => {
 
   const loadAnalysisDetail = async (id: string) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
       const data = await response.json();
 
       if (data.success) {
@@ -197,7 +197,7 @@ const History: React.FC = () => {
 
     try {
       setDeletingId(id);
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${id}`, {
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${id}`, {
         method: 'DELETE'
       });
       const data = await response.json();
@@ -224,11 +224,11 @@ const History: React.FC = () => {
   const generatePDFReport = async (analysisId: string) => {
     try {
       setExportingId(analysisId);
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${analysisId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${analysisId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(API_ENDPOINTS.analysisReportPDF, {
+        const reportResponse = await apiFetch(API_ENDPOINTS.analysisReportPDF, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -259,11 +259,11 @@ const History: React.FC = () => {
   const generateExcelReport = async (analysisId: string) => {
     try {
       setExportingId(analysisId);
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${analysisId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${analysisId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(API_ENDPOINTS.analysisReportExcel, {
+        const reportResponse = await apiFetch(API_ENDPOINTS.analysisReportExcel, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -312,7 +312,7 @@ const History: React.FC = () => {
     try {
       const details: AnalysisDetail[] = [];
       for (const id of compareIds) {
-        const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
+        const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
         const data = await response.json();
         if (data.success) {
           details.push(data.data);

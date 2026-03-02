@@ -8,14 +8,14 @@ import { QuestionCategory, getModelById } from '../config/constants.js';
 import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { authService } from '../services/authService.js';
 
 const router = Router();
 let openaiService: OpenAIService;
 
-// Aplicar autenticación opcional a todas las rutas
-router.use(optionalAuth);
+// Requiere autenticación: cada usuario solo ve sus datos
+router.use(requireAuth);
 
 /**
  * POST /api/analysis/test-config

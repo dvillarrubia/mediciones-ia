@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { useProjectStore } from '../store/projectStore';
 
 interface Report {
@@ -63,7 +63,7 @@ const Reports: React.FC = () => {
       if (selectedProjectId) {
         url += `?projectId=${selectedProjectId}`;
       }
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       const data = await response.json();
 
       if (data.success && data.data) {
@@ -192,11 +192,11 @@ const Reports: React.FC = () => {
 
   const generateMarkdownReport = async (reportId: string) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(`${API_ENDPOINTS.analysisReportMarkdown}`, {
+        const reportResponse = await apiFetch(`${API_ENDPOINTS.analysisReportMarkdown}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -225,11 +225,11 @@ const Reports: React.FC = () => {
 
   const generateJSONReport = async (reportId: string) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(`${API_ENDPOINTS.analysisReportJSON}`, {
+        const reportResponse = await apiFetch(`${API_ENDPOINTS.analysisReportJSON}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -258,11 +258,11 @@ const Reports: React.FC = () => {
 
   const generateTableReport = async (reportId: string) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(`${API_ENDPOINTS.analysisReportTable}`, {
+        const reportResponse = await apiFetch(`${API_ENDPOINTS.analysisReportTable}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -291,11 +291,11 @@ const Reports: React.FC = () => {
 
   const generateExcelReport = async (reportId: string) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
+      const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${reportId}`);
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await fetch(`${API_ENDPOINTS.analysisReportExcel}`, {
+        const reportResponse = await apiFetch(`${API_ENDPOINTS.analysisReportExcel}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

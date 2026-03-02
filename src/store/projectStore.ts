@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, apiFetch } from '../config/api';
 
 export interface Project {
   id: string;
@@ -36,7 +36,7 @@ export const useProjectStore = create<ProjectState>()(
       fetchProjects: async () => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch(API_ENDPOINTS.projects);
+          const response = await apiFetch(API_ENDPOINTS.projects);
           const data = await response.json();
 
           if (data.success) {
@@ -52,7 +52,7 @@ export const useProjectStore = create<ProjectState>()(
       createProject: async (name: string, description?: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch(API_ENDPOINTS.projects, {
+          const response = await apiFetch(API_ENDPOINTS.projects, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description })
@@ -79,7 +79,7 @@ export const useProjectStore = create<ProjectState>()(
       updateProject: async (id: string, name: string, description?: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch(`${API_ENDPOINTS.projects}/${id}`, {
+          const response = await apiFetch(`${API_ENDPOINTS.projects}/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description })
@@ -106,7 +106,7 @@ export const useProjectStore = create<ProjectState>()(
       deleteProject: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch(`${API_ENDPOINTS.projects}/${id}`, {
+          const response = await apiFetch(`${API_ENDPOINTS.projects}/${id}`, {
             method: 'DELETE'
           });
           const data = await response.json();

@@ -38,4 +38,16 @@ export const API_ENDPOINTS = {
   auth: `${API_BASE_URL}/api/auth`,
 };
 
+/**
+ * Fetch wrapper que inyecta automáticamente el token de autenticación
+ */
+export const apiFetch = (url: string, options: RequestInit = {}): Promise<Response> => {
+  const token = JSON.parse(localStorage.getItem('auth-store') || '{}')?.state?.token;
+  const headers = new Headers(options.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
+};
+
 export default API_BASE_URL;

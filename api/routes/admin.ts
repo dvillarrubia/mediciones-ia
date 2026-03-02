@@ -175,6 +175,28 @@ router.delete('/users/:userId', requireAdminAuth, async (req: Request, res: Resp
   }
 });
 
+/**
+ * Resetear contraseña de un usuario
+ * PUT /api/admin/users/:userId/password
+ */
+router.put('/users/:userId/password', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      return;
+    }
+
+    await adminService.resetUserPassword(userId, newPassword);
+    res.json({ success: true, message: 'Contraseña reseteada exitosamente' });
+  } catch (error: any) {
+    console.error('Error reseteando contraseña:', error);
+    res.status(500).json({ error: error.message || 'Error al resetear contraseña' });
+  }
+});
+
 // ==================== GESTIÓN DE MODELOS DE IA ====================
 
 /**

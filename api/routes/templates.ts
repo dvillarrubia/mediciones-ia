@@ -16,13 +16,13 @@ import {
   getCountryByCode
 } from '../config/constants.js';
 import { adminService } from '../services/adminService.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 const configService = new ConfigService();
 
-// Aplicar autenticación opcional a todas las rutas
-router.use(optionalAuth);
+// Requiere autenticación: cada usuario solo ve sus datos
+router.use(requireAuth);
 
 // ==========================================
 // ENDPOINTS DE MODELOS DE IA

@@ -1,0 +1,702 @@
+{
+  "name": "Análisis de Presencia en IA - Sector Energía Eléctrica",
+  "description": "Estudio completo sobre cómo aparece Iberdrola en búsquedas de IA generativa frente a competidores",
+  "targetBrand": "Iberdrola",
+  "competitorBrands": [
+    "Endesa",
+    "Naturgy",
+    "Repsol",
+    "Curenergía",
+    "Holaluz"
+  ],
+  "prioritySources": [
+    "iberdrola.es",
+    "curenergía.es",
+    "comparador-luz.com"
+  ],
+  "aiModels": [
+    "chatgpt",
+    "claude",
+    "gemini"
+  ],
+  "questions": [
+    {
+      "id": "q5",
+      "question": "¿Cómo puedo contratar la luz por primera vez en un piso nuevo en España?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q6",
+      "question": "Voy a alquilar un apartamento y necesito dar de alta la luz, ¿qué pasos tengo que seguir?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q7",
+      "question": "¿Cuánto tiempo tarda en activarse un contrato de luz nuevo?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q8",
+      "question": "¿Qué compañía eléctrica me recomiendas para contratar la luz en España?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q9",
+      "question": "¿Cuánto cuesta dar de alta la luz en una vivienda que lleva tiempo sin suministro?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q10",
+      "question": "¿Cómo puedo contratar la luz con Iberdrola sin salir de casa?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q11",
+      "question": "Quiero dar de alta la luz con Iberdrola, ¿qué documentos necesito y cuánto tarda?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q12",
+      "question": "¿Puedo contratar Iberdrola 100% online o tengo que ir a una oficina?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q13",
+      "question": "¿Cuál es el mejor plan de Iberdrola para una primera vivienda?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q14",
+      "question": "Me piden el CUPS para contratar con Iberdrola, ¿dónde lo encuentro?",
+      "category": "Contratación / Alta de luz"
+    },
+    {
+      "id": "q15",
+      "question": "¿Cómo funciona el proceso de cambio de compañía eléctrica en España? ¿Hay cortes de luz?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q16",
+      "question": "¿Cuánto tiempo tarda un cambio de comercializadora de luz?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q17",
+      "question": "¿Vale la pena cambiar de compañía de luz o es mucho lío para poco ahorro?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q18",
+      "question": "¿Me pueden cobrar penalización por cambiarme de compañía eléctrica?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q19",
+      "question": "Estoy con Endesa y quiero pasarme a Iberdrola, ¿cómo lo hago paso a paso?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q20",
+      "question": "¿Iberdrola cobra alguna comisión por cambiarme desde otra compañía?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q21",
+      "question": "¿Tengo que pagar penalización si me cambio a Iberdrola antes de que termine mi contrato actual?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q22",
+      "question": "¿Merece la pena cambiarme a Iberdrola o hay opciones más baratas?",
+      "category": "Cambio de compañía"
+    },
+    {
+      "id": "q23",
+      "question": "¿Cuál es la compañía de luz más barata en España ahora mismo?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q24",
+      "question": "¿Qué compañía eléctrica tiene mejor atención al cliente?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q25",
+      "question": "¿Qué compañía de luz es la mejor si quiero energía 100% renovable?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q26",
+      "question": "¿Cuál es la mejor tarifa de luz ahora mismo para un hogar de 3 personas?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q27",
+      "question": "¿Iberdrola o Endesa, cuál es mejor para contratar la luz en 2025?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q28",
+      "question": "Estoy comparando Iberdrola y Naturgy, ¿cuál es más barata para un consumo medio?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q29",
+      "question": "¿Qué diferencias hay entre Iberdrola y Repsol Luz?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q30",
+      "question": "¿Es Iberdrola una buena elección o hay mejores opciones en el mercado?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q31",
+      "question": "¿Iberdrola opera en mercado libre o regulado y qué significa eso para mí?",
+      "category": "Comparativas de compañías y tarifas"
+    },
+    {
+      "id": "q32",
+      "question": "¿Cuál es el precio de la luz hoy en España hora a hora?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q33",
+      "question": "¿Cuál va a ser el precio de la luz mañana?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q34",
+      "question": "¿A qué horas es más barata la luz hoy?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q35",
+      "question": "¿Cuándo me conviene poner la lavadora o el lavavajillas para pagar menos?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q36",
+      "question": "¿Es mejor contratar una tarifa fija o variable para la luz? ¿Cuál me recomiendas?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q37",
+      "question": "¿Qué tarifa de luz me conviene si consumo sobre todo por la noche?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q38",
+      "question": "¿Cuál es el precio del kWh de luz actualmente en España?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q39",
+      "question": "¿Cuál es el precio de la luz hoy con la tarifa de Iberdrola?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q40",
+      "question": "¿Cuál va a ser el precio de la luz mañana con Iberdrola?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q41",
+      "question": "¿Cómo puedo ver el precio de la luz en tiempo real desde la app de Iberdrola?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q42",
+      "question": "¿Qué tarifa de Iberdrola es la más barata para mi perfil de consumo?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q43",
+      "question": "¿Cuál es la diferencia entre el Plan Online y el Plan Estable de Iberdrola?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q44",
+      "question": "¿Cuánto pagaré al mes aproximadamente con el Plan Online de Iberdrola?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q45",
+      "question": "¿Iberdrola tiene alguna tarifa sin permanencia?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q46",
+      "question": "¿Cuál es la mejor tarifa de Iberdrola si tengo discriminación horaria nocturna?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q47",
+      "question": "¿Cuánto cuesta el kWh con Iberdrola en tarifa de mercado libre?",
+      "category": "Tarifas y precios"
+    },
+    {
+      "id": "q48",
+      "question": "¿Qué es mejor para mí, el PVPC o una tarifa de mercado libre?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q49",
+      "question": "¿Cómo funciona el PVPC y quién puede contratarlo?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q50",
+      "question": "¿Cómo sé si estoy en PVPC o en mercado libre?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q51",
+      "question": "¿Cómo puedo contratar la tarifa regulada PVPC a través de Curenergía?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q52",
+      "question": "¿Qué requisitos necesito para pedir el Bono Social con Iberdrola o Curenergía?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q53",
+      "question": "¿Cuánto descuento me hace el Bono Social de Iberdrola en la factura?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q54",
+      "question": "Creo que me pueden dar el Bono Social, ¿cómo lo solicito con Iberdrola?",
+      "category": "Mercado libre vs PVPC / Bono Social"
+    },
+    {
+      "id": "q55",
+      "question": "¿Me compensa poner placas solares en casa con un consumo de unos 300 kWh al mes?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q56",
+      "question": "¿Cómo funciona el autoconsumo solar con vertido a red en España?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q57",
+      "question": "¿Qué compañía eléctrica es mejor para contratar autoconsumo solar?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q58",
+      "question": "¿Qué es Smart Solar de Iberdrola y cómo funciona exactamente?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q59",
+      "question": "¿Cuánto cuesta instalar paneles solares con Iberdrola y cuándo se amortiza?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q60",
+      "question": "¿Cuánto paga Iberdrola por los excedentes de autoconsumo solar?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q61",
+      "question": "¿Merece la pena Smart Solar de Iberdrola frente a instaladores independientes?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q62",
+      "question": "¿Qué es la batería virtual de Iberdrola y para qué sirve?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q63",
+      "question": "Tengo placas de Iberdrola y no entiendo la compensación en la factura, ¿cómo funciona?",
+      "category": "Autoconsumo y placas solares"
+    },
+    {
+      "id": "q64",
+      "question": "¿Qué tarifa de luz me recomiendas si tengo un coche eléctrico y lo cargo por la noche?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q65",
+      "question": "¿Cuánto cuesta cargar un coche eléctrico en casa al mes?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q66",
+      "question": "¿Cómo funciona la recarga inteligente del coche eléctrico en casa?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q67",
+      "question": "¿Qué tarifa tiene Iberdrola específica para cargadores de coche eléctrico?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q68",
+      "question": "¿Cómo puedo instalar un punto de recarga para el coche con Iberdrola?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q69",
+      "question": "¿Cuánto cuesta el cargador doméstico de Iberdrola para coche eléctrico?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q70",
+      "question": "Tengo un cargador de Iberdrola y no funciona bien, ¿a quién llamo?",
+      "category": "Coche eléctrico y puntos de recarga"
+    },
+    {
+      "id": "q71",
+      "question": "¿Qué tarifa de luz me conviene para una casa que solo uso en verano?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q72",
+      "question": "¿Cómo puedo ahorrar en la factura de la luz de una casa de vacaciones que no uso todo el año?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q73",
+      "question": "¿Qué es el Plan Segunda Vivienda de Iberdrola y cuánto cuesta?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q74",
+      "question": "¿Me conviene el Plan Verano o el Plan Invierno de Iberdrola para una casa en la playa?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q75",
+      "question": "¿Cuál es el horario de precios del Plan Verano de Iberdrola?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q76",
+      "question": "Tengo contratado el Plan Segunda Vivienda de Iberdrola y quiero cambiarlo, ¿cómo lo hago?",
+      "category": "Segunda residencia"
+    },
+    {
+      "id": "q77",
+      "question": "¿Qué cosas puedo gestionar desde la app de Iberdrola?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q78",
+      "question": "¿Cómo funciona la app de Iberdrola para controlar el consumo?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q79",
+      "question": "¿Puedo cambiar mi tarifa desde la app de Iberdrola sin llamar?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q80",
+      "question": "¿Cómo pago la factura de Iberdrola con Bizum?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q81",
+      "question": "No puedo entrar en Mi Área Cliente de Iberdrola, ¿qué hago?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q82",
+      "question": "¿Cómo activo las alertas de consumo en la app de Iberdrola?",
+      "category": "App, área cliente y experiencia digital"
+    },
+    {
+      "id": "q83",
+      "question": "¿Cómo puedo entender los conceptos de la factura de la luz?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q84",
+      "question": "¿Por qué me ha subido tanto la factura de la luz este mes?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q85",
+      "question": "¿Qué puedo hacer para pagar menos en la factura de la luz?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q86",
+      "question": "¿Cómo interpreto los distintos conceptos de la factura de Iberdrola?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q87",
+      "question": "¿Dónde aparece el CUPS en la factura de Iberdrola?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q88",
+      "question": "La factura de Iberdrola me ha subido mucho este mes, ¿puede haber un error?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q89",
+      "question": "Creo que Iberdrola me está cobrando de más, ¿cómo lo compruebo y qué hago?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q90",
+      "question": "¿Qué puedo hacer para reducir lo que pago con mi tarifa de Iberdrola?",
+      "category": "Factura, precio y ahorro"
+    },
+    {
+      "id": "q91",
+      "question": "¿Cómo sé cuánta potencia eléctrica necesito contratar en mi casa?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q92",
+      "question": "¿Cuánto cuesta subir o bajar la potencia contratada?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q93",
+      "question": "¿Merece la pena bajar la potencia contratada para ahorrar en la factura?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q94",
+      "question": "¿Cómo cambio la potencia contratada con Iberdrola?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q95",
+      "question": "¿Puedo subir la potencia con Iberdrola desde la app sin necesidad de llamar?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q96",
+      "question": "Me saltan los plomos constantemente, ¿necesito subir la potencia con Iberdrola?",
+      "category": "Potencia contratada y cambios"
+    },
+    {
+      "id": "q97",
+      "question": "¿Cómo se cambia el titular de un contrato de luz y qué documentos hacen falta?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q98",
+      "question": "¿Cómo doy de baja un contrato de luz si me mudo?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q99",
+      "question": "¿Qué documentos necesito para hacer un cambio de titular con Iberdrola?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q100",
+      "question": "¿Cuánto tarda Iberdrola en gestionar un cambio de titularidad del contrato?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q101",
+      "question": "Me voy de casa y necesito dar de baja la luz con Iberdrola, ¿cómo lo hago?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q102",
+      "question": "¿Tengo que pagar algo si doy de baja mi contrato con Iberdrola?",
+      "category": "Cambio de titular, alta y baja"
+    },
+    {
+      "id": "q103",
+      "question": "¿Cómo funciona el proceso de reclamación a una compañía eléctrica en España?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q104",
+      "question": "¿Qué organismo regula las reclamaciones a las eléctricas y cómo puedo acudir a él?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q105",
+      "question": "¿Cómo presento una reclamación a Iberdrola por una factura que creo incorrecta?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q106",
+      "question": "Iberdrola no me corrige la lectura del contador, ¿qué puedo hacer?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q107",
+      "question": "¿Cómo hago seguimiento de una reclamación que ya tengo abierta con Iberdrola?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q108",
+      "question": "Iberdrola me incluyó un servicio de mantenimiento que no contraté, ¿cómo lo cancelo?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q109",
+      "question": "He escalado una reclamación a Iberdrola y no obtengo respuesta, ¿cuál es el siguiente paso?",
+      "category": "Reclamaciones y problemas"
+    },
+    {
+      "id": "q110",
+      "question": "¿Es obligatorio contratar el servicio de mantenimiento cuando contratas con Iberdrola?",
+      "category": "Mantenimiento, servicios extra y permanencias"
+    },
+    {
+      "id": "q111",
+      "question": "¿Cómo doy de baja el servicio de mantenimiento de gas o luz de Iberdrola?",
+      "category": "Mantenimiento, servicios extra y permanencias"
+    },
+    {
+      "id": "q112",
+      "question": "¿Mi tarifa de Iberdrola tiene permanencia? ¿Qué penalización hay si me voy antes?",
+      "category": "Mantenimiento, servicios extra y permanencias"
+    },
+    {
+      "id": "q113",
+      "question": "¿Cuál es el teléfono gratuito de atención al cliente de Iberdrola?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q114",
+      "question": "¿Cómo puedo contactar con Iberdrola por WhatsApp o chat sin llamar?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q115",
+      "question": "Necesito hablar con una persona real de Iberdrola, no con el sistema automático, ¿cómo lo consigo?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q116",
+      "question": "¿Cuál es el horario de atención al cliente de Iberdrola?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q117",
+      "question": "¿Dónde hay una oficina de Iberdrola abierta al público donde pueda ir en persona?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q118",
+      "question": "¿Iberdrola tiene tiendas físicas donde pueda gestionar mi contrato o es todo online?",
+      "category": "Atención al cliente"
+    },
+    {
+      "id": "q119",
+      "question": "¿Qué es el programa Mi Iberdrola y qué ventajas tiene para los clientes?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q120",
+      "question": "¿Cómo funciona el sistema de puntos de Mi Iberdrola?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q121",
+      "question": "¿Qué puedo canjear con los puntos de Mi Iberdrola?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q122",
+      "question": "¿Los puntos de Mi Iberdrola tienen fecha de caducidad?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q123",
+      "question": "¿Cómo me registro en el programa Mi Iberdrola para empezar a acumular puntos?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q124",
+      "question": "¿Cuántos puntos llevo acumulados en Mi Iberdrola y cómo los consulto?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q125",
+      "question": "¿Merece la pena el programa de puntos de Iberdrola comparado con el de Endesa o Naturgy?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q126",
+      "question": "Llevo años siendo cliente de Iberdrola, ¿qué ventajas me da el programa de fidelización?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q127",
+      "question": "¿Cómo puedo usar los puntos de Mi Iberdrola para obtener un descuento en la factura?",
+      "category": "Programa Mi Iberdrola"
+    },
+    {
+      "id": "q128",
+      "question": "¿Qué compañía eléctrica española es la más comprometida con la energía verde?",
+      "category": "Sostenibilidad, marca y posicionamiento"
+    },
+    {
+      "id": "q129",
+      "question": "¿Cómo puedo saber si la energía que consume mi hogar es realmente renovable?",
+      "category": "Sostenibilidad, marca y posicionamiento"
+    },
+    {
+      "id": "q130",
+      "question": "¿La energía que suministra Iberdrola es realmente 100% renovable o es solo marketing?",
+      "category": "Sostenibilidad, marca y posicionamiento"
+    },
+    {
+      "id": "q131",
+      "question": "Si quiero reducir mi huella de carbono con mi contrato eléctrico, ¿Iberdrola es una buena opción?",
+      "category": "Sostenibilidad, marca y posicionamiento"
+    },
+    {
+      "id": "q132",
+      "question": "¿Por qué debería elegir Iberdrola frente a otras compañías eléctricas?",
+      "category": "Sostenibilidad, marca y posicionamiento"
+    },
+    {
+      "id": "q133",
+      "question": "¿Qué compañía de luz me recomiendas para contratar en España en 2025?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q134",
+      "question": "Necesito cambiar de compañía eléctrica porque estoy pagando demasiado, ¿cuál me recomiendas?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q135",
+      "question": "¿Cuál es la mejor compañía eléctrica para una familia en España según los expertos?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q136",
+      "question": "¿Qué tarifa eléctrica me conviene contratar si trabajo en casa y consumo mucho durante el día?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q137",
+      "question": "¿Es Iberdrola la mejor compañía eléctrica según la inteligencia artificial?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q138",
+      "question": "¿Qué opina la IA sobre Iberdrola comparada con Endesa o Naturgy?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    },
+    {
+      "id": "q139",
+      "question": "Si le pregunto a ChatGPT qué compañía de luz contratar, ¿recomienda Iberdrola?",
+      "category": "Uso de IA / recomendaciones automáticas"
+    }
+  ],
+  "id": "config_1771412136999_9bt5r5e3q",
+  "createdAt": "2026-02-18T10:55:36.999Z",
+  "updatedAt": "2026-02-18T10:55:36.999Z"
+}
