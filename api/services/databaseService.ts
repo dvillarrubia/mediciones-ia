@@ -3,6 +3,7 @@ import { Database } from 'sqlite3';
 import { AnalysisResult } from './openaiService.js';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface Project {
   id: string;
@@ -57,7 +58,10 @@ class DatabaseService {
           return;
         }
         console.log('Base de datos SQLite conectada');
-        this.createTables().then(resolve).catch(reject);
+        this.createTables()
+          .then(() => this.migrateOrphanDataToAllUsers())
+          .then(resolve)
+          .catch(reject);
       });
     });
   }
@@ -152,6 +156,145 @@ class DatabaseService {
 
   private async ensureInitialized(): Promise<void> {
     await this.initialized;
+  }
+
+  /**
+   * Migración: clona proyectos, análisis y configuraciones con user_id=NULL
+   * a TODOS los usuarios existentes. Solo corre una vez.
+   */
+  private async migrateOrphanDataToAllUsers(): Promise<void> {
+    if (!this.db) return;
+
+    // Crear tabla de control de migraciones
+    await new Promise<void>((resolve) => {
+      this.db!.run(
+        'CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY, executed_at DATETIME DEFAULT CURRENT_TIMESTAMP)',
+        () => resolve()
+      );
+    });
+
+    // Verificar si ya se ejecutó
+    const alreadyRun = await new Promise<boolean>((resolve) => {
+      this.db!.get(
+        "SELECT 1 FROM migrations WHERE name = 'orphan_data_to_all_users'",
+        (err, row) => resolve(!!row)
+      );
+    });
+
+    if (alreadyRun) return;
+
+    // Obtener usuarios
+    const users: { id: string }[] = await new Promise((resolve, reject) => {
+      this.db!.all('SELECT id FROM users', (err, rows: any[]) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
+
+    if (users.length === 0) {
+      console.log('Migración: No hay usuarios, se omite');
+      return;
+    }
+
+    // Obtener proyectos huérfanos
+    const orphanProjects: any[] = await new Promise((resolve, reject) => {
+      this.db!.all('SELECT * FROM projects WHERE user_id IS NULL', (err, rows: any[]) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
+
+    // Obtener análisis huérfanos
+    const orphanAnalyses: any[] = await new Promise((resolve, reject) => {
+      this.db!.all('SELECT * FROM analysis WHERE user_id IS NULL', (err, rows: any[]) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
+
+    if (orphanProjects.length === 0 && orphanAnalyses.length === 0) {
+      console.log('Migración: No hay datos huérfanos');
+      await new Promise<void>((resolve) => {
+        this.db!.run("INSERT INTO migrations (name) VALUES ('orphan_data_to_all_users')", () => resolve());
+      });
+      return;
+    }
+
+    console.log(`Migración: ${orphanProjects.length} proyectos y ${orphanAnalyses.length} análisis huérfanos → ${users.length} usuarios`);
+
+    for (const user of users) {
+      // Mapa de project_id viejo → nuevo para este usuario
+      const projectIdMap: Record<string, string> = {};
+
+      // Clonar proyectos
+      for (const proj of orphanProjects) {
+        const newId = uuidv4();
+        projectIdMap[proj.id] = newId;
+        await new Promise<void>((resolve, reject) => {
+          this.db!.run(
+            'INSERT INTO projects (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [newId, user.id, proj.name, proj.description, proj.created_at, proj.updated_at],
+            (err) => { if (err) reject(err); else resolve(); }
+          );
+        });
+      }
+
+      // Clonar análisis
+      for (const analysis of orphanAnalyses) {
+        const newId = uuidv4();
+        const newProjectId = analysis.project_id ? (projectIdMap[analysis.project_id] || null) : null;
+        await new Promise<void>((resolve, reject) => {
+          this.db!.run(
+            'INSERT INTO analysis (id, user_id, project_id, timestamp, brand, competitors, template_id, questions_count, configuration, results, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newId, user.id, newProjectId, analysis.timestamp, analysis.brand, analysis.competitors, analysis.template_id, analysis.questions_count, analysis.configuration, analysis.results, analysis.metadata, analysis.created_at],
+            (err) => { if (err) reject(err); else resolve(); }
+          );
+        });
+      }
+
+      console.log(`Migración: Datos clonados para usuario ${user.id}`);
+    }
+
+    // Migrar configuraciones de archivo (carpeta global → cada usuario)
+    const configsDir = path.join(process.cwd(), 'data', 'configurations');
+    try {
+      if (fs.existsSync(configsDir)) {
+        const globalFiles = fs.readdirSync(configsDir).filter(f => f.endsWith('.json'));
+        for (const user of users) {
+          const userDir = path.join(configsDir, user.id);
+          if (!fs.existsSync(userDir)) {
+            fs.mkdirSync(userDir, { recursive: true });
+          }
+          for (const file of globalFiles) {
+            const dest = path.join(userDir, file);
+            if (!fs.existsSync(dest)) {
+              fs.copyFileSync(path.join(configsDir, file), dest);
+            }
+          }
+        }
+        // Eliminar configuraciones globales después de copiar
+        for (const file of globalFiles) {
+          fs.unlinkSync(path.join(configsDir, file));
+        }
+        console.log(`Migración: ${globalFiles.length} configuraciones copiadas a ${users.length} usuarios`);
+      }
+    } catch (err) {
+      console.error('Migración: Error migrando configuraciones:', err);
+    }
+
+    // Eliminar datos huérfanos originales
+    await new Promise<void>((resolve) => {
+      this.db!.run('DELETE FROM analysis WHERE user_id IS NULL', () => {
+        this.db!.run('DELETE FROM projects WHERE user_id IS NULL', () => resolve());
+      });
+    });
+
+    // Marcar migración como ejecutada
+    await new Promise<void>((resolve) => {
+      this.db!.run("INSERT INTO migrations (name) VALUES ('orphan_data_to_all_users')", () => resolve());
+    });
+
+    console.log('Migración completada: datos huérfanos distribuidos a todos los usuarios');
   }
 
   // ==================== MÉTODOS DE PROYECTOS ====================
