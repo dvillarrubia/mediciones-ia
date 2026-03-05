@@ -3,7 +3,7 @@
  */
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { TARGET_BRANDS, COMPETITOR_BRANDS, PRIORITY_SOURCES, ANALYSIS_QUESTIONS, getModelById, type QuestionCategory, type SentimentType } from '../config/constants.js';
 import { cacheService } from './cacheService.js';
 
@@ -173,7 +173,7 @@ class OpenAIService {
 
   // Clientes para múltiples proveedores
   private anthropicClient: Anthropic | null = null;
-  private googleClient: GoogleGenerativeAI | null = null;
+  private googleClient: GoogleGenAI | null = null;
 
   constructor(userApiKeys?: { openai?: string; anthropic?: string; google?: string }) {
     this.userApiKeys = userApiKeys;
@@ -202,7 +202,7 @@ class OpenAIService {
     // Google - SOLO usar key del usuario (SIN fallback a process.env)
     const googleKey = userApiKeys?.google;
     if (googleKey) {
-      this.googleClient = new GoogleGenerativeAI(googleKey);
+      this.googleClient = new GoogleGenAI({ apiKey: googleKey });
       console.log('✅ Google AI client initialized con key del usuario');
     } else {
       console.log('ℹ️ No hay API key de Google del usuario');
@@ -508,7 +508,7 @@ class OpenAIService {
         return await this.generateWithAnthropic(question, modelId);
 
       case 'google':
-        return await this.generateWithGoogle(question, modelId);
+        return await this.generateWithGoogle(question, modelId, configuration);
 
       default:
         throw new Error(`Proveedor no soportado: ${provider}`);
@@ -632,6 +632,51 @@ class OpenAIService {
   }
 
   /**
+   * Extrae fuentes web del grounding metadata de Gemini
+   */
+  private extractGeminiGroundingSources(response: any): WebSearchSource[] {
+    const sources: WebSearchSource[] = [];
+    const metadata = response.candidates?.[0]?.groundingMetadata;
+
+    // Debug: ver estructura real de la respuesta
+    console.log('🔍 [Gemini] Claves respuesta:', Object.keys(response || {}));
+    console.log('🔍 [Gemini] candidates?:', !!response.candidates, response.candidates?.length);
+    if (response.candidates?.[0]) {
+      console.log('🔍 [Gemini] candidate[0] claves:', Object.keys(response.candidates[0]));
+      if (response.candidates[0].groundingMetadata) {
+        console.log('🔍 [Gemini] groundingMetadata claves:', Object.keys(response.candidates[0].groundingMetadata));
+      }
+    }
+
+    if (!metadata?.groundingChunks) {
+      console.log('⚠️ No se encontraron groundingChunks en respuesta Gemini');
+      return sources;
+    }
+
+    const supports = metadata.groundingSupports || [];
+
+    for (let i = 0; i < metadata.groundingChunks.length; i++) {
+      const chunk = metadata.groundingChunks[i];
+      if (chunk.web) {
+        // Buscar el snippet correspondiente en groundingSupports
+        const support = supports.find((s: any) =>
+          s.groundingChunkIndices?.includes(i)
+        );
+        sources.push({
+          url: chunk.web.uri,
+          title: chunk.web.title || this.extractDomainFromUrl(chunk.web.uri),
+          snippet: support?.segment?.text || '',
+          startIndex: support?.segment?.startIndex,
+          endIndex: support?.segment?.endIndex,
+        });
+      }
+    }
+
+    console.log(`📚 [Gemini] Fuentes web extraídas: ${sources.length}`);
+    return sources;
+  }
+
+  /**
    * Extrae el dominio de una URL
    */
   private extractDomainFromUrl(url: string): string {
@@ -677,26 +722,42 @@ class OpenAIService {
   }
 
   /**
-   * Genera contenido con Google (Gemini)
+   * Genera contenido con Google (Gemini) usando Google Search Grounding
    */
-  private async generateWithGoogle(question: string, modelId: string): Promise<string> {
+  private async generateWithGoogle(question: string, modelId: string, configuration?: any): Promise<string> {
     if (!this.googleClient) {
       throw new Error('No hay API key de Google AI configurada. Por favor, añade tu API key de Google para usar modelos Gemini.');
     }
 
-    const model = this.googleClient.getGenerativeModel({ model: modelId });
+    const countryName = configuration?.countryName || 'España';
+    const now = new Date();
+    const systemPrompt = `País: ${countryName}. Fecha y hora actual: ${now.toLocaleString('es-ES', {
+      timeZone: configuration?.timezone || 'Europe/Madrid',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    })}.`;
 
     const response = await Promise.race([
-      model.generateContent(question),
+      this.googleClient.models.generateContent({
+        model: modelId,
+        contents: `${systemPrompt}\n\n${question}`,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: Google AI tardó más de 60 segundos')), 60000)
+        setTimeout(() => reject(new Error('Timeout: Google AI tardó más de 90 segundos')), 90000)
       )
     ]) as any;
 
-    const content = response.response?.text();
+    const content = response.text;
     if (!content) {
       throw new Error('Google AI devolvió una respuesta vacía');
     }
+
+    // Extraer fuentes web del grounding metadata
+    this.lastWebSources = this.extractGeminiGroundingSources(response);
+
     return content;
   }
 
@@ -1040,7 +1101,17 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         brandMentions: brandMentions,
         sourcesCited: sourcesCited, // Fuentes como SourceCited para compatibilidad
         sentiment: parsedData.sentiment || 'neutral',
-        confidenceScore: parsedData.confidenceScore || 0.5
+        confidenceScore: parsedData.confidenceScore || 0.5,
+        // Guardar la respuesta generativa original para que el frontend la muestre
+        multiModelAnalysis: [{
+          modelPersona: 'chatgpt' as any,
+          response: generatedContent,
+          brandMentions: brandMentions,
+          sourcesCited: sourcesCited,
+          overallSentiment: parsedData.sentiment || 'neutral',
+          contextualAnalysis: [],
+          confidenceScore: parsedData.confidenceScore || 0.5
+        }]
       };
 
       console.log(`✅ [${questionId}] Análisis completado: ${brandMentions.length} menciones, ${realSources.length} fuentes REALES`);
@@ -2259,12 +2330,16 @@ private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; 
       return { valid: true };
 
     case 'claude':
-      // Claude NO está implementado todavía - siempre excluir
-      return { valid: false, error: 'API de Claude (Anthropic) no configurada. Configure ANTHROPIC_API_KEY.' };
+      if (!this.anthropicClient) {
+        return { valid: false, error: 'No hay API key de Anthropic configurada.' };
+      }
+      return { valid: true };
 
     case 'gemini':
-      // Gemini NO está implementado todavía - siempre excluir
-      return { valid: false, error: 'API de Gemini (Google) no está implementada todavía. Solo ChatGPT está disponible.' };
+      if (!this.googleClient) {
+        return { valid: false, error: 'No hay API key de Google AI configurada.' };
+      }
+      return { valid: true };
 
     case 'perplexity':
       // Perplexity NO está implementado todavía - siempre excluir
@@ -2289,8 +2364,8 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
     throw new Error(apiValidation.error);
   }
 
-  if (modelPersona !== 'chatgpt') {
-    throw new Error(`API de ${modelPersona} no está activada. Solo ChatGPT está disponible.`);
+  if (modelPersona !== 'chatgpt' && modelPersona !== 'gemini') {
+    throw new Error(`API de ${modelPersona} no está activada. Solo ChatGPT y Gemini están disponibles.`);
   }
 
   const targetBrand = configuration.targetBrand || (configuration.targetBrands?.[0]) || 'Coca-Cola';
@@ -2303,31 +2378,44 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
   // ========== LLAMADA 1: Pregunta LIMPIA sin sesgo ==========
   // NO mencionamos marcas para obtener una respuesta natural
   // PERO sí indicamos país e idioma para contextualizar la búsqueda
-  const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
-
   const cleanPrompt = `${questionData.question}
 
-Responde de forma completa y útil, enfocándote en ${countryName}.`;
+Responde de forma completa y útil (200-400 palabras), enfocándote en ${countryName}.`;
+
+  let naturalResponse: string;
+  let webSources: WebSearchSource[];
 
   console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia, país: ${countryName})...`);
 
-  const searchResponse = await this.client.chat.completions.create({
-    model: this.GENERATION_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: cleanPrompt }
-    ],
-    max_tokens: configuration.maxTokens || 2000,
-    web_search_options: {
-      search_context_size: 'medium',
-    },
-  } as any);
+  if (modelPersona === 'gemini') {
+    // Fase 1 con Gemini + Google Search Grounding
+    const geminiModel = configuration.selectedGeminiModel || 'gemini-2.5-flash';
+    naturalResponse = await this.generateWithGoogle(cleanPrompt, geminiModel, configuration);
+    // webSources ya fueron guardadas en this.lastWebSources por generateWithGoogle
+    webSources = this.getLastWebSources();
+  } else {
+    // Fase 1 con OpenAI (chatgpt)
+    const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
 
-  const naturalResponse = searchResponse.choices[0]?.message?.content || '';
+    const searchResponse = await this.client.chat.completions.create({
+      model: this.GENERATION_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: cleanPrompt }
+      ],
+      max_tokens: configuration.maxTokens || 2000,
+      web_search_options: {
+        search_context_size: 'medium',
+      },
+    } as any);
 
-  // Extraer fuentes web de las annotations
-  const message = searchResponse.choices[0]?.message;
-  const webSources = this.extractWebSources(message);
+    naturalResponse = searchResponse.choices[0]?.message?.content || '';
+
+    // Extraer fuentes web de las annotations
+    const message = searchResponse.choices[0]?.message;
+    webSources = this.extractWebSources(message);
+  }
+
   console.log(`📚 [${modelPersona}] Fuentes web extraídas: ${webSources.length}`);
   webSources.forEach(s => console.log(`  📎 ${s.url}`));
   console.log(`📝 [${modelPersona}] Respuesta natural: ${naturalResponse.length} chars`);
