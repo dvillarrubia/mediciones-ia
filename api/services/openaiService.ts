@@ -1104,13 +1104,27 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       }
 
       // Procesar menciones de marca
-      const brandMentions: BrandMention[] = (parsedData.brandMentions || []).map((mention: any) => ({
-        brand: mention.brand || 'Desconocida',
-        mentioned: mention.mentioned || false,
-        frequency: mention.frequency || 0,
-        context: mention.context || 'neutral',
-        evidence: Array.isArray(mention.evidence) ? mention.evidence : []
-      }));
+      const targetBrands = (configuration.targetBrands || (configuration.targetBrand ? [configuration.targetBrand] : [])).map((b: string) => b.toLowerCase());
+      const competitorBrands = (configuration.competitorBrands || []).map((b: string) => b.toLowerCase());
+      const knownBrands = new Set([...targetBrands, ...competitorBrands]);
+
+      const brandMentions: BrandMention[] = (parsedData.brandMentions || []).map((mention: any, index: number) => {
+        const brandLower = (mention.brand || '').toLowerCase();
+        const isTarget = targetBrands.some((t: string) => brandLower.includes(t) || t.includes(brandLower));
+        const isCompetitor = competitorBrands.some((c: string) => brandLower.includes(c) || c.includes(brandLower));
+        const isDiscovered = mention.mentioned && !isTarget && !isCompetitor;
+
+        return {
+          brand: mention.brand || 'Desconocida',
+          mentioned: mention.mentioned || false,
+          frequency: mention.frequency || 0,
+          context: mention.context || 'neutral',
+          evidence: Array.isArray(mention.evidence) ? mention.evidence : [],
+          appearanceOrder: mention.mentioned ? index + 1 : 0,
+          isDiscovered,
+          detailedSentiment: mention.context || 'neutral'
+        };
+      });
 
       const result: QuestionAnalysis = {
         questionId: questionId,
