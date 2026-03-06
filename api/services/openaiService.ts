@@ -509,38 +509,27 @@ class OpenAIService {
     console.log(`🎯 Generando contenido con ${modelInfo.name} (${provider})`);
 
     switch (provider) {
-      case 'openai': {
-        const content = await this.generateWithOpenAI(question, modelId, configuration);
-        const webSources = [...this.lastWebSources]; // Copiar antes de que otro hilo las sobrescriba
-        return { content, webSources };
-      }
+      case 'openai':
+        return await this.generateWithOpenAI(question, modelId, configuration);
 
       case 'anthropic': {
         const content = await this.generateWithAnthropic(question, modelId);
         return { content, webSources: [] };
       }
 
-      case 'google': {
-        const content = await this.generateWithGoogle(question, modelId, configuration);
-        const webSources = [...this.lastWebSources]; // Copiar antes de que otro hilo las sobrescriba
-        return { content, webSources };
-      }
+      case 'google':
+        return await this.generateWithGoogle(question, modelId, configuration);
 
       default:
         throw new Error(`Proveedor no soportado: ${provider}`);
     }
   }
 
-  // Almacenamiento temporal de fuentes web extraídas de la última llamada
-  // NOTA: Solo usar en flujos secuenciales (analyzeWithAIPersona).
-  // En flujos paralelos, usar el retorno directo de generateContentWithProviderAndSources.
-  private lastWebSources: WebSearchSource[] = [];
-
   /**
    * Genera contenido con OpenAI usando búsqueda web
-   * IMPORTANTE: Solo usa modelos con web_search habilitado
+   * Devuelve contenido Y fuentes web (thread-safe para ejecución paralela)
    */
-  private async generateWithOpenAI(question: string, modelId: string, configuration?: any): Promise<string> {
+  private async generateWithOpenAI(question: string, modelId: string, configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
     if (!this.client) {
       throw new Error('No hay API key de OpenAI configurada. Por favor, añade tu API key de OpenAI para usar este modelo.');
     }
@@ -586,11 +575,11 @@ class OpenAIService {
       throw new Error('OpenAI devolvió una respuesta vacía');
     }
 
-    // Extraer fuentes web de las annotations
-    this.lastWebSources = this.extractWebSources(message);
-    console.log(`📚 [OpenAI] Fuentes web extraídas: ${this.lastWebSources.length}`);
+    // Extraer fuentes web de las annotations - retorno directo, sin estado compartido
+    const webSources = this.extractWebSources(message);
+    console.log(`📚 [OpenAI] Fuentes web extraídas: ${webSources.length}`);
 
-    return content;
+    return { content, webSources };
   }
 
   /**
@@ -700,7 +689,7 @@ class OpenAIService {
    * Obtiene las últimas fuentes web extraídas
    */
   public getLastWebSources(): WebSearchSource[] {
-    return this.lastWebSources;
+    return [];
   }
 
   /**
@@ -731,8 +720,9 @@ class OpenAIService {
 
   /**
    * Genera contenido con Google (Gemini) usando Google Search Grounding
+   * Devuelve contenido Y fuentes web (thread-safe para ejecución paralela)
    */
-  private async generateWithGoogle(question: string, modelId: string, configuration?: any): Promise<string> {
+  private async generateWithGoogle(question: string, modelId: string, configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
     if (!this.googleClient) {
       throw new Error('No hay API key de Google AI configurada. Por favor, añade tu API key de Google para usar modelos Gemini.');
     }
@@ -763,10 +753,10 @@ class OpenAIService {
       throw new Error('Google AI devolvió una respuesta vacía');
     }
 
-    // Extraer fuentes web del grounding metadata
-    this.lastWebSources = this.extractGeminiGroundingSources(response);
+    // Extraer fuentes web del grounding metadata - retorno directo, sin estado compartido
+    const webSources = this.extractGeminiGroundingSources(response);
 
-    return content;
+    return { content, webSources };
   }
 
   /**
@@ -1058,32 +1048,59 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       console.log(`✅ [${questionId}] JSON parseado exitosamente`);
 
       // =====================================================
-      // FUENTES WEB REALES de OpenAI Web Search
+      // FUENTES WEB: priorizar fuentes reales del API de búsqueda,
+      // si no hay (ej: caché), usar las que gpt-4o-mini extrajo del texto
       // =====================================================
-      const webSources = providedWebSources || this.getLastWebSources();
-      const realSources: AnalysisSource[] = webSources.map((source, index) => ({
-        url: source.url,
-        title: source.title,
-        snippet: source.snippet || `Fuente ${index + 1} de búsqueda web`,
-        domain: this.extractDomainFromUrl(source.url),
-        isPriority: this.isSourcePriority(source.url, configuration),
-        fullContent: undefined
-      }));
+      const webSources = providedWebSources && providedWebSources.length > 0
+        ? providedWebSources
+        : [];
 
-      // Si no hay fuentes de web search, crear una fuente indicando que es respuesta de IA
-      if (realSources.length === 0) {
-        console.log(`⚠️ [${questionId}] No se encontraron fuentes web, usando fuente sintética`);
-        realSources.push({
-          url: 'ai-generated-response',
-          title: `Respuesta IA sin fuentes web`,
-          snippet: generatedContent.substring(0, 500) + '...',
-          domain: 'OpenAI',
-          isPriority: false,
-          fullContent: generatedContent
-        });
-      } else {
+      let realSources: AnalysisSource[];
+      let sourcesCited: SourceCited[];
+
+      if (webSources.length > 0) {
+        // Fuentes reales del API de búsqueda web
+        realSources = webSources.map((source, index) => ({
+          url: source.url,
+          title: source.title,
+          snippet: source.snippet || `Fuente ${index + 1} de búsqueda web`,
+          domain: this.extractDomainFromUrl(source.url),
+          isPriority: this.isSourcePriority(source.url, configuration),
+          fullContent: undefined
+        }));
         console.log(`🌐 [${questionId}] ${realSources.length} FUENTES WEB REALES encontradas:`);
         realSources.forEach((s, i) => console.log(`   ${i + 1}. ${s.domain}: ${s.title}`));
+
+        sourcesCited = realSources.map(source => ({
+          name: source.title,
+          type: this.classifySourceType(source.domain) as any,
+          url: source.url,
+          context: source.snippet,
+          credibility: source.isPriority ? 'high' : 'medium' as any
+        }));
+      } else if (parsedData.sourcesCited && parsedData.sourcesCited.length > 0) {
+        // Fallback: fuentes extraídas por gpt-4o-mini del texto (ej: respuesta cacheada)
+        sourcesCited = parsedData.sourcesCited.map((source: any) => ({
+          name: source.name || 'Fuente desconocida',
+          type: source.type || 'website',
+          url: source.url || '',
+          context: source.context || '',
+          credibility: source.credibility || 'medium'
+        }));
+        realSources = sourcesCited.map(source => ({
+          url: source.url || '',
+          title: source.name,
+          snippet: source.context || '',
+          domain: source.url ? this.extractDomainFromUrl(source.url) : 'ai-analysis',
+          isPriority: source.credibility === 'high',
+          fullContent: undefined
+        }));
+        console.log(`📝 [${questionId}] ${realSources.length} fuentes extraídas del análisis de texto`);
+      } else {
+        // Sin fuentes de ningún tipo
+        console.log(`⚠️ [${questionId}] No se encontraron fuentes web ni en análisis de texto`);
+        realSources = [];
+        sourcesCited = [];
       }
 
       // Procesar menciones de marca
@@ -1093,15 +1110,6 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         frequency: mention.frequency || 0,
         context: mention.context || 'neutral',
         evidence: Array.isArray(mention.evidence) ? mention.evidence : []
-      }));
-
-      // Convertir fuentes web a SourceCited para compatibilidad
-      const sourcesCited: SourceCited[] = realSources.map(source => ({
-        name: source.title,
-        type: this.classifySourceType(source.domain) as any,
-        url: source.url,
-        context: source.snippet,
-        credibility: source.isPriority ? 'high' : 'medium' as any
       }));
 
       const result: QuestionAnalysis = {
@@ -2402,9 +2410,9 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
   if (modelPersona === 'gemini') {
     // Fase 1 con Gemini + Google Search Grounding
     const geminiModel = configuration.selectedGeminiModel || 'gemini-2.5-flash';
-    naturalResponse = await this.generateWithGoogle(cleanPrompt, geminiModel, configuration);
-    // webSources ya fueron guardadas en this.lastWebSources por generateWithGoogle
-    webSources = this.getLastWebSources();
+    const geminiResult = await this.generateWithGoogle(cleanPrompt, geminiModel, configuration);
+    naturalResponse = geminiResult.content;
+    webSources = geminiResult.webSources;
   } else {
     // Fase 1 con OpenAI (chatgpt)
     const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
