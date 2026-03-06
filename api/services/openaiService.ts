@@ -491,6 +491,14 @@ class OpenAIService {
    * FASE 1: Usa el modelo que el usuario eligió (sin fallback)
    */
   private async generateContentWithProvider(question: string, modelId: string, configuration?: any): Promise<string> {
+    const result = await this.generateContentWithProviderAndSources(question, modelId, configuration);
+    return result.content;
+  }
+
+  /**
+   * Genera contenido Y devuelve fuentes web - versión thread-safe para flujos paralelos
+   */
+  private async generateContentWithProviderAndSources(question: string, modelId: string, configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
     const modelInfo = getModelById(modelId);
 
     if (!modelInfo) {
@@ -501,14 +509,22 @@ class OpenAIService {
     console.log(`🎯 Generando contenido con ${modelInfo.name} (${provider})`);
 
     switch (provider) {
-      case 'openai':
-        return await this.generateWithOpenAI(question, modelId, configuration);
+      case 'openai': {
+        const content = await this.generateWithOpenAI(question, modelId, configuration);
+        const webSources = [...this.lastWebSources]; // Copiar antes de que otro hilo las sobrescriba
+        return { content, webSources };
+      }
 
-      case 'anthropic':
-        return await this.generateWithAnthropic(question, modelId);
+      case 'anthropic': {
+        const content = await this.generateWithAnthropic(question, modelId);
+        return { content, webSources: [] };
+      }
 
-      case 'google':
-        return await this.generateWithGoogle(question, modelId, configuration);
+      case 'google': {
+        const content = await this.generateWithGoogle(question, modelId, configuration);
+        const webSources = [...this.lastWebSources]; // Copiar antes de que otro hilo las sobrescriba
+        return { content, webSources };
+      }
 
       default:
         throw new Error(`Proveedor no soportado: ${provider}`);
@@ -516,6 +532,8 @@ class OpenAIService {
   }
 
   // Almacenamiento temporal de fuentes web extraídas de la última llamada
+  // NOTA: Solo usar en flujos secuenciales (analyzeWithAIPersona).
+  // En flujos paralelos, usar el retorno directo de generateContentWithProviderAndSources.
   private lastWebSources: WebSearchSource[] = [];
 
   /**
@@ -638,18 +656,8 @@ class OpenAIService {
     const sources: WebSearchSource[] = [];
     const metadata = response.candidates?.[0]?.groundingMetadata;
 
-    // Debug: ver estructura real de la respuesta
-    console.log('🔍 [Gemini] Claves respuesta:', Object.keys(response || {}));
-    console.log('🔍 [Gemini] candidates?:', !!response.candidates, response.candidates?.length);
-    if (response.candidates?.[0]) {
-      console.log('🔍 [Gemini] candidate[0] claves:', Object.keys(response.candidates[0]));
-      if (response.candidates[0].groundingMetadata) {
-        console.log('🔍 [Gemini] groundingMetadata claves:', Object.keys(response.candidates[0].groundingMetadata));
-      }
-    }
-
     if (!metadata?.groundingChunks) {
-      console.log('⚠️ No se encontraron groundingChunks en respuesta Gemini');
+      console.log('⚠️ [Gemini] No se encontraron groundingChunks en respuesta');
       return sources;
     }
 
@@ -800,6 +808,7 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         const startTime = Date.now();
 
         let generatedContent = '';
+        let questionWebSources: WebSearchSource[] = [];
 
         // Generar clave de caché incluyendo país y modelo
         const cacheKey = `${questionData.question}_${configuration.countryCode || 'ES'}_${generationModel}`;
@@ -827,7 +836,10 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         // Si no está en caché, llamar al proveedor correspondiente
         if (!generatedContent) {
           // Usar el proveedor correcto según el modelo seleccionado (OpenAI, Anthropic, o Google)
-          generatedContent = await this.generateContentWithProvider(questionData.question, generationModel, configuration);
+          // IMPORTANTE: Usar la versión que devuelve fuentes directamente (thread-safe para paralelo)
+          const result = await this.generateContentWithProviderAndSources(questionData.question, generationModel, configuration);
+          generatedContent = result.content;
+          questionWebSources = result.webSources;
 
           const responseTime = Date.now() - startTime;
           console.log(`📨 [${questionId}] Respuesta generativa recibida en ${responseTime}ms (${generatedContent.length} caracteres)`);
@@ -880,7 +892,7 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
           throw new Error('Respuesta de análisis no válida o vacía');
         }
 
-        const analysis = this.parseGenerativeAnalysisResponse(questionData, generatedContent, analysisResult, configuration);
+        const analysis = this.parseGenerativeAnalysisResponse(questionData, generatedContent, analysisResult, configuration, questionWebSources);
         console.log(`✅ [${questionId}] Análisis de respuesta generativa completado exitosamente`);
         
         return analysis;
@@ -1017,7 +1029,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
    * Parsea la respuesta del análisis de contenido generativo
    * ACTUALIZADO: Ahora usa fuentes web REALES de OpenAI Web Search
    */
-  private parseGenerativeAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, configuration: any): QuestionAnalysis {
+  private parseGenerativeAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, configuration: any, providedWebSources?: WebSearchSource[]): QuestionAnalysis {
     const questionId = questionData.id;
 
     console.log(`🔍 [${questionId}] Parseando respuesta de análisis generativo...`);
@@ -1048,7 +1060,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       // =====================================================
       // FUENTES WEB REALES de OpenAI Web Search
       // =====================================================
-      const webSources = this.getLastWebSources();
+      const webSources = providedWebSources || this.getLastWebSources();
       const realSources: AnalysisSource[] = webSources.map((source, index) => ({
         url: source.url,
         title: source.title,
