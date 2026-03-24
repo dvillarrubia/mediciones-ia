@@ -67,3 +67,9 @@ update-selector.js
 
 # Configuraciones temporales
 api/data/configurations/config_*.json
+
+# Pipeline BigQuery
+pipeline/venv/
+pipeline/service-account.json
+pipeline/test_bq_connection.py
+conexion_bq/*.json
