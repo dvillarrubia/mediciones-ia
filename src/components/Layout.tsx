@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut } from 'lucide-react';
+import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut, Globe } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
 import { useAuthStore } from '../store/authStore';
 
@@ -39,6 +39,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
     { name: 'Análisis de Marca', href: '/analysis', icon: Search },
     { name: 'Importar Excel', href: '/import', icon: Upload },
+    { name: 'AI Overview', href: '/ai-overview', icon: Globe },
     { name: 'Centro de Inteligencia', href: '/intelligence', icon: Brain },
     { name: 'Configuración', href: '/settings', icon: Settings },
   ];

@@ -93,12 +93,14 @@ const Configuration: React.FC = () => {
   const [apiKeys, setApiKeys] = useState({
     openai: '',
     anthropic: '',
-    google: ''
+    google: '',
+    dataforseo: ''
   });
   const [showApiKeys, setShowApiKeys] = useState({
     openai: false,
     anthropic: false,
-    google: false
+    google: false,
+    dataforseo: false
   });
 
   useEffect(() => {
@@ -139,7 +141,8 @@ const Configuration: React.FC = () => {
       const trimmedKeys = {
         openai: apiKeys.openai.trim(),
         anthropic: apiKeys.anthropic.trim(),
-        google: apiKeys.google.trim()
+        google: apiKeys.google.trim(),
+        dataforseo: apiKeys.dataforseo.trim()
       };
       setApiKeys(trimmedKeys);
       localStorage.setItem('userApiKeys', JSON.stringify(trimmedKeys));
@@ -151,7 +154,7 @@ const Configuration: React.FC = () => {
 
   const clearApiKeys = () => {
     if (window.confirm('¿Eliminar todas las API Keys?')) {
-      setApiKeys({ openai: '', anthropic: '', google: '' });
+      setApiKeys({ openai: '', anthropic: '', google: '', dataforseo: '' });
       localStorage.removeItem('userApiKeys');
       setSuccess('API Keys eliminadas');
     }
@@ -1116,6 +1119,41 @@ const Configuration: React.FC = () => {
                     {showApiKeys.google ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
+              </div>
+              {/* DataForSEO */}
+              <div className="border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Key className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">DataForSEO</h3>
+                      <p className="text-sm text-gray-500">Para análisis AI Overview (Share of Voice)</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.dataforseo ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {apiKeys.dataforseo ? 'Configurada' : 'No configurada'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showApiKeys.dataforseo ? 'text' : 'password'}
+                    value={apiKeys.dataforseo}
+                    onChange={(e) => setApiKeys(prev => ({ ...prev, dataforseo: e.target.value }))}
+                    placeholder="login@email.com:password"
+                    className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  />
+                  <button
+                    onClick={() => setShowApiKeys(prev => ({ ...prev, dataforseo: !prev.dataforseo }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showApiKeys.dataforseo ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  Formato: login:password. Obtén tus credenciales en app.dataforseo.com/api-access
+                </p>
               </div>
             </div>
 

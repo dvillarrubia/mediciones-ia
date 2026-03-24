@@ -34,6 +34,13 @@ export const API_ENDPOINTS = {
   // Dashboard
   dashboard: `${API_BASE_URL}/api/dashboard`,
 
+  // AI Overview
+  aiOverviewExecute: `${API_BASE_URL}/api/ai-overview/execute`,
+  aiOverviewEstimate: `${API_BASE_URL}/api/ai-overview/estimate`,
+  aiOverviewHistory: `${API_BASE_URL}/api/ai-overview/history`,
+  aiOverviewResults: `${API_BASE_URL}/api/ai-overview/results`,
+  aiOverviewValidate: `${API_BASE_URL}/api/ai-overview/validate-credentials`,
+
   // Auth (if needed)
   auth: `${API_BASE_URL}/api/auth`,
 };

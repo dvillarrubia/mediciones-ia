@@ -34,6 +34,8 @@ import {
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
+import MetricsDashboard from '../components/intelligence/MetricsDashboard';
+import AIOverviewDashboard from '../components/intelligence/AIOverviewDashboard';
 import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
@@ -121,7 +123,7 @@ const ITEMS_PER_PAGE = 10;
 
 const IntelligenceHub: React.FC = () => {
   // Estado principal
-  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights' | 'metrics' | 'ai-overview'>('list');
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<AnalysisDetail | null>(null);
@@ -276,7 +278,7 @@ const IntelligenceHub: React.FC = () => {
 
   // Cargar detalles cuando se cambia a la pestaña de tendencias o insights
   useEffect(() => {
-    if ((activeTab === 'trends' || activeTab === 'insights') && analyses.length > 0 && allAnalysesDetails.length === 0) {
+    if ((activeTab === 'trends' || activeTab === 'insights' || activeTab === 'metrics' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
       loadAllAnalysesDetails();
     }
   }, [activeTab, analyses]);
@@ -1088,6 +1090,30 @@ const IntelligenceHub: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Lightbulb className="w-4 h-4" />
                 Insights AI
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'metrics'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Métricas
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('ai-overview')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'ai-overview'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                AI Overviews
               </div>
             </button>
           </nav>
@@ -2223,6 +2249,16 @@ const IntelligenceHub: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB 5: MÉTRICAS */}
+          {activeTab === 'metrics' && (
+            <MetricsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+          )}
+
+          {/* TAB 6: AI OVERVIEWS */}
+          {activeTab === 'ai-overview' && (
+            <AIOverviewDashboard projectId={selectedProjectId || undefined} />
           )}
         </div>
       </div>

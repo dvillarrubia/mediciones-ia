@@ -26,6 +26,7 @@ import dashboardRoutes from './routes/dashboard.js'
 import cacheRoutes from './routes/cache.js'
 import projectsRoutes from './routes/projects.js'
 import adminRoutes from './routes/admin.js'
+import aiOverviewRoutes from './routes/aiOverview.js'
 
 const app: express.Application = express()
 
@@ -43,6 +44,7 @@ app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/cache', cacheRoutes)
 app.use('/api/projects', projectsRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/ai-overview', aiOverviewRoutes)
 
 /**
  * health

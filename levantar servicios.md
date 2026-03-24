@@ -1,19 +1,5 @@
 Instrucciones para Levantar los Servicios
 
-  Prerequisitos
-
-  - Node.js instalado (versión 16 o superior)
-  - npm instalado
-
-  Configuración Inicial
-
-  1. Verificar que las dependencias estén instaladas:
-  npm install
-  2. Verificar el archivo de variables de entorno:
-  El proyecto ya tiene configurado el archivo .env con:
-    - OPENAI_API_KEY: Clave para la API de OpenAI
-    - PORT: Puerto del servidor (3003)
-
   Opciones para Levantar los Servicios
 
   Opción 1: Levantar Frontend y Backend Juntos (Recomendado)

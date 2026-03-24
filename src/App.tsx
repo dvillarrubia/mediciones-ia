@@ -12,6 +12,7 @@ import IntelligenceHub from './pages/IntelligenceHub';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Admin from './pages/Admin';
+import AIOverview from './pages/AIOverview';
 import { useAuthStore } from './store/authStore';
 
 // Componente para verificar autenticación al cargar
@@ -46,6 +47,7 @@ export default function App() {
                 <Route path="/analysis" element={<Analysis />} />
                 <Route path="/import" element={<Import />} />
                 <Route path="/intelligence" element={<IntelligenceHub />} />
+                <Route path="/ai-overview" element={<AIOverview />} />
                 {/* Redirecciones de rutas antiguas al nuevo Centro de Inteligencia */}
                 <Route path="/reports" element={<Navigate to="/intelligence" replace />} />
                 <Route path="/comparator" element={<Navigate to="/intelligence" replace />} />
