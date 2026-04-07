@@ -20,7 +20,15 @@ if [ -f "${SCRIPT_DIR}/venv/bin/activate" ]; then
 fi
 
 # Ejecutar pipeline
+# Por defecto: incremental (últimos 8 días, margen sobre la ventana semanal del cron).
+# Si se pasa cualquier argumento (ej. --since, --dry-run, --list-projects), se respeta tal cual.
 cd "${SCRIPT_DIR}"
-python3 extract.py "$@"
+if [ "$#" -eq 0 ]; then
+    SINCE=$(date -d '8 days ago' +%Y-%m-%d)
+    echo "${LOG_PREFIX} Modo incremental: --since ${SINCE}"
+    python3 extract.py --since "${SINCE}"
+else
+    python3 extract.py "$@"
+fi
 
 echo "${LOG_PREFIX} === Fin pipeline BigQuery ==="
