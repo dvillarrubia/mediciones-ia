@@ -125,6 +125,7 @@ const Analysis = () => {
   const [showQuestions, setShowQuestions] = useState(false);
   const [editableQuestions, setEditableQuestions] = useState<AnalysisQuestion[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<{ completed: number; total: number; percent: number } | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<{ code: string; message: string } | null>(null);
@@ -264,27 +265,18 @@ const Analysis = () => {
     }
 
     setIsAnalyzing(true);
+    setAnalysisProgress(null);
     setError(null);
 
     try {
-      // Preparar las categorías únicas de las preguntas
       const categories = [...new Set(editableQuestions.map(q => q.category))];
-      
-      // Validación básica de categorías en el frontend
+
       if (categories.length === 0) {
         setError('No se encontraron categorías válidas en las preguntas');
         setIsAnalyzing(false);
         return;
       }
-      
-      console.log('Enviando análisis con configuración:', {
-        categories,
-        configuration: {
-          ...selectedConfig,
-          questions: editableQuestions
-        }
-      });
-      
+
       // Obtener API keys del usuario desde localStorage
       const userApiKeys = localStorage.getItem('userApiKeys');
       let parsedApiKeys = null;
@@ -296,99 +288,102 @@ const Analysis = () => {
         }
       }
 
-      // Obtener información del país seleccionado para el contexto
       const countryInfo = countries.find(c => c.code === selectedCountry);
 
-      const response = await apiFetch(API_ENDPOINTS.analysisExecute, {
+      const requestBody = JSON.stringify({
+        categories,
+        configuration: {
+          ...selectedConfig,
+          questions: editableQuestions
+        },
+        userApiKeys: parsedApiKeys,
+        projectId: selectedProjectId || undefined,
+        selectedModel: selectedModel,
+        countryCode: selectedCountry,
+        countryName: countryInfo?.name || 'España',
+        timezone: countryInfo?.timezone || 'Europe/Madrid'
+      });
+
+      // Usar SSE para evitar timeouts 504
+      const token = JSON.parse(localStorage.getItem('auth-store') || '{}')?.state?.token;
+
+      const response = await fetch(API_ENDPOINTS.analysisExecuteStream, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          categories,
-          configuration: {
-            ...selectedConfig,
-            questions: editableQuestions
-          },
-          userApiKeys: parsedApiKeys,
-          projectId: selectedProjectId || undefined,
-          // Parámetros: modelo y país (del dropdown)
-          selectedModel: selectedModel,
-          countryCode: selectedCountry,
-          countryName: countryInfo?.name || 'España',
-          timezone: countryInfo?.timezone || 'Europe/Madrid'
-        }),
+        body: requestBody,
       });
 
-      console.log('Respuesta del servidor:', response.status, response.statusText);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error del servidor:', errorText);
-
-        // Intentar parsear el error como JSON para obtener más detalles
-        try {
-          const errorData = JSON.parse(errorText);
-
-          // Detectar errores de API keys específicos
-          if (errorData.code === 'API_KEYS_REQUIRED' ||
-              errorData.code === 'OPENAI_KEY_REQUIRED' ||
-              errorData.code === 'ANTHROPIC_KEY_REQUIRED' ||
-              errorData.code === 'GOOGLE_KEY_REQUIRED' ||
-              errorData.code === 'INVALID_API_KEY') {
-            setApiKeyError({ code: errorData.code, message: errorData.message });
-            notifyError(
-              errorData.error || 'Error de API Key',
-              errorData.message,
-              { duration: 10000 }
-            );
-            setIsAnalyzing(false);
-            return;
-          }
-
-          if (errorData.error && errorData.invalidCategories) {
-            throw new Error(`Error de validación: ${errorData.error}. Categorías inválidas: ${errorData.invalidCategories.join(', ')}`);
-          }
-        } catch (parseError) {
-          // Si no se puede parsear, usar el error original
-        }
-
         throw new Error(`Error ${response.status}: ${errorText}`);
       }
 
-      // Limpiar error de API keys si la petición fue exitosa
-      setApiKeyError(null);
+      // Leer el stream SSE
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const data = await response.json();
-      console.log('Datos recibidos:', data);
-      console.log('Estructura de data.data:', data.data);
-      console.log('¿Tiene analysisId?', data.data?.analysisId);
-      console.log('¿Tiene results?', data.data?.results);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      if (data.success) {
-        console.log('Guardando analysisResult:', data.data);
-        setAnalysisResult(data.data);
-        
-        // Notificación de éxito
-        notifySuccess(
-          'Análisis Completado',
-          `Se analizaron ${editableQuestions.length} preguntas exitosamente. ID: ${data.data.analysisId}`,
-          { duration: 8000 }
-        );
-        
-        setError(null);
-      } else {
-        const errorMsg = data.error || 'Error ejecutando el análisis';
-        setError(errorMsg);
-        notifyError('Error en Análisis', errorMsg);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Guardar línea incompleta
+
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ') && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (currentEvent === 'progress') {
+                setAnalysisProgress({ completed: data.completed, total: data.total, percent: data.percent });
+              } else if (currentEvent === 'result') {
+                setApiKeyError(null);
+                if (data.success) {
+                  setAnalysisResult(data.data);
+                  notifySuccess(
+                    'Análisis Completado',
+                    `Se analizaron ${editableQuestions.length} preguntas exitosamente. ID: ${data.data.analysisId}`,
+                    { duration: 8000 }
+                  );
+                  setError(null);
+                } else {
+                  setError(data.error || 'Error ejecutando el análisis');
+                  notifyError('Error en Análisis', data.error);
+                }
+              } else if (currentEvent === 'error') {
+                if (data.code === 'API_KEYS_REQUIRED' || data.code === 'OPENAI_KEY_REQUIRED' ||
+                    data.code === 'ANTHROPIC_KEY_REQUIRED' || data.code === 'GOOGLE_KEY_REQUIRED' ||
+                    data.code === 'INVALID_API_KEY') {
+                  setApiKeyError({ code: data.code, message: data.message || data.error });
+                  notifyError(data.error || 'Error de API Key', data.message, { duration: 10000 });
+                } else {
+                  setError(data.message || data.error);
+                  notifyError('Error en Análisis', data.message || data.error);
+                }
+              }
+            } catch (parseErr) {
+              // Ignorar líneas que no son JSON válido (ej: keepalive)
+            }
+            currentEvent = '';
+          }
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error en análisis:', error);
       const errorMsg = `Error de conexión durante el análisis: ${error.message}`;
       setError(errorMsg);
       notifyError('Error de Conexión', errorMsg);
     } finally {
       setIsAnalyzing(false);
+      setAnalysisProgress(null);
     }
   };
 
@@ -1026,7 +1021,9 @@ const Analysis = () => {
                     <div className="flex flex-col items-start">
                       <span>Analizando...</span>
                       <span className="text-xs text-blue-200">
-                        Procesando {editableQuestions.length} preguntas
+                        {analysisProgress
+                          ? `${analysisProgress.completed}/${analysisProgress.total} preguntas (${analysisProgress.percent}%)`
+                          : `Procesando ${editableQuestions.length} preguntas`}
                       </span>
                     </div>
                   </>

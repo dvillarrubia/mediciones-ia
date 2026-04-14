@@ -74,6 +74,195 @@ router.post('/test-config', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/analysis/execute-stream
+ * Ejecuta análisis con Server-Sent Events para evitar timeouts (504)
+ * Envía progreso pregunta por pregunta y el resultado final
+ */
+router.post('/execute-stream', async (req: Request, res: Response) => {
+  // Configurar SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // Desactiva buffering en nginx
+  });
+
+  const sendEvent = (event: string, data: any) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Keepalive cada 15s para mantener la conexión
+  const keepalive = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 15000);
+
+  let clientDisconnected = false;
+  req.on('close', () => {
+    clientDisconnected = true;
+    clearInterval(keepalive);
+  });
+
+  try {
+    const {
+      categories,
+      maxSources = 6,
+      configuration,
+      userApiKeys,
+      projectId,
+      selectedModel,
+      countryCode,
+      countryName,
+      timezone,
+      countryContext,
+      countryLanguage
+    } = req.body;
+
+    sendEvent('status', { message: 'Iniciando análisis...', phase: 'init' });
+
+    // Obtener API keys del usuario
+    let apiKeysToUse = userApiKeys;
+    if (req.userId && !userApiKeys) {
+      try {
+        const storedKeys = await authService.getApiKeys(req.userId);
+        if (Object.keys(storedKeys).length > 0) {
+          apiKeysToUse = storedKeys;
+        }
+      } catch (err) {
+        // silenciar
+      }
+    }
+
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+      sendEvent('error', { error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.' });
+      clearInterval(keepalive);
+      res.end();
+      return;
+    }
+
+    const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
+    if (modelInfo) {
+      const provider = modelInfo.provider;
+      if (provider === 'openai' && !apiKeysToUse.openai) {
+        sendEvent('error', { error: 'API Key de OpenAI requerida', code: 'OPENAI_KEY_REQUIRED' });
+        clearInterval(keepalive);
+        res.end();
+        return;
+      }
+      if (provider === 'anthropic' && !apiKeysToUse.anthropic) {
+        sendEvent('error', { error: 'API Key de Anthropic requerida', code: 'ANTHROPIC_KEY_REQUIRED' });
+        clearInterval(keepalive);
+        res.end();
+        return;
+      }
+      if (provider === 'google' && !apiKeysToUse.google) {
+        sendEvent('error', { error: 'API Key de Google AI requerida', code: 'GOOGLE_KEY_REQUIRED' });
+        clearInterval(keepalive);
+        res.end();
+        return;
+      }
+    }
+
+    if (!configuration || !configuration.name || !configuration.questions || configuration.questions.length === 0) {
+      sendEvent('error', { error: 'Configuración inválida', code: 'INVALID_CONFIG' });
+      clearInterval(keepalive);
+      res.end();
+      return;
+    }
+
+    openaiService = new OpenAIService(apiKeysToUse);
+
+    const isMultiModelAnalysis = configuration.aiModels && Array.isArray(configuration.aiModels) && configuration.aiModels.length > 1;
+
+    const extendedConfiguration = {
+      ...configuration,
+      selectedModel: selectedModel || 'gpt-4o-search-preview',
+      countryCode: countryCode || 'ES',
+      countryName: countryName || 'España',
+      timezone: timezone || 'Europe/Madrid',
+      countryContext: countryContext || 'en España, considerando el mercado español',
+      countryLanguage: countryLanguage || 'Español'
+    };
+
+    sendEvent('progress', { completed: 0, total: configuration.questions.length, percent: 0 });
+
+    // Callback de progreso que envía SSE
+    const onProgress = (completed: number, total: number, questionId: string) => {
+      if (!clientDisconnected) {
+        const percent = Math.round((completed / total) * 100);
+        sendEvent('progress', { completed, total, percent, questionId });
+      }
+    };
+
+    let result;
+    if (isMultiModelAnalysis) {
+      result = await openaiService.executeMultiModelAnalysis(configuration.questions, extendedConfiguration, onProgress);
+    } else {
+      result = await openaiService.executeAnalysisWithConfiguration(configuration.questions, extendedConfiguration, onProgress);
+    }
+
+    // Guardar en BD
+    try {
+      const analysisId = result.analysisId || `analysis_${Date.now()}`;
+      const savedAnalysis = {
+        id: analysisId,
+        projectId: projectId || undefined,
+        timestamp: new Date().toISOString(),
+        configuration: {
+          name: configuration.name,
+          brand: configuration.targetBrand || configuration.name,
+          targetBrand: configuration.targetBrand || configuration.name,
+          competitors: configuration.competitorBrands || configuration.competitors || [],
+          competitorBrands: configuration.competitorBrands || configuration.competitors || [],
+          industry: configuration.industry || 'General',
+          templateId: configuration.templateId || 'custom',
+          questionsCount: configuration.questions.length
+        },
+        results: result,
+        metadata: {
+          duration: result.duration,
+          modelsUsed: configuration.aiModels || ['chatgpt'],
+          totalQuestions: configuration.questions.length
+        }
+      };
+      await databaseService.saveAnalysis(savedAnalysis, req.userId);
+    } catch (saveError) {
+      console.error('❌ Error al guardar análisis en base de datos:', saveError);
+    }
+
+    // Enviar resultado final
+    sendEvent('result', {
+      success: true,
+      data: result,
+      analysisType: isMultiModelAnalysis ? 'multi-model' : 'standard',
+      modelsUsed: configuration.aiModels || ['chatgpt']
+    });
+
+  } catch (error: any) {
+    console.error('Error ejecutando análisis (stream):', error);
+
+    if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
+      const provider = error?.provider || 'openai';
+      sendEvent('error', {
+        error: `API Key inválida`,
+        code: 'INVALID_API_KEY',
+        provider,
+        message: `La API Key es incorrecta o ha expirado.`
+      });
+    } else {
+      sendEvent('error', {
+        error: 'Error ejecutando análisis',
+        message: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    }
+  } finally {
+    clearInterval(keepalive);
+    if (!clientDisconnected) {
+      res.end();
+    }
+  }
+});
+
+/**
  * POST /api/analysis/execute
  * Ejecuta análisis de marca para las categorías seleccionadas
  */

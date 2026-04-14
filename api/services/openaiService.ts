@@ -331,7 +331,7 @@ class OpenAIService {
   /**
    * Ejecuta análisis con configuración completa (nueva funcionalidad)
    */
-  async executeAnalysisWithConfiguration(questions: any[], configuration: any): Promise<AnalysisResult> {
+  async executeAnalysisWithConfiguration(questions: any[], configuration: any, onProgress?: (completed: number, total: number, questionId: string) => void): Promise<AnalysisResult> {
     const startTime = Date.now();
     const analysisId = `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
@@ -376,9 +376,11 @@ class OpenAIService {
           }
         },
         (completed, total) => {
-          // Callback de progreso (puede ser usado para WebSockets en el futuro)
           const percent = ((completed / total) * 100).toFixed(1);
           console.log(`📊 Progreso: ${completed}/${total} (${percent}%)`);
+          if (onProgress) {
+            onProgress(completed, total, `q_${completed}`);
+          }
         }
       );
 
@@ -2210,7 +2212,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
   /**
    * Ejecuta análisis con múltiples modelos de IA (simulados)
    */
-  async executeMultiModelAnalysis(questions: any[], configuration: any): Promise<AnalysisResult> {
+  async executeMultiModelAnalysis(questions: any[], configuration: any, onProgress?: (completed: number, total: number, questionId: string) => void): Promise<AnalysisResult> {
   const startTime = Date.now();
   const analysisId = `multimodel_analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const timestamp = new Date().toISOString();
@@ -2251,15 +2253,24 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
     // Procesar preguntas EN PARALELO para máxima velocidad
     console.log(`🚀 Procesando ${questions.length} preguntas en PARALELO...`);
 
+    let multiModelCompleted = 0;
     const analysisPromises = questions.map((questionData, index) => {
       console.log(`📝 [${index + 1}/${questions.length}] Iniciando: ${questionData.question.substring(0, 50)}...`);
       return this.analyzeQuestionWithMultipleModels(questionData, filteredConfiguration)
         .then(result => {
-          console.log(`✅ [${index + 1}/${questions.length}] Completada`);
+          multiModelCompleted++;
+          console.log(`✅ [${multiModelCompleted}/${questions.length}] Completada`);
+          if (onProgress) {
+            onProgress(multiModelCompleted, questions.length, questionData.id || `q_${index}`);
+          }
           return result;
         })
         .catch(error => {
-          console.error(`🔴 [${index + 1}/${questions.length}] Error: ${error.message}`);
+          multiModelCompleted++;
+          console.error(`🔴 [${multiModelCompleted}/${questions.length}] Error: ${error.message}`);
+          if (onProgress) {
+            onProgress(multiModelCompleted, questions.length, questionData.id || `q_${index}`);
+          }
           throw error;
         });
     });
