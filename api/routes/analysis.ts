@@ -14,6 +14,30 @@ import { authService } from '../services/authService.js';
 const router = Router();
 let openaiService: OpenAIService;
 
+// ─── Job Queue en memoria ───────────────────────────────────────────
+interface AnalysisJob {
+  id: string;
+  userId: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  progress: { completed: number; total: number; percent: number };
+  result?: any;
+  error?: { error: string; code?: string; message?: string; provider?: string };
+  createdAt: number;
+}
+
+const jobs = new Map<string, AnalysisJob>();
+
+// Limpiar jobs completados/error después de 30 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of jobs) {
+    if ((job.status === 'completed' || job.status === 'error') && now - job.createdAt > 30 * 60 * 1000) {
+      jobs.delete(id);
+    }
+  }
+}, 5 * 60 * 1000);
+// ────────────────────────────────────────────────────────────────────
+
 // Requiere autenticación: cada usuario solo ve sus datos
 router.use(requireAuth);
 
@@ -74,38 +98,14 @@ router.post('/test-config', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/analysis/execute-stream
- * Ejecuta análisis con Server-Sent Events para evitar timeouts (504)
- * Envía progreso pregunta por pregunta y el resultado final
+ * POST /api/analysis/execute-async
+ * Encola el análisis y devuelve un jobId inmediatamente.
+ * El cliente consulta el progreso con GET /api/analysis/job/:jobId
  */
-router.post('/execute-stream', async (req: Request, res: Response) => {
-  // Configurar SSE
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no', // Desactiva buffering en nginx
-  });
-
-  const sendEvent = (event: string, data: any) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
-
-  // Keepalive cada 15s para mantener la conexión
-  const keepalive = setInterval(() => {
-    res.write(': keepalive\n\n');
-  }, 15000);
-
-  let clientDisconnected = false;
-  req.on('close', () => {
-    clientDisconnected = true;
-    clearInterval(keepalive);
-  });
-
+router.post('/execute-async', async (req: Request, res: Response) => {
   try {
     const {
       categories,
-      maxSources = 6,
       configuration,
       userApiKeys,
       projectId,
@@ -116,8 +116,6 @@ router.post('/execute-stream', async (req: Request, res: Response) => {
       countryContext,
       countryLanguage
     } = req.body;
-
-    sendEvent('status', { message: 'Iniciando análisis...', phase: 'init' });
 
     // Obtener API keys del usuario
     let apiKeysToUse = userApiKeys;
@@ -133,133 +131,152 @@ router.post('/execute-stream', async (req: Request, res: Response) => {
     }
 
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
-      sendEvent('error', { error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.' });
-      clearInterval(keepalive);
-      res.end();
-      return;
+      return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
     const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
     if (modelInfo) {
       const provider = modelInfo.provider;
       if (provider === 'openai' && !apiKeysToUse.openai) {
-        sendEvent('error', { error: 'API Key de OpenAI requerida', code: 'OPENAI_KEY_REQUIRED' });
-        clearInterval(keepalive);
-        res.end();
-        return;
+        return res.status(400).json({ error: 'API Key de OpenAI requerida', code: 'OPENAI_KEY_REQUIRED' });
       }
       if (provider === 'anthropic' && !apiKeysToUse.anthropic) {
-        sendEvent('error', { error: 'API Key de Anthropic requerida', code: 'ANTHROPIC_KEY_REQUIRED' });
-        clearInterval(keepalive);
-        res.end();
-        return;
+        return res.status(400).json({ error: 'API Key de Anthropic requerida', code: 'ANTHROPIC_KEY_REQUIRED' });
       }
       if (provider === 'google' && !apiKeysToUse.google) {
-        sendEvent('error', { error: 'API Key de Google AI requerida', code: 'GOOGLE_KEY_REQUIRED' });
-        clearInterval(keepalive);
-        res.end();
-        return;
+        return res.status(400).json({ error: 'API Key de Google AI requerida', code: 'GOOGLE_KEY_REQUIRED' });
       }
     }
 
     if (!configuration || !configuration.name || !configuration.questions || configuration.questions.length === 0) {
-      sendEvent('error', { error: 'Configuración inválida', code: 'INVALID_CONFIG' });
-      clearInterval(keepalive);
-      res.end();
-      return;
+      return res.status(400).json({ error: 'Configuración inválida', code: 'INVALID_CONFIG' });
     }
 
-    openaiService = new OpenAIService(apiKeysToUse);
-
-    const isMultiModelAnalysis = configuration.aiModels && Array.isArray(configuration.aiModels) && configuration.aiModels.length > 1;
-
-    const extendedConfiguration = {
-      ...configuration,
-      selectedModel: selectedModel || 'gpt-4o-search-preview',
-      countryCode: countryCode || 'ES',
-      countryName: countryName || 'España',
-      timezone: timezone || 'Europe/Madrid',
-      countryContext: countryContext || 'en España, considerando el mercado español',
-      countryLanguage: countryLanguage || 'Español'
+    // Crear job
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const job: AnalysisJob = {
+      id: jobId,
+      userId: req.userId!,
+      status: 'pending',
+      progress: { completed: 0, total: configuration.questions.length, percent: 0 },
+      createdAt: Date.now(),
     };
+    jobs.set(jobId, job);
 
-    sendEvent('progress', { completed: 0, total: configuration.questions.length, percent: 0 });
+    // Responder inmediatamente con el jobId
+    res.json({ success: true, jobId, totalQuestions: configuration.questions.length });
 
-    // Callback de progreso que envía SSE
-    const onProgress = (completed: number, total: number, questionId: string) => {
-      if (!clientDisconnected) {
-        const percent = Math.round((completed / total) * 100);
-        sendEvent('progress', { completed, total, percent, questionId });
-      }
-    };
+    // Ejecutar análisis en background (fire-and-forget)
+    (async () => {
+      job.status = 'running';
+      try {
+        const service = new OpenAIService(apiKeysToUse);
+        const isMultiModel = configuration.aiModels && Array.isArray(configuration.aiModels) && configuration.aiModels.length > 1;
 
-    let result;
-    if (isMultiModelAnalysis) {
-      result = await openaiService.executeMultiModelAnalysis(configuration.questions, extendedConfiguration, onProgress);
-    } else {
-      result = await openaiService.executeAnalysisWithConfiguration(configuration.questions, extendedConfiguration, onProgress);
-    }
+        const extendedConfiguration = {
+          ...configuration,
+          selectedModel: selectedModel || 'gpt-4o-search-preview',
+          countryCode: countryCode || 'ES',
+          countryName: countryName || 'España',
+          timezone: timezone || 'Europe/Madrid',
+          countryContext: countryContext || 'en España, considerando el mercado español',
+          countryLanguage: countryLanguage || 'Español'
+        };
 
-    // Guardar en BD
-    try {
-      const analysisId = result.analysisId || `analysis_${Date.now()}`;
-      const savedAnalysis = {
-        id: analysisId,
-        projectId: projectId || undefined,
-        timestamp: new Date().toISOString(),
-        configuration: {
-          name: configuration.name,
-          brand: configuration.targetBrand || configuration.name,
-          targetBrand: configuration.targetBrand || configuration.name,
-          competitors: configuration.competitorBrands || configuration.competitors || [],
-          competitorBrands: configuration.competitorBrands || configuration.competitors || [],
-          industry: configuration.industry || 'General',
-          templateId: configuration.templateId || 'custom',
-          questionsCount: configuration.questions.length
-        },
-        results: result,
-        metadata: {
-          duration: result.duration,
-          modelsUsed: configuration.aiModels || ['chatgpt'],
-          totalQuestions: configuration.questions.length
+        const onProgress = (completed: number, total: number) => {
+          job.progress = { completed, total, percent: Math.round((completed / total) * 100) };
+        };
+
+        let result;
+        if (isMultiModel) {
+          result = await service.executeMultiModelAnalysis(configuration.questions, extendedConfiguration, onProgress);
+        } else {
+          result = await service.executeAnalysisWithConfiguration(configuration.questions, extendedConfiguration, onProgress);
         }
-      };
-      await databaseService.saveAnalysis(savedAnalysis, req.userId);
-    } catch (saveError) {
-      console.error('❌ Error al guardar análisis en base de datos:', saveError);
-    }
 
-    // Enviar resultado final
-    sendEvent('result', {
-      success: true,
-      data: result,
-      analysisType: isMultiModelAnalysis ? 'multi-model' : 'standard',
-      modelsUsed: configuration.aiModels || ['chatgpt']
-    });
+        // Guardar en BD
+        try {
+          const analysisId = result.analysisId || `analysis_${Date.now()}`;
+          await databaseService.saveAnalysis({
+            id: analysisId,
+            projectId: projectId || undefined,
+            timestamp: new Date().toISOString(),
+            configuration: {
+              brand: configuration.targetBrand || configuration.name,
+              competitors: configuration.competitorBrands || configuration.competitors || [],
+              templateId: configuration.templateId || 'custom',
+              questionsCount: configuration.questions.length
+            },
+            results: result,
+            metadata: {
+              duration: result.duration,
+              modelsUsed: configuration.aiModels || ['chatgpt'],
+              totalQuestions: configuration.questions.length
+            }
+          }, req.userId);
+        } catch (saveError) {
+          console.error('❌ Error al guardar análisis en BD:', saveError);
+        }
+
+        job.status = 'completed';
+        job.progress = { completed: configuration.questions.length, total: configuration.questions.length, percent: 100 };
+        job.result = {
+          success: true,
+          data: result,
+          analysisType: isMultiModel ? 'multi-model' : 'standard',
+          modelsUsed: configuration.aiModels || ['chatgpt']
+        };
+
+      } catch (error: any) {
+        console.error('❌ Error en job de análisis:', error);
+        job.status = 'error';
+
+        if (error?.isAuthError || error?.status === 401 || error?.code === 'invalid_api_key') {
+          job.error = { error: 'API Key inválida', code: 'INVALID_API_KEY', provider: error?.provider || 'openai', message: 'La API Key es incorrecta o ha expirado.' };
+        } else {
+          job.error = { error: 'Error ejecutando análisis', message: error instanceof Error ? error.message : 'Error desconocido' };
+        }
+      }
+    })();
 
   } catch (error: any) {
-    console.error('Error ejecutando análisis (stream):', error);
-
-    if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
-      const provider = error?.provider || 'openai';
-      sendEvent('error', {
-        error: `API Key inválida`,
-        code: 'INVALID_API_KEY',
-        provider,
-        message: `La API Key es incorrecta o ha expirado.`
-      });
-    } else {
-      sendEvent('error', {
-        error: 'Error ejecutando análisis',
-        message: error instanceof Error ? error.message : 'Error desconocido'
-      });
-    }
-  } finally {
-    clearInterval(keepalive);
-    if (!clientDisconnected) {
-      res.end();
-    }
+    console.error('Error creando job de análisis:', error);
+    res.status(500).json({ error: 'Error interno', message: error.message });
   }
+});
+
+/**
+ * GET /api/analysis/job/:jobId
+ * Consulta el estado/progreso de un análisis en ejecución
+ */
+router.get('/job/:jobId', (req: Request, res: Response) => {
+  const job = jobs.get(req.params.jobId);
+
+  if (!job) {
+    return res.status(404).json({ error: 'Job no encontrado' });
+  }
+
+  // Solo el owner puede consultar su job
+  if (job.userId !== req.userId) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+
+  const response: any = {
+    jobId: job.id,
+    status: job.status,
+    progress: job.progress,
+  };
+
+  if (job.status === 'completed') {
+    response.result = job.result;
+    // Limpiar el job una vez entregado el resultado
+    jobs.delete(job.id);
+  } else if (job.status === 'error') {
+    response.error = job.error;
+    jobs.delete(job.id);
+  }
+
+  res.json(response);
 });
 
 /**

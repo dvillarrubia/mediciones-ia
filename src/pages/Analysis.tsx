@@ -290,92 +290,84 @@ const Analysis = () => {
 
       const countryInfo = countries.find(c => c.code === selectedCountry);
 
-      const requestBody = JSON.stringify({
-        categories,
-        configuration: {
-          ...selectedConfig,
-          questions: editableQuestions
-        },
-        userApiKeys: parsedApiKeys,
-        projectId: selectedProjectId || undefined,
-        selectedModel: selectedModel,
-        countryCode: selectedCountry,
-        countryName: countryInfo?.name || 'España',
-        timezone: countryInfo?.timezone || 'Europe/Madrid'
-      });
-
-      // Usar SSE para evitar timeouts 504
-      const token = JSON.parse(localStorage.getItem('auth-store') || '{}')?.state?.token;
-
-      const response = await fetch(API_ENDPOINTS.analysisExecuteStream, {
+      // 1. Encolar el análisis — respuesta instantánea con jobId
+      const enqueueRes = await apiFetch(API_ENDPOINTS.analysisExecuteAsync, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: requestBody,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categories,
+          configuration: { ...selectedConfig, questions: editableQuestions },
+          userApiKeys: parsedApiKeys,
+          projectId: selectedProjectId || undefined,
+          selectedModel: selectedModel,
+          countryCode: selectedCountry,
+          countryName: countryInfo?.name || 'España',
+          timezone: countryInfo?.timezone || 'Europe/Madrid'
+        }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
+      if (!enqueueRes.ok) {
+        const errData = await enqueueRes.json().catch(() => null);
+        if (errData?.code === 'API_KEYS_REQUIRED' || errData?.code === 'OPENAI_KEY_REQUIRED' ||
+            errData?.code === 'ANTHROPIC_KEY_REQUIRED' || errData?.code === 'GOOGLE_KEY_REQUIRED') {
+          setApiKeyError({ code: errData.code, message: errData.message || errData.error });
+          notifyError(errData.error || 'Error de API Key', errData.message, { duration: 10000 });
+          setIsAnalyzing(false);
+          return;
+        }
+        throw new Error(errData?.message || `Error ${enqueueRes.status}`);
       }
 
-      // Leer el stream SSE
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      const { jobId } = await enqueueRes.json();
+      setAnalysisProgress({ completed: 0, total: editableQuestions.length, percent: 0 });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Guardar línea incompleta
-
-        let currentEvent = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7);
-          } else if (line.startsWith('data: ') && currentEvent) {
+      // 2. Polling cada 3 segundos hasta que termine
+      const pollJob = (): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const interval = setInterval(async () => {
             try {
-              const data = JSON.parse(line.slice(6));
+              const pollRes = await apiFetch(`${API_ENDPOINTS.analysisJob}/${jobId}`);
+              const job = await pollRes.json();
 
-              if (currentEvent === 'progress') {
-                setAnalysisProgress({ completed: data.completed, total: data.total, percent: data.percent });
-              } else if (currentEvent === 'result') {
+              if (job.progress) {
+                setAnalysisProgress(job.progress);
+              }
+
+              if (job.status === 'completed') {
+                clearInterval(interval);
                 setApiKeyError(null);
-                if (data.success) {
-                  setAnalysisResult(data.data);
+                if (job.result?.success) {
+                  setAnalysisResult(job.result.data);
                   notifySuccess(
                     'Análisis Completado',
-                    `Se analizaron ${editableQuestions.length} preguntas exitosamente. ID: ${data.data.analysisId}`,
+                    `Se analizaron ${editableQuestions.length} preguntas exitosamente. ID: ${job.result.data.analysisId}`,
                     { duration: 8000 }
                   );
                   setError(null);
-                } else {
-                  setError(data.error || 'Error ejecutando el análisis');
-                  notifyError('Error en Análisis', data.error);
                 }
-              } else if (currentEvent === 'error') {
-                if (data.code === 'API_KEYS_REQUIRED' || data.code === 'OPENAI_KEY_REQUIRED' ||
-                    data.code === 'ANTHROPIC_KEY_REQUIRED' || data.code === 'GOOGLE_KEY_REQUIRED' ||
-                    data.code === 'INVALID_API_KEY') {
-                  setApiKeyError({ code: data.code, message: data.message || data.error });
-                  notifyError(data.error || 'Error de API Key', data.message, { duration: 10000 });
+                resolve();
+              } else if (job.status === 'error') {
+                clearInterval(interval);
+                const err = job.error;
+                if (err?.code === 'INVALID_API_KEY') {
+                  setApiKeyError({ code: err.code, message: err.message });
+                  notifyError('API Key inválida', err.message, { duration: 10000 });
                 } else {
-                  setError(data.message || data.error);
-                  notifyError('Error en Análisis', data.message || data.error);
+                  setError(err?.message || 'Error en el análisis');
+                  notifyError('Error en Análisis', err?.message);
                 }
+                resolve();
               }
-            } catch (parseErr) {
-              // Ignorar líneas que no son JSON válido (ej: keepalive)
+            } catch (pollErr: any) {
+              clearInterval(interval);
+              reject(pollErr);
             }
-            currentEvent = '';
-          }
-        }
-      }
+          }, 3000);
+        });
+      };
+
+      await pollJob();
+
     } catch (error: any) {
       console.error('Error en análisis:', error);
       const errorMsg = `Error de conexión durante el análisis: ${error.message}`;

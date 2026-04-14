@@ -23,7 +23,8 @@ export const API_ENDPOINTS = {
   // Analysis
   analysisCategories: `${API_BASE_URL}/api/analysis/categories`,
   analysisExecute: `${API_BASE_URL}/api/analysis/execute`,
-  analysisExecuteStream: `${API_BASE_URL}/api/analysis/execute-stream`,
+  analysisExecuteAsync: `${API_BASE_URL}/api/analysis/execute-async`,
+  analysisJob: `${API_BASE_URL}/api/analysis/job`,
   analysisReport: `${API_BASE_URL}/api/analysis/report`,
   analysisSaved: `${API_BASE_URL}/api/analysis/saved`,
   analysisReportMarkdown: `${API_BASE_URL}/api/analysis/report/markdown`,
