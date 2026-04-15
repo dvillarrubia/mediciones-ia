@@ -424,12 +424,12 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
               <h3 className="font-semibold text-gray-800 mb-1">Matriz de solapamiento</h3>
               <p className="text-xs text-gray-400 mb-4">Número de keywords donde dos dominios son citados simultáneamente</p>
               <div className="overflow-x-auto">
-                <table className="text-xs">
+                <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      <th className="p-2 text-left text-gray-500"></th>
+                      <th className="p-3 text-left text-gray-500"></th>
                       {allDomains.filter(d => r.overlap_matrix[d]).map(d => (
-                        <th key={d} className="p-2 text-center text-gray-600 font-medium max-w-[100px]">
+                        <th key={d} className="p-3 text-center text-gray-600 font-medium">
                           <span className="block truncate" title={d}>{d.replace(/^www\./, '').split('.')[0]}</span>
                         </th>
                       ))}
@@ -438,7 +438,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
                   <tbody>
                     {allDomains.filter(d => r.overlap_matrix[d]).map(row => (
                       <tr key={row}>
-                        <td className={`p-2 font-medium text-gray-700 max-w-[120px] truncate ${row === targetDomain ? 'text-blue-700' : ''}`} title={row}>
+                        <td className={`p-3 font-medium text-gray-700 ${row === targetDomain ? 'text-blue-700' : ''}`} title={row}>
                           {row.replace(/^www\./, '').split('.')[0]}
                         </td>
                         {allDomains.filter(d => r.overlap_matrix[d]).map(col => {
@@ -446,7 +446,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
                           const maxVal = Math.max(...Object.values(r.overlap_matrix).flatMap(v => Object.values(v)));
                           const intensity = maxVal > 0 ? val / maxVal : 0;
                           return (
-                            <td key={col} className="p-2 text-center font-mono" style={{
+                            <td key={col} className="p-3 text-center font-mono text-sm" style={{
                               backgroundColor: row === col ? '#f3f4f6' : `rgba(59, 130, 246, ${intensity * 0.3})`,
                             }}>
                               {row === col ? '—' : val.toLocaleString()}

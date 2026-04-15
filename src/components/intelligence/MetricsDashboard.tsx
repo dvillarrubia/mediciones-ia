@@ -5,8 +5,7 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart,
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
 
@@ -85,6 +84,18 @@ function fmtSentiment(n: number): string {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
+/**
+ * Normaliza el nombre de una marca para agrupar variantes (e.g. "HolaLuz" → "Holaluz").
+ * Recibe la lista de marcas configuradas (target + competidores) como referencia canónica.
+ */
+function normalizeBrandName(brand: string, configuredBrands: string[]): string {
+  const lower = brand.toLowerCase().replace(/[\s\-_]+/g, '');
+  for (const cb of configuredBrands) {
+    if (cb.toLowerCase().replace(/[\s\-_]+/g, '') === lower) return cb;
+  }
+  return brand;
+}
+
 // === CALCULATION ===
 
 interface SovItem {
@@ -114,6 +125,12 @@ interface DiscoveredBrand {
   sentiment: number;
 }
 
+interface CategoryBrandMention {
+  category: string;
+  totalQuestions: number;
+  brands: Record<string, { mentions: number; percentage: number; avgSentiment: number }>;
+}
+
 interface CurrentState {
   targetBrand: string;
   shareOfVoice: SovItem[];
@@ -123,6 +140,7 @@ interface CurrentState {
   discoveredBrands: DiscoveredBrand[];
   topDomains: DomainRank[];
   categoryBreakdown: CategoryMetric[];
+  categoryBrandMentions: CategoryBrandMention[];
   totalMentions: number;
 }
 
@@ -148,6 +166,9 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
   // === CURRENT STATE (from latest analysis) ===
   const questions = latest.results?.questions || [];
 
+  // Build canonical brand list for normalization
+  const configuredBrandsList = [targetBrand, ...latest.configuration.competitors];
+
   // SoV
   const brandAcc: Record<string, { mentions: number; sentSum: number; sentCount: number; isTarget: boolean }> = {};
   const domainAcc: Record<string, number> = {};
@@ -171,12 +192,13 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     // Brands
     (q.brandMentions || []).forEach(bm => {
       if (!bm.mentioned || bm.frequency <= 0) return;
-      const isTarget = bm.brand.toLowerCase() === targetBrand.toLowerCase();
+      const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
+      const isTarget = brandName.toLowerCase() === targetBrand.toLowerCase();
 
-      if (!brandAcc[bm.brand]) brandAcc[bm.brand] = { mentions: 0, sentSum: 0, sentCount: 0, isTarget };
-      brandAcc[bm.brand].mentions += bm.frequency;
-      brandAcc[bm.brand].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
-      brandAcc[bm.brand].sentCount++;
+      if (!brandAcc[brandName]) brandAcc[brandName] = { mentions: 0, sentSum: 0, sentCount: 0, isTarget };
+      brandAcc[brandName].mentions += bm.frequency;
+      brandAcc[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+      brandAcc[brandName].sentCount++;
 
       if (isTarget && bm.appearanceOrder && bm.appearanceOrder > 0) {
         targetOrderSum += bm.appearanceOrder;
@@ -184,10 +206,10 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
       }
 
       if (bm.isDiscovered) {
-        if (!discoveredMap[bm.brand]) discoveredMap[bm.brand] = { freq: 0, sentSum: 0, count: 0 };
-        discoveredMap[bm.brand].freq += bm.frequency;
-        discoveredMap[bm.brand].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
-        discoveredMap[bm.brand].count++;
+        if (!discoveredMap[brandName]) discoveredMap[brandName] = { freq: 0, sentSum: 0, count: 0 };
+        discoveredMap[brandName].freq += bm.frequency;
+        discoveredMap[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+        discoveredMap[brandName].count++;
       }
     });
   });
@@ -230,6 +252,45 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 15);
 
+  // Category × Brand mentions
+  const catBrandAcc: Record<string, { total: number; brands: Record<string, { count: number; sentSum: number; sentCount: number }> }> = {};
+  const configuredBrands = new Set([targetBrand.toLowerCase(), ...latest.configuration.competitors.map(c => c.toLowerCase())]);
+
+  questions.forEach(q => {
+    const cat = q.category || 'Sin categoría';
+    if (!catBrandAcc[cat]) catBrandAcc[cat] = { total: 0, brands: {} };
+    catBrandAcc[cat].total++;
+
+    (q.brandMentions || []).forEach(bm => {
+      if (!bm.mentioned) return;
+      const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
+      // Only include target + configured competitors (skip discovered brands)
+      if (!configuredBrands.has(brandName.toLowerCase())) return;
+
+      if (!catBrandAcc[cat].brands[brandName]) catBrandAcc[cat].brands[brandName] = { count: 0, sentSum: 0, sentCount: 0 };
+      catBrandAcc[cat].brands[brandName].count++;
+      catBrandAcc[cat].brands[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+      catBrandAcc[cat].brands[brandName].sentCount++;
+    });
+  });
+
+  const categoryBrandMentions: CategoryBrandMention[] = Object.entries(catBrandAcc)
+    .map(([category, d]) => ({
+      category,
+      totalQuestions: d.total,
+      brands: Object.fromEntries(
+        Object.entries(d.brands).map(([brand, info]) => [
+          brand,
+          {
+            mentions: info.count,
+            percentage: d.total > 0 ? (info.count / d.total) * 100 : 0,
+            avgSentiment: info.sentCount > 0 ? info.sentSum / info.sentCount : 0,
+          },
+        ])
+      ),
+    }))
+    .sort((a, b) => b.totalQuestions - a.totalQuestions);
+
   const currentState: CurrentState = {
     targetBrand,
     shareOfVoice,
@@ -239,6 +300,7 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     discoveredBrands,
     topDomains,
     categoryBreakdown,
+    categoryBrandMentions,
     totalMentions,
   };
 
@@ -253,10 +315,11 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     qs.forEach(q => {
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned || bm.frequency <= 0) return;
-        if (!hBrand[bm.brand]) hBrand[bm.brand] = { mentions: 0, total: 0 };
-        hBrand[bm.brand].mentions += bm.frequency;
+        const bmName = normalizeBrandName(bm.brand, configuredBrandsList);
+        if (!hBrand[bmName]) hBrand[bmName] = { mentions: 0, total: 0 };
+        hBrand[bmName].mentions += bm.frequency;
 
-        if (bm.brand.toLowerCase() === brand.toLowerCase()) {
+        if (bmName.toLowerCase() === brand.toLowerCase()) {
           hSentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
           hSentCount++;
           if (bm.appearanceOrder && bm.appearanceOrder > 0) {
@@ -350,14 +413,6 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
     mentions: s.mentions,
     sentiment: s.sentimentScore,
     isTarget: s.isTarget,
-  }));
-
-  // Radar data
-  const radarData = cs.categoryBreakdown.slice(0, 8).map(c => ({
-    category: c.category.length > 20 ? c.category.slice(0, 18) + '…' : c.category,
-    preguntas: c.count,
-    sentimiento: ((c.avgSentiment + 2) / 4) * 100, // normalize to 0-100
-    confianza: c.avgConfidence * 100,
   }));
 
   return (
@@ -509,37 +564,115 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
         </div>
       </div>
 
-      {/* Category Radar */}
-      {radarData.length >= 3 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Radar de Categorías</h3>
-          <ResponsiveContainer width="100%" height={350}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey="category" tick={{ fill: '#6b7280', fontSize: 11 }} />
-              <PolarRadiusAxis tick={{ fontSize: 10 }} />
-              <Radar name="Preguntas" dataKey="preguntas" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} />
-              <Radar name="Sentimiento" dataKey="sentimiento" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-              <Radar name="Confianza" dataKey="confianza" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.1} />
-              <Legend />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      ) : radarData.length > 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Distribución por Categoría</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={radarData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="category" width={150} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="preguntas" fill="#3b82f6" name="Preguntas" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      ) : null}
+      {/* Category × Brand Mentions */}
+      {cs.categoryBrandMentions.length > 0 && (() => {
+        // Collect all configured brands that appear
+        const allBrandsSet = new Set<string>();
+        cs.categoryBrandMentions.forEach(cbm => Object.keys(cbm.brands).forEach(b => allBrandsSet.add(b)));
+        // Sort: target first, then alphabetically
+        const brandList = [...allBrandsSet].sort((a, b) => {
+          if (a.toLowerCase() === cs.targetBrand.toLowerCase()) return -1;
+          if (b.toLowerCase() === cs.targetBrand.toLowerCase()) return 1;
+          return a.localeCompare(b);
+        });
+
+        const chartData = cs.categoryBrandMentions.map(cbm => {
+          const row: Record<string, any> = {
+            category: cbm.category,
+            _total: cbm.totalQuestions,
+          };
+          brandList.forEach(brand => {
+            row[brand] = cbm.brands[brand]?.percentage ? Math.round(cbm.brands[brand].percentage) : 0;
+          });
+          return row;
+        });
+
+        const CustomTooltip = ({ active, payload, label }: any) => {
+          if (!active || !payload?.length) return null;
+          const item = chartData.find(d => d.category === label);
+          return (
+            <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[220px]">
+              <p className="font-semibold text-gray-900 text-sm mb-1">{label}</p>
+              <p className="text-xs text-gray-400 mb-3">{item?._total || 0} preguntas en esta categoría</p>
+              {payload.map((entry: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between gap-4 py-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: entry.color }} />
+                    <span className="text-sm text-gray-700">{entry.name}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900">{entry.value}%</span>
+                </div>
+              ))}
+            </div>
+          );
+        };
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border p-5">
+            <h3 className="font-semibold text-gray-800 mb-1">Menciones por Categoría y Marca</h3>
+            <p className="text-xs text-gray-400 mb-4">% de preguntas donde cada marca es mencionada, por categoría temática</p>
+            <ResponsiveContainer width="100%" height={Math.max(400, cs.categoryBrandMentions.length * 70)}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }} barCategoryGap="20%" barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fill: '#6b7280', fontSize: 12 }} tickCount={6} />
+                <YAxis type="category" dataKey="category" width={240} tick={{ fill: '#374151', fontSize: 13, fontWeight: 500 }} interval={0} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                <Legend wrapperStyle={{ paddingTop: 16 }} iconType="square" />
+                {brandList.map((brand, i) => (
+                  <Bar
+                    key={brand}
+                    dataKey={brand}
+                    fill={brand.toLowerCase() === cs.targetBrand.toLowerCase() ? '#3b82f6' : COLORS[(i + 1) % COLORS.length]}
+                    radius={[0, 4, 4, 0]}
+                    name={brand}
+                    barSize={16}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+
+            {/* Detail table below */}
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="pb-2 pr-4">Categoría</th>
+                    <th className="pb-2 text-center text-gray-400">Preguntas</th>
+                    {brandList.map(brand => (
+                      <th key={brand} className={`pb-2 text-center ${brand.toLowerCase() === cs.targetBrand.toLowerCase() ? 'text-blue-700 font-semibold' : ''}`}>
+                        {brand}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cs.categoryBrandMentions.map(cbm => (
+                    <tr key={cbm.category} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="py-2 pr-4 font-medium text-gray-700">{cbm.category}</td>
+                      <td className="py-2 text-center text-gray-400 font-mono">{cbm.totalQuestions}</td>
+                      {brandList.map(brand => {
+                        const info = cbm.brands[brand];
+                        if (!info || info.mentions === 0) {
+                          return <td key={brand} className="py-2 text-center text-gray-300">—</td>;
+                        }
+                        const pct = Math.round(info.percentage);
+                        const sentColor = info.avgSentiment > 0 ? 'text-green-600' : info.avgSentiment < 0 ? 'text-red-600' : 'text-gray-600';
+                        const isTarget = brand.toLowerCase() === cs.targetBrand.toLowerCase();
+                        return (
+                          <td key={brand} className={`py-2 text-center font-mono ${isTarget ? 'bg-blue-50' : ''}`}>
+                            <span className={sentColor}>{pct}%</span>
+                            <span className="text-gray-300 text-xs ml-1">({info.mentions})</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* === HISTORICAL TRENDS === */}
       {ht.length >= 2 ? (
