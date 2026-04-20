@@ -953,8 +953,6 @@ const AIOverviewTrends: React.FC<{ history: HistoryItem[] }> = ({ history }) => 
     [history]
   );
 
-  if (validHistory.length < 2) return null;
-
   // Recopilar todos los dominios que aparecen en el historial
   const allDomains = useMemo(() => {
     const domainSet = new Set<string>();
@@ -964,7 +962,7 @@ const AIOverviewTrends: React.FC<{ history: HistoryItem[] }> = ({ history }) => 
     validHistory.forEach(h => h.shareOfVoice?.forEach(s => {
       domainFreq[s.domain] = (domainFreq[s.domain] || 0) + s.total_search_volume;
     }));
-    const targetDomain = validHistory[validHistory.length - 1].shareOfVoice?.find(s => s.is_target)?.domain;
+    const targetDomain = validHistory.length > 0 ? validHistory[validHistory.length - 1].shareOfVoice?.find(s => s.is_target)?.domain : undefined;
     return [...domainSet]
       .sort((a, b) => {
         if (a === targetDomain) return -1;
@@ -990,7 +988,7 @@ const AIOverviewTrends: React.FC<{ history: HistoryItem[] }> = ({ history }) => 
   );
 
   // Keywords count del target a lo largo del tiempo
-  const targetDomain = validHistory[validHistory.length - 1].shareOfVoice?.find(s => s.is_target)?.domain;
+  const targetDomain = validHistory.length > 0 ? validHistory[validHistory.length - 1].shareOfVoice?.find(s => s.is_target)?.domain : undefined;
   const kwData = useMemo(() =>
     validHistory.map(h => {
       const target = h.shareOfVoice?.find(s => s.is_target);
@@ -1012,6 +1010,8 @@ const AIOverviewTrends: React.FC<{ history: HistoryItem[] }> = ({ history }) => 
     })),
     [validHistory]
   );
+
+  if (validHistory.length < 2) return null;
 
   return (
     <div className="space-y-6">
