@@ -961,6 +961,121 @@ class DatabaseService {
       });
     }
   }
+
+  // ============================================================
+  // Admin import helpers (cross-user)
+  // ============================================================
+
+  async getAllProjectsAdmin(): Promise<Array<{ id: string; name: string; userId: string | null; description: string | null }>> {
+    await this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('DB not initialized'));
+      this.db.all(
+        'SELECT id, name, description, user_id FROM projects ORDER BY name ASC',
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve(rows.map(r => ({ id: r.id, name: r.name, description: r.description, userId: r.user_id })));
+        }
+      );
+    });
+  }
+
+  async bulkImportAnalyses(
+    rows: Array<{
+      id: string;
+      user_id: string | null;
+      project_id: string | null;
+      timestamp: string;
+      brand: string;
+      competitors: string;
+      template_id: string | null;
+      questions_count: number | null;
+      configuration: string;
+      results: string;
+      metadata: string | null;
+      created_at?: string | null;
+    }>
+  ): Promise<{ inserted: number; skipped: number }> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB not initialized');
+    const db = this.db;
+
+    let inserted = 0;
+    let skipped = 0;
+
+    for (const r of rows) {
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          `INSERT OR IGNORE INTO analysis
+            (id, user_id, project_id, timestamp, brand, competitors, template_id,
+             questions_count, configuration, results, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+          [
+            r.id, r.user_id, r.project_id, r.timestamp, r.brand, r.competitors,
+            r.template_id, r.questions_count, r.configuration, r.results, r.metadata,
+            r.created_at ?? null,
+          ],
+          function (err) {
+            if (err) return reject(err);
+            if (this.changes > 0) inserted++; else skipped++;
+            resolve();
+          }
+        );
+      });
+    }
+
+    return { inserted, skipped };
+  }
+
+  async bulkImportAiOverviews(
+    rows: Array<{
+      id: string;
+      user_id: string | null;
+      project_id: string | null;
+      timestamp: string;
+      target_domain: string;
+      competitors: string;
+      location_code: number | null;
+      language_code: string | null;
+      country_code: string | null;
+      configuration: string;
+      results: string;
+      cost_usd: number | null;
+      status: string | null;
+      created_at?: string | null;
+    }>
+  ): Promise<{ inserted: number; skipped: number }> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB not initialized');
+    const db = this.db;
+
+    let inserted = 0;
+    let skipped = 0;
+
+    for (const r of rows) {
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          `INSERT OR IGNORE INTO ai_overview_analyses
+            (id, user_id, project_id, timestamp, target_domain, competitors,
+             location_code, language_code, country_code, configuration, results,
+             cost_usd, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+          [
+            r.id, r.user_id, r.project_id, r.timestamp, r.target_domain, r.competitors,
+            r.location_code, r.language_code, r.country_code, r.configuration, r.results,
+            r.cost_usd, r.status, r.created_at ?? null,
+          ],
+          function (err) {
+            if (err) return reject(err);
+            if (this.changes > 0) inserted++; else skipped++;
+            resolve();
+          }
+        );
+      });
+    }
+
+    return { inserted, skipped };
+  }
 }
 
 export const databaseService = new DatabaseService();

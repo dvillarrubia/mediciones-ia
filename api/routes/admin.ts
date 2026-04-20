@@ -5,6 +5,7 @@
 import { Router, type Request, type Response } from 'express';
 import { ADMIN_CREDENTIALS } from '../config/constants.js';
 import { adminService } from '../services/adminService.js';
+import { databaseService } from '../services/databaseService.js';
 
 const router = Router();
 
@@ -332,6 +333,133 @@ router.post('/ai-models/reorder', requireAdminAuth, async (req: Request, res: Re
   } catch (error: any) {
     console.error('Error reordenando modelos:', error);
     res.status(500).json({ error: error.message || 'Error al reordenar' });
+  }
+});
+
+// ============================================================
+// Importación de análisis desde un export local
+// ============================================================
+
+/**
+ * Listar todos los proyectos de la instancia (cross-user)
+ * Usado por la UI de import para poblar el dropdown de mapeo.
+ * GET /api/admin/import/projects
+ */
+router.get('/import/projects', requireAdminAuth, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const projects = await databaseService.getAllProjectsAdmin();
+    res.json({ projects });
+  } catch (error: any) {
+    console.error('Error listando proyectos para import:', error);
+    res.status(500).json({ error: error.message || 'Error al listar proyectos' });
+  }
+});
+
+/**
+ * Importar análisis desde un payload JSON exportado por scripts/export-db.ts
+ * Mapea project_id origen → project_id destino (obligatorio).
+ * Ignora filas cuyo id ya exista en la DB (INSERT OR IGNORE).
+ * POST /api/admin/import/analyses
+ * Body: {
+ *   projectMappings: { [sourceProjectId: string]: string },  // destino
+ *   analyses: Array<source analysis row>,
+ *   aiOverviews: Array<source ai overview row>
+ * }
+ */
+router.post('/import/analyses', requireAdminAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { projectMappings, analyses, aiOverviews } = req.body as {
+      projectMappings?: Record<string, string>;
+      analyses?: any[];
+      aiOverviews?: any[];
+    };
+
+    const mappings = projectMappings || {};
+    const srcAnalyses = Array.isArray(analyses) ? analyses : [];
+    const srcAiOverviews = Array.isArray(aiOverviews) ? aiOverviews : [];
+
+    // Validate: every source project_id referenced MUST be mapped
+    const referencedProjectIds = new Set<string>();
+    for (const a of srcAnalyses) if (a.project_id) referencedProjectIds.add(a.project_id);
+    for (const a of srcAiOverviews) if (a.project_id) referencedProjectIds.add(a.project_id);
+
+    const missing = [...referencedProjectIds].filter(p => !mappings[p]);
+    if (missing.length > 0) {
+      res.status(400).json({
+        error: 'Faltan mapeos para los siguientes project_id origen',
+        missingProjectIds: missing,
+      });
+      return;
+    }
+
+    // Validate target project ids exist in this DB
+    const allTargets = await databaseService.getAllProjectsAdmin();
+    const targetIds = new Set(allTargets.map(p => p.id));
+    const badTargets = [...new Set(Object.values(mappings))].filter(t => !targetIds.has(t));
+    if (badTargets.length > 0) {
+      res.status(400).json({
+        error: 'Algunos proyectos destino no existen en esta instancia',
+        missingTargetIds: badTargets,
+      });
+      return;
+    }
+
+    // Build a lookup of target project → user_id so imported rows inherit ownership
+    const targetUserByProjectId: Record<string, string | null> = {};
+    for (const p of allTargets) targetUserByProjectId[p.id] = p.userId;
+
+    // Remap + normalize rows for insertion
+    const analysesRemapped = srcAnalyses.map((a: any) => {
+      const targetProjectId = a.project_id ? mappings[a.project_id] : null;
+      const targetUserId = targetProjectId ? (targetUserByProjectId[targetProjectId] ?? null) : a.user_id ?? null;
+      return {
+        id: a.id,
+        user_id: targetUserId,
+        project_id: targetProjectId,
+        timestamp: a.timestamp,
+        brand: a.brand,
+        competitors: a.competitors,
+        template_id: a.template_id ?? null,
+        questions_count: a.questions_count ?? null,
+        configuration: a.configuration,
+        results: a.results,
+        metadata: a.metadata ?? null,
+        created_at: a.created_at ?? null,
+      };
+    });
+
+    const aiOverviewsRemapped = srcAiOverviews.map((a: any) => {
+      const targetProjectId = a.project_id ? mappings[a.project_id] : null;
+      const targetUserId = targetProjectId ? (targetUserByProjectId[targetProjectId] ?? null) : a.user_id ?? null;
+      return {
+        id: a.id,
+        user_id: targetUserId,
+        project_id: targetProjectId,
+        timestamp: a.timestamp,
+        target_domain: a.target_domain,
+        competitors: a.competitors,
+        location_code: a.location_code ?? null,
+        language_code: a.language_code ?? null,
+        country_code: a.country_code ?? null,
+        configuration: a.configuration,
+        results: a.results,
+        cost_usd: a.cost_usd ?? null,
+        status: a.status ?? null,
+        created_at: a.created_at ?? null,
+      };
+    });
+
+    const analysesResult = await databaseService.bulkImportAnalyses(analysesRemapped);
+    const aiOverviewsResult = await databaseService.bulkImportAiOverviews(aiOverviewsRemapped);
+
+    res.json({
+      success: true,
+      analyses: analysesResult,
+      aiOverviews: aiOverviewsResult,
+    });
+  } catch (error: any) {
+    console.error('Error importando análisis:', error);
+    res.status(500).json({ error: error.message || 'Error al importar' });
   }
 });
 

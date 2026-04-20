@@ -24,9 +24,11 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Key
+  Key,
+  Upload
 } from 'lucide-react';
 import API_BASE_URL from '../config/api';
+import ImportAnalysesTab from './admin/ImportAnalysesTab';
 
 interface WhitelistConfig {
   emails: string[];
@@ -83,7 +85,7 @@ export default function Admin() {
     recommended: false,
     requiresApiKey: 'OPENAI_API_KEY'
   });
-  const [activeTab, setActiveTab] = useState<'users' | 'models'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'models' | 'import'>('users');
   const [resetPasswordUser, setResetPasswordUser] = useState<UserInfo | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -640,6 +642,17 @@ export default function Admin() {
                 {aiModels.filter(m => m.enabled).length}/{aiModels.length}
               </span>
             </button>
+            <button
+              onClick={() => setActiveTab('import')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                activeTab === 'import'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Upload className="h-5 w-5" />
+              Importar análisis
+            </button>
           </nav>
         </div>
       </div>
@@ -1086,6 +1099,17 @@ export default function Admin() {
             </div>
           )}
         </div>
+        )}
+
+        {/* TAB: Importar análisis */}
+        {activeTab === 'import' && authToken && (
+          <ImportAnalysesTab
+            authToken={authToken}
+            onMessage={(m) => {
+              setMessage({ type: m.type, text: m.text });
+              setTimeout(() => setMessage(null), 6000);
+            }}
+          />
         )}
       </div>
 
