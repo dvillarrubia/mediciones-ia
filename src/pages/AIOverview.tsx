@@ -93,6 +93,7 @@ const COUNTRIES = [
   { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
   { code: 'CL', name: 'Chile', flag: '🇨🇱' },
   { code: 'PE', name: 'Peru', flag: '🇵🇪' },
+  { code: 'EC', name: 'Ecuador', flag: '🇪🇨' },
   { code: 'US', name: 'Estados Unidos', flag: '🇺🇸' },
   { code: 'BR', name: 'Brasil', flag: '🇧🇷' },
   { code: 'PT', name: 'Portugal', flag: '🇵🇹' },
