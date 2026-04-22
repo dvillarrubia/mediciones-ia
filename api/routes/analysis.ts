@@ -10,6 +10,7 @@ import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
 import { requireAuth } from '../middleware/auth.js';
 import { authService } from '../services/authService.js';
+import { getQueueStats } from '../services/providerQueue.js';
 
 const router = Router();
 let openaiService: OpenAIService;
@@ -233,6 +234,15 @@ router.post('/execute-async', async (req: Request, res: Response) => {
 
         if (error?.isAuthError || error?.status === 401 || error?.code === 'invalid_api_key') {
           job.error = { error: 'API Key inválida', code: 'INVALID_API_KEY', provider: error?.provider || 'openai', message: 'La API Key es incorrecta o ha expirado.' };
+        } else if (error?.isQuotaError || error?.code === 'insufficient_quota' || error?.status === 429) {
+          const provider = error?.provider || 'openai';
+          const providerLabel = provider === 'anthropic' || provider === 'claude' ? 'Anthropic' : provider === 'google' || provider === 'gemini' ? 'Google AI' : 'OpenAI';
+          job.error = {
+            error: `Cuota de ${providerLabel} agotada`,
+            code: 'QUOTA_EXCEEDED',
+            provider,
+            message: `Has agotado la cuota de tu API Key de ${providerLabel}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`
+          };
         } else {
           job.error = { error: 'Error ejecutando análisis', message: error instanceof Error ? error.message : 'Error desconocido' };
         }
@@ -277,6 +287,17 @@ router.get('/job/:jobId', (req: Request, res: Response) => {
   }
 
   res.json(response);
+});
+
+/**
+ * GET /api/analysis/queue-stats
+ * Devuelve el estado actual de las colas por proveedor (depth + inflight).
+ * Útil para diagnóstico y monitorización.
+ */
+router.get('/queue-stats', (_req: Request, res: Response) => {
+  const providers = getQueueStats();
+  const activeJobs = Array.from(jobs.values()).filter(j => j.status === 'running' || j.status === 'pending').length;
+  res.json({ providers, activeJobs });
 });
 
 /**
@@ -451,22 +472,35 @@ router.post('/execute', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error ejecutando análisis:', error);
 
+    const providerNames: Record<string, string> = {
+      chatgpt: 'OpenAI',
+      openai: 'OpenAI',
+      claude: 'Anthropic',
+      anthropic: 'Anthropic',
+      gemini: 'Google AI',
+      google: 'Google AI'
+    };
+
     // Detectar errores de API key inválida
     if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
       const provider = error?.provider || 'openai';
-      const providerNames: Record<string, string> = {
-        chatgpt: 'OpenAI',
-        openai: 'OpenAI',
-        claude: 'Anthropic',
-        anthropic: 'Anthropic',
-        gemini: 'Google AI',
-        google: 'Google AI'
-      };
       const providerName = providerNames[provider] || provider;
       return res.status(401).json({
         error: `API Key de ${providerName} inválida`,
         message: `La API Key de ${providerName} que configuraste es incorrecta o ha expirado. Ve a Configuración > API Keys y verifica que la key sea válida.`,
         code: 'INVALID_API_KEY',
+        provider: provider
+      });
+    }
+
+    // Detectar errores de cuota agotada
+    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429) {
+      const provider = error?.provider || 'openai';
+      const providerName = providerNames[provider] || 'OpenAI';
+      return res.status(402).json({
+        error: `Cuota de ${providerName} agotada`,
+        message: `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
+        code: 'QUOTA_EXCEEDED',
         provider: provider
       });
     }
@@ -603,8 +637,37 @@ router.post('/multi-model', async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error en análisis multi-modelo:', error);
+
+    const providerNames: Record<string, string> = {
+      chatgpt: 'OpenAI', openai: 'OpenAI',
+      claude: 'Anthropic', anthropic: 'Anthropic',
+      gemini: 'Google AI', google: 'Google AI'
+    };
+
+    if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
+      const provider = error?.provider || 'openai';
+      const providerName = providerNames[provider] || provider;
+      return res.status(401).json({
+        error: `API Key de ${providerName} inválida`,
+        message: `La API Key de ${providerName} que configuraste es incorrecta o ha expirado. Ve a Configuración > API Keys y verifica que la key sea válida.`,
+        code: 'INVALID_API_KEY',
+        provider
+      });
+    }
+
+    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429) {
+      const provider = error?.provider || 'openai';
+      const providerName = providerNames[provider] || 'OpenAI';
+      return res.status(402).json({
+        error: `Cuota de ${providerName} agotada`,
+        message: `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
+        code: 'QUOTA_EXCEEDED',
+        provider
+      });
+    }
+
     res.status(500).json({
       error: 'Error ejecutando análisis multi-modelo',
       message: error instanceof Error ? error.message : 'Error desconocido'

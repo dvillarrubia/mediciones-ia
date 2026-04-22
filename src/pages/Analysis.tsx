@@ -352,6 +352,9 @@ const Analysis = () => {
                 if (err?.code === 'INVALID_API_KEY') {
                   setApiKeyError({ code: err.code, message: err.message });
                   notifyError('API Key inválida', err.message, { duration: 10000 });
+                } else if (err?.code === 'QUOTA_EXCEEDED') {
+                  setApiKeyError({ code: err.code, message: err.message });
+                  notifyError(err.error || 'Cuota agotada', err.message, { duration: 12000 });
                 } else {
                   setError(err?.message || 'Error en el análisis');
                   notifyError('Error en Análisis', err?.message);
@@ -567,6 +570,8 @@ const Analysis = () => {
                  apiKeyError.code === 'OPENAI_KEY_REQUIRED' ? 'API Key de OpenAI Requerida' :
                  apiKeyError.code === 'ANTHROPIC_KEY_REQUIRED' ? 'API Key de Anthropic Requerida' :
                  apiKeyError.code === 'GOOGLE_KEY_REQUIRED' ? 'API Key de Google AI Requerida' :
+                 apiKeyError.code === 'QUOTA_EXCEEDED' ? 'Cuota de API Agotada' :
+                 apiKeyError.code === 'INVALID_API_KEY' ? 'API Key Inválida' :
                  'Configuración de API Keys'}
               </h3>
               <p className="mt-1 text-amber-700">{apiKeyError.message}</p>

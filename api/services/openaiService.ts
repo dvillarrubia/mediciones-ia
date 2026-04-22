@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { TARGET_BRANDS, COMPETITOR_BRANDS, PRIORITY_SOURCES, ANALYSIS_QUESTIONS, getModelById, type QuestionCategory, type SentimentType } from '../config/constants.js';
 import { cacheService } from './cacheService.js';
+import { providerQueues } from './providerQueue.js';
 
 // Nuevos tipos para análisis más sofisticado
 export type AIModelPersona = 'chatgpt' | 'claude' | 'gemini' | 'perplexity';
@@ -160,8 +161,11 @@ class OpenAIService {
     google?: string;
   };
 
-  // Configuración de procesamiento paralelo (OPTIMIZADO PARA VELOCIDAD)
-  private readonly CONCURRENT_REQUESTS = 15; // Número de peticiones simultáneas (aumentado de 5 a 15)
+  // Configuración de procesamiento por análisis. El throttle real lo hace
+  // providerQueue.ts (global por proveedor) — aquí solo limitamos cuántas
+  // preguntas se encolan a la vez para no saturar la cola con bursts
+  // innecesarios.
+  private readonly CONCURRENT_REQUESTS = 5;
   private readonly MAX_RETRIES = 2; // Intentos máximos por petición
   private readonly REQUEST_TIMEOUT = 60000; // 60 segundos
   private readonly ENABLE_CACHE = true; // Habilitar caché
@@ -271,8 +275,13 @@ class OpenAIService {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await operation();
-      } catch (error) {
+      } catch (error: any) {
         lastError = error as Error;
+
+        // Errores fatales (auth/cuota): no reintentar
+        if (error?.isAuthError || error?.isQuotaError || error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' || error?.status === 429) {
+          throw error;
+        }
 
         if (attempt < maxRetries) {
           const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
@@ -368,9 +377,13 @@ class OpenAIService {
             const questionTime = Date.now() - questionStartTime;
             console.log(`✅ [${question.id}] Completado en ${questionTime}ms`);
             return result;
-          } catch (error) {
+          } catch (error: any) {
             const questionTime = Date.now() - questionStartTime;
             console.error(`❌ [${question.id}] Error después de ${questionTime}ms:`, error);
+            // Errores fatales (auth/cuota) abortan el análisis completo
+            if (error?.isAuthError || error?.isQuotaError) {
+              throw error;
+            }
             errors.push(`Pregunta ${question.id}: ${error}`);
             return this.createErrorAnalysis(question);
           }
@@ -440,21 +453,24 @@ class OpenAIService {
     const prompt = this.buildAnalysisPrompt(questionData.question, maxSources);
     
     try {
-      const completion = await this.client.chat.completions.create({
-        model: this.DEFAULT_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: "Experto analista de mercado. Analiza información y detecta menciones de marcas."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000
-      });
+      const completion = await providerQueues.openai.enqueue(
+        () => this.client.chat.completions.create({
+          model: this.DEFAULT_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: "Experto analista de mercado. Analiza información y detecta menciones de marcas."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 2000
+        }),
+        `analyzeQuestion:${questionData.id}`
+      );
 
       const response = completion.choices[0]?.message?.content || '';
       return this.parseAnalysisResponse(questionData, response, maxSources);
@@ -555,16 +571,19 @@ class OpenAIService {
     console.log(`📍 [OpenAI] Sistema: ${systemPrompt}`);
 
     const response = await Promise.race([
-      this.client.chat.completions.create({
-        model: modelId,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: question }
-        ],
-        web_search_options: {
-          search_context_size: 'medium', // 'low' | 'medium' | 'high'
-        },
-      } as any), // TypeScript puede no tener los tipos actualizados
+      providerQueues.openai.enqueue(
+        () => this.client.chat.completions.create({
+          model: modelId,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: question }
+          ],
+          web_search_options: {
+            search_context_size: 'medium', // 'low' | 'medium' | 'high'
+          },
+        } as any), // TypeScript puede no tener los tipos actualizados
+        `generateWithOpenAI:${modelId}`
+      ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 90 segundos')), 90000)
       )
@@ -703,11 +722,14 @@ class OpenAIService {
     }
 
     const response = await Promise.race([
-      this.anthropicClient.messages.create({
-        model: modelId,
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: question }],
-      }),
+      providerQueues.anthropic.enqueue(
+        () => this.anthropicClient!.messages.create({
+          model: modelId,
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: question }],
+        }),
+        `generateWithAnthropic:${modelId}`
+      ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout: Anthropic tardó más de 60 segundos')), 60000)
       )
@@ -738,13 +760,16 @@ class OpenAIService {
     })}.`;
 
     const response = await Promise.race([
-      this.googleClient.models.generateContent({
-        model: modelId,
-        contents: `${systemPrompt}\n\n${question}`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      }),
+      providerQueues.google.enqueue(
+        () => this.googleClient!.models.generateContent({
+          model: modelId,
+          contents: `${systemPrompt}\n\n${question}`,
+          config: {
+            tools: [{ googleSearch: {} }],
+          },
+        }),
+        `generateWithGoogle:${modelId}`
+      ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout: Google AI tardó más de 90 segundos')), 90000)
       )
@@ -865,12 +890,15 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         const analysisPrompt = this.buildGenerativeAnalysisPrompt(questionData.question, generatedContent, configuration);
 
         const analysisResponse = await Promise.race([
-          this.client.chat.completions.create({
-            model: this.ANALYSIS_MODEL, // Usar modelo ECONÓMICO para analizar menciones (ahorro de costos)
-            messages: [{ role: 'user', content: analysisPrompt }],
-            temperature: 0.1, // Baja temperatura para análisis más preciso
-            max_tokens: 2500,
-          }),
+          providerQueues.openai.enqueue(
+            () => this.client.chat.completions.create({
+              model: this.ANALYSIS_MODEL, // Usar modelo ECONÓMICO para analizar menciones (ahorro de costos)
+              messages: [{ role: 'user', content: analysisPrompt }],
+              temperature: 0.1, // Baja temperatura para análisis más preciso
+              max_tokens: 2500,
+            }),
+            `analyzeMentions:${questionId}`
+          ),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Timeout: Analysis request took longer than 60 seconds')), 60000)
           )
@@ -899,9 +927,18 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         } else if (error.message?.includes('timeout') || error.message?.includes('Timeout')) {
           console.error(`⏰ [${questionId}] Timeout en request, reintentando...`);
           throw new Error(`Timeout: ${error.message}`);
-        } else if (error.message?.includes('insufficient_quota')) {
-          console.error(`💳 [${questionId}] Cuota insuficiente en OpenAI`);
-          throw new Error(`Quota exceeded: ${error.message}`);
+        } else if (error?.code === 'insufficient_quota' || error?.status === 429 || error.message?.includes('insufficient_quota')) {
+          console.error(`💳 [${questionId}] Cuota insuficiente en OpenAI - abortando análisis`);
+          const quotaError = new Error(`API_QUOTA_EXCEEDED:openai:${error.message || 'Cuota agotada'}`);
+          (quotaError as any).isQuotaError = true;
+          (quotaError as any).provider = 'openai';
+          throw quotaError;
+        } else if (error?.status === 401 || error?.code === 'invalid_api_key') {
+          console.error(`🔐 [${questionId}] API key inválida - abortando análisis`);
+          const authError = new Error(`API_KEY_INVALID:openai:${error.message || 'API key inválida'}`);
+          (authError as any).isAuthError = true;
+          (authError as any).provider = 'openai';
+          throw authError;
         } else {
           console.error(`❌ [${questionId}] Error desconocido:`, error);
           throw error;
@@ -1471,16 +1508,21 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
       try {
         console.log(`🔄 [${context}] Intento ${attempt}/${maxRetries}`);
         const result = await operation();
-        
+
         if (attempt > 1) {
           console.log(`✅ [${context}] Éxito en intento ${attempt} después de ${attempt - 1} fallos`);
         }
-        
+
         return result;
-      } catch (error) {
+      } catch (error: any) {
         lastError = error;
         console.error(`❌ [${context}] Fallo en intento ${attempt}:`, error);
-        
+
+        // Errores fatales (auth/cuota): no reintentar
+        if (error?.isAuthError || error?.isQuotaError || error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' || error?.status === 429) {
+          throw error;
+        }
+
         // No reintentar en el último intento
         if (attempt === maxRetries) {
           console.error(`🔴 [${context}] Todos los intentos fallaron. Error final:`, error);
@@ -2347,6 +2389,14 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
         (authError as any).provider = modelPersona;
         throw authError;
       }
+      // Si es error de cuota agotada, abortar todo el análisis
+      if (error?.code === 'insufficient_quota' || error?.status === 429) {
+        console.error(`🔴 [${questionId}] Cuota agotada para ${modelPersona} - abortando análisis`);
+        const quotaError = new Error(`API_QUOTA_EXCEEDED:${modelPersona}:${error.message || 'Cuota agotada'}`);
+        (quotaError as any).isQuotaError = true;
+        (quotaError as any).provider = modelPersona;
+        throw quotaError;
+      }
       console.error(`🔴 [${questionId}] Error con modelo ${modelPersona}:`, error);
       failedModels.push(modelPersona);
       console.log(`⚠️ [${questionId}] Modelo ${modelPersona} omitido, continuando con otros modelos...`);
@@ -2442,17 +2492,20 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
     // Fase 1 con OpenAI (chatgpt)
     const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
 
-    const searchResponse = await this.client.chat.completions.create({
-      model: this.GENERATION_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: cleanPrompt }
-      ],
-      max_tokens: configuration.maxTokens || 2000,
-      web_search_options: {
-        search_context_size: 'medium',
-      },
-    } as any);
+    const searchResponse = await providerQueues.openai.enqueue(
+      () => this.client.chat.completions.create({
+        model: this.GENERATION_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: cleanPrompt }
+        ],
+        max_tokens: configuration.maxTokens || 2000,
+        web_search_options: {
+          search_context_size: 'medium',
+        },
+      } as any),
+      `persona:${modelPersona}:search:${questionId}`
+    );
 
     naturalResponse = searchResponse.choices[0]?.message?.content || '';
 
@@ -2502,12 +2555,15 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
 
   console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 
-  const analysisResponse = await this.client.chat.completions.create({
-    model: this.ANALYSIS_MODEL, // gpt-4o-mini - económico
-    messages: [{ role: 'user', content: analysisPrompt }],
-    temperature: 0.1,
-    max_tokens: 1500,
-  });
+  const analysisResponse = await providerQueues.openai.enqueue(
+    () => this.client.chat.completions.create({
+      model: this.ANALYSIS_MODEL, // gpt-4o-mini - económico
+      messages: [{ role: 'user', content: analysisPrompt }],
+      temperature: 0.1,
+      max_tokens: 1500,
+    }),
+    `persona:${modelPersona}:mentions:${questionId}`
+  );
 
   const analysisContent = analysisResponse.choices[0]?.message?.content || '{}';
 
