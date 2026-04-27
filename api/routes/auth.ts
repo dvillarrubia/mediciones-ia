@@ -204,10 +204,23 @@ router.post('/api-keys', requireAuth, async (req: Request, res: Response): Promi
       return;
     }
 
-    const validProviders = ['openai', 'anthropic', 'google'];
+    const validProviders = ['openai', 'anthropic', 'google', 'dataforseo'];
     if (!validProviders.includes(provider)) {
       res.status(400).json({ error: `Provider inválido. Debe ser uno de: ${validProviders.join(', ')}` });
       return;
+    }
+
+    // DataForSEO se persiste como "login:password" (formato esperado por
+    // schedulerService al partir con split(':')). Validar para evitar fallos
+    // crípticos en runtime de las automatizaciones AIO.
+    if (provider === 'dataforseo') {
+      const colonIdx = apiKey.indexOf(':');
+      if (colonIdx <= 0 || colonIdx === apiKey.length - 1) {
+        res.status(400).json({
+          error: 'Formato inválido para DataForSEO. Debe ser "login:password" (ej: usuario@dominio.com:miPassword).'
+        });
+        return;
+      }
     }
 
     await authService.saveApiKey(req.userId!, provider, apiKey);
@@ -229,7 +242,7 @@ router.get('/api-keys', requireAuth, async (req: Request, res: Response): Promis
 
     // Solo devolver qué providers tienen keys configuradas, no las keys en sí
     const status: { [provider: string]: boolean } = {};
-    for (const provider of ['openai', 'anthropic', 'google']) {
+    for (const provider of ['openai', 'anthropic', 'google', 'dataforseo']) {
       status[provider] = !!keys[provider];
     }
 
@@ -248,7 +261,7 @@ router.delete('/api-keys/:provider', requireAuth, async (req: Request, res: Resp
   try {
     const { provider } = req.params;
 
-    const validProviders = ['openai', 'anthropic', 'google'];
+    const validProviders = ['openai', 'anthropic', 'google', 'dataforseo'];
     if (!validProviders.includes(provider)) {
       res.status(400).json({ error: `Provider inválido. Debe ser uno de: ${validProviders.join(', ')}` });
       return;

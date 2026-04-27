@@ -45,6 +45,11 @@ export const API_ENDPOINTS = {
 
   // Auth (if needed)
   auth: `${API_BASE_URL}/api/auth`,
+
+  // Schedules / Automatizaciones
+  schedules: `${API_BASE_URL}/api/schedules`,
+  schedulesHealth: `${API_BASE_URL}/api/schedules/health`,
+  schedulesAcknowledge: `${API_BASE_URL}/api/schedules/errors/acknowledge`,
 };
 
 /**

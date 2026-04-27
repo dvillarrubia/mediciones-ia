@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, Search, Settings, Menu, X, Upload, Brain, User, LogOut, Globe } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
+import ScheduleHealthBanner from './ScheduleHealthBanner';
 import { useAuthStore } from '../store/authStore';
 
 interface LayoutProps {
@@ -179,6 +180,7 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
           </div>
         </div>
+        <ScheduleHealthBanner />
         <main className="py-6">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             {children}

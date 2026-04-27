@@ -33,6 +33,63 @@ export interface SavedAnalysis {
   };
 }
 
+export type ScheduledReportType = 'llm' | 'aio';
+export type ScheduledReportFrequency = 'daily' | 'weekly' | 'monthly';
+export type ScheduledReportStatus = 'success' | 'error' | 'running';
+
+export interface ScheduledReport {
+  id: string;
+  userId: string;
+  projectId: string;
+  name: string;
+  type: ScheduledReportType;
+  configurationId: string | null;
+  payload: Record<string, any>;
+  frequency: ScheduledReportFrequency;
+  hour: number;
+  weekday: number | null;
+  dayOfMonth: number | null;
+  timezone: string;
+  enabled: boolean;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  lastStatus: ScheduledReportStatus | null;
+  lastError: string | null;
+  lastAnalysisId: string | null;
+  errorsAcknowledgedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateScheduledReportInput {
+  userId: string;
+  projectId: string;
+  name: string;
+  type: ScheduledReportType;
+  configurationId?: string | null;
+  payload: Record<string, any>;
+  frequency: ScheduledReportFrequency;
+  hour: number;
+  weekday?: number | null;
+  dayOfMonth?: number | null;
+  timezone?: string;
+  enabled?: boolean;
+  nextRunAt: number;
+}
+
+export interface UpdateScheduledReportInput {
+  name?: string;
+  payload?: Record<string, any>;
+  configurationId?: string | null;
+  frequency?: ScheduledReportFrequency;
+  hour?: number;
+  weekday?: number | null;
+  dayOfMonth?: number | null;
+  timezone?: string;
+  enabled?: boolean;
+  nextRunAt?: number;
+}
+
 class DatabaseService {
   private db: Database | null = null;
   private dbPath: string;
@@ -143,10 +200,55 @@ class DatabaseService {
           }
         });
 
+        // Tabla de automatizaciones (schedules) de informes LLM/AIO
+        const createScheduledReportsTable = `
+          CREATE TABLE IF NOT EXISTS scheduled_reports (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            configuration_id TEXT,
+            payload TEXT NOT NULL,
+            frequency TEXT NOT NULL,
+            hour INTEGER NOT NULL,
+            weekday INTEGER,
+            day_of_month INTEGER,
+            timezone TEXT NOT NULL DEFAULT 'Europe/Madrid',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            next_run_at INTEGER,
+            last_run_at INTEGER,
+            last_status TEXT,
+            last_error TEXT,
+            last_analysis_id TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+          )
+        `;
+        this.db!.run(createScheduledReportsTable, (err) => {
+          if (err) {
+            console.error('Error al crear tabla scheduled_reports:', err);
+          } else {
+            console.log('Tabla scheduled_reports creada/verificada');
+          }
+        });
+
+        // Migración idempotente: columna de acknowledgement de errores
+        this.db!.run('ALTER TABLE scheduled_reports ADD COLUMN errors_acknowledged_at INTEGER', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            console.error('Error añadiendo errors_acknowledged_at:', err);
+          }
+        });
+
         // Crear índices para optimización multi-tenant
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis(user_id)');
-        this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_project_id ON analysis(project_id)', () => {
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_project_id ON analysis(project_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_user_id ON scheduled_reports(user_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_project_id ON scheduled_reports(project_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due ON scheduled_reports(enabled, next_run_at)', () => {
           console.log('DatabaseService: Índices multi-tenant creados/verificados');
           resolve();
         });
@@ -1075,6 +1177,321 @@ class DatabaseService {
     }
 
     return { inserted, skipped };
+  }
+
+  // ==================== SCHEDULED REPORTS ====================
+
+  private rowToScheduledReport(row: any): ScheduledReport {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      projectId: row.project_id,
+      name: row.name,
+      type: row.type as ScheduledReportType,
+      configurationId: row.configuration_id ?? null,
+      payload: row.payload ? JSON.parse(row.payload) : {},
+      frequency: row.frequency as ScheduledReportFrequency,
+      hour: row.hour,
+      weekday: row.weekday ?? null,
+      dayOfMonth: row.day_of_month ?? null,
+      timezone: row.timezone,
+      enabled: !!row.enabled,
+      nextRunAt: row.next_run_at ?? null,
+      lastRunAt: row.last_run_at ?? null,
+      lastStatus: (row.last_status ?? null) as ScheduledReportStatus | null,
+      lastError: row.last_error ?? null,
+      lastAnalysisId: row.last_analysis_id ?? null,
+      errorsAcknowledgedAt: row.errors_acknowledged_at ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async createScheduledReport(input: CreateScheduledReportInput): Promise<ScheduledReport> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    const id = uuidv4();
+    const now = Date.now();
+    const enabled = input.enabled ?? true;
+    const timezone = input.timezone ?? 'Europe/Madrid';
+
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `INSERT INTO scheduled_reports
+          (id, user_id, project_id, name, type, configuration_id, payload,
+           frequency, hour, weekday, day_of_month, timezone, enabled,
+           next_run_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          input.userId,
+          input.projectId,
+          input.name,
+          input.type,
+          input.configurationId ?? null,
+          JSON.stringify(input.payload),
+          input.frequency,
+          input.hour,
+          input.weekday ?? null,
+          input.dayOfMonth ?? null,
+          timezone,
+          enabled ? 1 : 0,
+          input.nextRunAt,
+          now,
+          now,
+        ],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    const created = await this.getScheduledReport(id, input.userId);
+    if (!created) throw new Error('No se pudo recuperar el schedule recién creado');
+    return created;
+  }
+
+  async getScheduledReport(id: string, userId: string): Promise<ScheduledReport | null> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM scheduled_reports WHERE id = ? AND user_id = ?',
+        [id, userId],
+        (err, row: any) => {
+          if (err) return reject(err);
+          resolve(row ? this.rowToScheduledReport(row) : null);
+        }
+      );
+    });
+  }
+
+  async listScheduledReports(userId: string, projectId?: string): Promise<ScheduledReport[]> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    const query = projectId
+      ? 'SELECT * FROM scheduled_reports WHERE user_id = ? AND project_id = ? ORDER BY created_at DESC'
+      : 'SELECT * FROM scheduled_reports WHERE user_id = ? ORDER BY created_at DESC';
+    const params = projectId ? [userId, projectId] : [userId];
+
+    return new Promise((resolve, reject) => {
+      db.all(query, params, (err, rows: any[]) => {
+        if (err) return reject(err);
+        resolve((rows || []).map(r => this.rowToScheduledReport(r)));
+      });
+    });
+  }
+
+  async listDueScheduledReports(nowMs: number): Promise<ScheduledReport[]> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT * FROM scheduled_reports
+         WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
+         ORDER BY next_run_at ASC`,
+        [nowMs],
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve((rows || []).map(r => this.rowToScheduledReport(r)));
+        }
+      );
+    });
+  }
+
+  async updateScheduledReport(
+    id: string,
+    userId: string,
+    updates: UpdateScheduledReportInput
+  ): Promise<ScheduledReport | null> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+    if (updates.payload !== undefined) { fields.push('payload = ?'); values.push(JSON.stringify(updates.payload)); }
+    if (updates.configurationId !== undefined) { fields.push('configuration_id = ?'); values.push(updates.configurationId); }
+    if (updates.frequency !== undefined) { fields.push('frequency = ?'); values.push(updates.frequency); }
+    if (updates.hour !== undefined) { fields.push('hour = ?'); values.push(updates.hour); }
+    if (updates.weekday !== undefined) { fields.push('weekday = ?'); values.push(updates.weekday); }
+    if (updates.dayOfMonth !== undefined) { fields.push('day_of_month = ?'); values.push(updates.dayOfMonth); }
+    if (updates.timezone !== undefined) { fields.push('timezone = ?'); values.push(updates.timezone); }
+    if (updates.enabled !== undefined) { fields.push('enabled = ?'); values.push(updates.enabled ? 1 : 0); }
+    if (updates.nextRunAt !== undefined) { fields.push('next_run_at = ?'); values.push(updates.nextRunAt); }
+
+    if (fields.length === 0) {
+      return this.getScheduledReport(id, userId);
+    }
+
+    fields.push('updated_at = ?');
+    values.push(Date.now());
+    values.push(id, userId);
+
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `UPDATE scheduled_reports SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+        values,
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    return this.getScheduledReport(id, userId);
+  }
+
+  async markScheduledReportRunning(id: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `UPDATE scheduled_reports SET last_status = 'running', updated_at = ? WHERE id = ?`,
+        [Date.now(), id],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  async recordScheduledReportResult(
+    id: string,
+    result: {
+      status: ScheduledReportStatus;
+      error?: string | null;
+      lastAnalysisId?: string | null;
+      nextRunAt: number | null;
+    }
+  ): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    const now = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `UPDATE scheduled_reports SET
+          last_status = ?,
+          last_error = ?,
+          last_analysis_id = ?,
+          last_run_at = ?,
+          next_run_at = ?,
+          updated_at = ?
+         WHERE id = ?`,
+        [
+          result.status,
+          result.error ?? null,
+          result.lastAnalysisId ?? null,
+          now,
+          result.nextRunAt,
+          now,
+          id,
+        ],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  /**
+   * Marca como 'error' los schedules que quedaron en 'running' (interrumpidos
+   * por reinicio del servidor). Idempotente: solo afecta a filas con last_status='running'.
+   * Devuelve el nº de filas afectadas.
+   */
+  async resetStuckRunningSchedules(): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+    const now = Date.now();
+
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE scheduled_reports
+         SET last_status = 'error',
+             last_error = 'Ejecución interrumpida por reinicio del servidor. Se reintentará en la próxima ventana programada.',
+             last_run_at = COALESCE(last_run_at, ?),
+             updated_at = ?
+         WHERE last_status = 'running'`,
+        [now, now],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  }
+
+  /**
+   * Devuelve el nº de schedules del usuario con error sin acknowledge
+   * (error posterior al último ack, o nunca ack).
+   */
+  async countUnacknowledgedScheduleErrors(userId: string): Promise<{ count: number; latest: ScheduledReport | null }> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT * FROM scheduled_reports
+         WHERE user_id = ?
+           AND last_status = 'error'
+           AND (errors_acknowledged_at IS NULL OR (last_run_at IS NOT NULL AND last_run_at > errors_acknowledged_at))
+         ORDER BY last_run_at DESC`,
+        [userId],
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          const mapped = (rows || []).map(r => this.rowToScheduledReport(r));
+          resolve({ count: mapped.length, latest: mapped[0] || null });
+        }
+      );
+    });
+  }
+
+  /**
+   * Marca todos los errores actuales del usuario como "vistos".
+   * Devuelve nº de schedules afectados.
+   */
+  async acknowledgeScheduleErrors(userId: string): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+    const now = Date.now();
+
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE scheduled_reports
+         SET errors_acknowledged_at = ?, updated_at = ?
+         WHERE user_id = ? AND last_status = 'error'`,
+        [now, now, userId],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  }
+
+  async deleteScheduledReport(id: string, userId: string): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('DB no inicializada');
+    const db = this.db;
+
+    return new Promise((resolve, reject) => {
+      db.run(
+        'DELETE FROM scheduled_reports WHERE id = ? AND user_id = ?',
+        [id, userId],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes > 0);
+        }
+      );
+    });
   }
 }
 

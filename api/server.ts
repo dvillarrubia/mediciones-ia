@@ -2,6 +2,7 @@
  * local server entry file, for local development
  */
 import app from './app.js';
+import { schedulerService } from './services/schedulerService.js';
 
 /**
  * start server with port
@@ -10,6 +11,7 @@ const PORT = process.env.PORT || 3003;
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server ready on port ${PORT}`);
+  schedulerService.start();
 });
 
 /**

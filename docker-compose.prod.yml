@@ -51,6 +51,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET}
+      - API_KEY_ENCRYPTION_SECRET=${API_KEY_ENCRYPTION_SECRET}
     volumes:
       - mediciones_data:/app/data
       - ./logs:/app/logs

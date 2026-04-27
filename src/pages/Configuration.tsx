@@ -135,7 +135,7 @@ const Configuration: React.FC = () => {
     }
   };
 
-  const saveApiKeys = () => {
+  const saveApiKeys = async () => {
     try {
       // Trim whitespace from all keys before saving
       const trimmedKeys = {
@@ -146,16 +146,58 @@ const Configuration: React.FC = () => {
       };
       setApiKeys(trimmedKeys);
       localStorage.setItem('userApiKeys', JSON.stringify(trimmedKeys));
-      setSuccess('API Keys guardadas correctamente');
+
+      // Persistir también en el servidor (cifradas). Necesario para
+      // automatizaciones programadas que corren sin sesión activa.
+      const providers = ['openai', 'anthropic', 'google', 'dataforseo'] as const;
+      const serverErrors: string[] = [];
+      for (const provider of providers) {
+        const apiKey = trimmedKeys[provider];
+        try {
+          if (apiKey) {
+            const res = await apiFetch(`${API_BASE_URL}/api/auth/api-keys`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ provider, apiKey }),
+            });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              serverErrors.push(`${provider}: ${data.error || res.status}`);
+            }
+          } else {
+            // Vacío: eliminar del servidor si existía
+            await apiFetch(`${API_BASE_URL}/api/auth/api-keys/${provider}`, {
+              method: 'DELETE',
+            });
+          }
+        } catch (err: any) {
+          serverErrors.push(`${provider}: ${err?.message || 'error de red'}`);
+        }
+      }
+
+      if (serverErrors.length > 0) {
+        setError(`Guardadas en local, pero fallaron en servidor: ${serverErrors.join(', ')}`);
+      } else {
+        setSuccess('API Keys guardadas correctamente');
+      }
     } catch (e) {
       setError('Error al guardar las API Keys');
     }
   };
 
-  const clearApiKeys = () => {
+  const clearApiKeys = async () => {
     if (window.confirm('¿Eliminar todas las API Keys?')) {
       setApiKeys({ openai: '', anthropic: '', google: '', dataforseo: '' });
       localStorage.removeItem('userApiKeys');
+
+      // También en el servidor
+      const providers = ['openai', 'anthropic', 'google', 'dataforseo'];
+      await Promise.all(
+        providers.map(p =>
+          apiFetch(`${API_BASE_URL}/api/auth/api-keys/${p}`, { method: 'DELETE' }).catch(() => null)
+        )
+      );
+
       setSuccess('API Keys eliminadas');
     }
   };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   FileText,
   Download,
@@ -36,6 +37,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
 import MetricsDashboard from '../components/intelligence/MetricsDashboard';
 import AIOverviewDashboard from '../components/intelligence/AIOverviewDashboard';
+import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
 import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
@@ -122,8 +124,31 @@ type SortDirection = 'asc' | 'desc';
 const ITEMS_PER_PAGE = 10;
 
 const IntelligenceHub: React.FC = () => {
+  const location = useLocation();
+  // Auto-select tab desde ?tab=... (usado por el banner de salud)
+  const initialTab = (() => {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('tab');
+    if (t === 'schedules' || t === 'ai-overview' || t === 'metrics' || t === 'insights' || t === 'compare' || t === 'trends' || t === 'list') {
+      return t;
+    }
+    return 'list';
+  })();
   // Estado principal
-  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights' | 'metrics' | 'ai-overview'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights' | 'metrics' | 'ai-overview' | 'schedules'>(initialTab);
+  const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchHealth = () => {
+      apiFetch(API_ENDPOINTS.schedulesHealth)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.success) setScheduleErrorCount(d.data.errorCount || 0);
+        })
+        .catch(() => null);
+    };
+    fetchHealth();
+  }, [activeTab]);
   const [analyses, setAnalyses] = useState<SavedAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<AnalysisDetail | null>(null);
@@ -1114,6 +1139,23 @@ const IntelligenceHub: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4" />
                 AI Overviews
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('schedules')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'schedules'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Automatizaciones
+                {scheduleErrorCount > 0 && activeTab !== 'schedules' && (
+                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full min-w-[1.25rem]">
+                    {scheduleErrorCount}
+                  </span>
+                )}
               </div>
             </button>
           </nav>
@@ -2259,6 +2301,11 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 6: AI OVERVIEWS */}
           {activeTab === 'ai-overview' && (
             <AIOverviewDashboard projectId={selectedProjectId || undefined} />
+          )}
+
+          {/* TAB 7: AUTOMATIZACIONES */}
+          {activeTab === 'schedules' && (
+            <SchedulesDashboard projectId={selectedProjectId} />
           )}
         </div>
       </div>

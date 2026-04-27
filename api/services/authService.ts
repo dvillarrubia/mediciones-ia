@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { adminService } from './adminService.js';
+import { encryptSecret, decryptSecret, isEncryptedV2, looksLikePlausibleApiKey } from '../utils/crypto.js';
 
 export interface User {
   id: string;
@@ -139,8 +140,13 @@ class AuthService {
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
-        this.db!.run('CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON user_api_keys(user_id)', () => {
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON user_api_keys(user_id)', async () => {
           console.log('AuthService: Tablas creadas/verificadas');
+          try {
+            await this.migrateApiKeysToV2();
+          } catch (migrationErr) {
+            console.error('AuthService: error en migración API keys a v2:', migrationErr);
+          }
           resolve();
         });
       });
@@ -149,6 +155,79 @@ class AuthService {
 
   private async ensureInitialized(): Promise<void> {
     await this.initialized;
+  }
+
+  /**
+   * Migra filas de user_api_keys en formato legacy (base64) a AES-256-GCM.
+   * Idempotente: solo toca filas sin el prefijo v2:.
+   */
+  private async migrateApiKeysToV2(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('DB no inicializada'));
+        return;
+      }
+
+      this.db.all('SELECT id, api_key_encrypted FROM user_api_keys', [], (err, rows: any[]) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const toMigrate = rows.filter(r => !isEncryptedV2(r.api_key_encrypted));
+        if (toMigrate.length === 0) {
+          resolve();
+          return;
+        }
+
+        console.log(`AuthService: migrando ${toMigrate.length} API keys a cifrado v2`);
+        let remaining = toMigrate.length;
+        let failed = 0;
+
+        toMigrate.forEach(row => {
+          try {
+            const plaintext = Buffer.from(row.api_key_encrypted, 'base64').toString('utf-8');
+            // Validar que el resultado parece una API key real antes de
+            // re-cifrar. Sin esto, valores no-base64 darían basura que se
+            // cifraría perdiendo la key original irrecuperablemente.
+            if (!looksLikePlausibleApiKey(plaintext)) {
+              console.warn(`AuthService: omitiendo migración de key ${row.id} (provider=${row.provider}): plaintext no parece válido`);
+              failed++;
+              remaining--;
+              if (remaining === 0) finalize();
+              return;
+            }
+            const newEnc = encryptSecret(plaintext);
+            this.db!.run(
+              'UPDATE user_api_keys SET api_key_encrypted = ?, updated_at = ? WHERE id = ?',
+              [newEnc, new Date().toISOString(), row.id],
+              (uErr) => {
+                if (uErr) {
+                  console.error(`Error migrando key ${row.id}:`, uErr);
+                  failed++;
+                }
+                remaining--;
+                if (remaining === 0) finalize();
+              }
+            );
+          } catch (processErr) {
+            console.error(`Error procesando key ${row.id}:`, processErr);
+            failed++;
+            remaining--;
+            if (remaining === 0) finalize();
+          }
+        });
+
+        function finalize() {
+          if (failed > 0) {
+            console.warn(`AuthService: migración v2 completada con ${failed} errores/omisiones`);
+          } else {
+            console.log('AuthService: migración de API keys a v2 completada');
+          }
+          resolve();
+        }
+      });
+    });
   }
 
   /**
@@ -517,8 +596,7 @@ class AuthService {
 
       const id = uuidv4();
       const now = new Date().toISOString();
-      // Nota: En producción, encriptar con clave de servidor
-      const encrypted = Buffer.from(apiKey).toString('base64');
+      const encrypted = encryptSecret(apiKey);
 
       const query = `
         INSERT INTO user_api_keys (id, user_id, provider, api_key_encrypted, created_at, updated_at)
@@ -557,7 +635,11 @@ class AuthService {
         } else {
           const keys: { [provider: string]: string } = {};
           rows.forEach(row => {
-            keys[row.provider] = Buffer.from(row.api_key_encrypted, 'base64').toString('utf-8');
+            try {
+              keys[row.provider] = decryptSecret(row.api_key_encrypted);
+            } catch (decryptErr) {
+              console.error(`Error descifrando API key de ${row.provider}:`, decryptErr);
+            }
           });
           resolve(keys);
         }

@@ -151,6 +151,9 @@ export interface AnalysisResult {
       otherCompetitors?: BrandMention[];
     };
   };
+  // Errores recogidos durante el procesamiento (por pregunta o críticos).
+  // Permite al llamante detectar fallos silenciosos (quota agotada, auth, etc.).
+  errors?: string[];
 }
 
 class OpenAIService {
@@ -442,7 +445,8 @@ class OpenAIService {
       totalSources,
       prioritySources,
       brandSummary: consolidatedMentions,
-      brandSummaryByType: mentionsByType
+      brandSummaryByType: mentionsByType,
+      errors: errors.length > 0 ? errors : undefined,
     };
   }
 
@@ -2351,9 +2355,10 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
       totalSources,
       prioritySources,
       brandSummary: consolidatedMentions,
-      brandSummaryByType: mentionsByType
+      brandSummaryByType: mentionsByType,
+      errors: errors.length > 0 ? errors : undefined,
     };
-  
+
   } catch (error) {
     console.error('🔴 Error en análisis multi-modelo:', error);
     throw error;
