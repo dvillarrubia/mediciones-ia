@@ -39,20 +39,34 @@ function ensureTable(db: sqlite3.Database): Promise<void> {
         country_code TEXT NOT NULL,
         configuration TEXT NOT NULL,
         results TEXT NOT NULL,
+        raw_data TEXT,
         cost_usd REAL,
         status TEXT DEFAULT 'completed',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `, (err) => {
-      if (err) reject(err);
-      else {
-        db.run('CREATE INDEX IF NOT EXISTS idx_aio_user_id ON ai_overview_analyses(user_id)', () => {
-          db.run('CREATE INDEX IF NOT EXISTS idx_aio_project_id ON ai_overview_analyses(project_id)', () => {
-            resolve();
+      if (err) return reject(err);
+      // Migración para tablas pre-existentes: añade raw_data si falta.
+      db.all(`PRAGMA table_info(ai_overview_analyses)`, (infoErr, columns: any[]) => {
+        if (infoErr) return reject(infoErr);
+        const hasRawData = columns.some((c: any) => c.name === 'raw_data');
+        const afterColumns = () => {
+          db.run('CREATE INDEX IF NOT EXISTS idx_aio_user_id ON ai_overview_analyses(user_id)', () => {
+            db.run('CREATE INDEX IF NOT EXISTS idx_aio_project_id ON ai_overview_analyses(project_id)', () => {
+              resolve();
+            });
           });
-        });
-      }
+        };
+        if (!hasRawData) {
+          db.run('ALTER TABLE ai_overview_analyses ADD COLUMN raw_data TEXT', (alterErr) => {
+            if (alterErr) return reject(alterErr);
+            afterColumns();
+          });
+        } else {
+          afterColumns();
+        }
+      });
     });
   });
 }
@@ -235,7 +249,7 @@ router.post('/execute', async (req: Request, res: Response): Promise<void> => {
     };
 
     // Ejecutar análisis
-    const result = await aiOverviewService.executeAnalysis(credentials, config);
+    const { result, byDomain } = await aiOverviewService.executeAnalysis(credentials, config);
 
     // Guardar en DB
     const db = getDb();
@@ -246,8 +260,8 @@ router.post('/execute', async (req: Request, res: Response): Promise<void> => {
 
     await new Promise<void>((resolve, reject) => {
       db.run(
-        `INSERT INTO ai_overview_analyses (id, user_id, project_id, timestamp, target_domain, competitors, location_code, language_code, country_code, configuration, results, cost_usd, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ai_overview_analyses (id, user_id, project_id, timestamp, target_domain, competitors, location_code, language_code, country_code, configuration, results, raw_data, cost_usd, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           userId,
@@ -260,6 +274,7 @@ router.post('/execute', async (req: Request, res: Response): Promise<void> => {
           countryCode,
           JSON.stringify(config),
           JSON.stringify(result),
+          JSON.stringify(byDomain),
           result.metadata.total_cost_usd,
           'completed'
         ],
@@ -395,6 +410,59 @@ router.get('/results/:id', async (req: Request, res: Response): Promise<void> =>
   } catch (error: any) {
     console.error('Error obteniendo resultado AI Overview:', error);
     res.status(500).json({ error: error.message || 'Error al obtener resultado' });
+  }
+});
+
+/**
+ * GET /api/ai-overview/results/:id/raw
+ *
+ * Devuelve los datos crudos parseados de DataForSEO (ParsedEntry[] por dominio)
+ * para poder exportarlos a Excel. Para análisis ejecutados antes de añadir
+ * la columna raw_data, devuelve `byDomain: null` para que el frontend
+ * pueda hacer fallback usando los tops del resultado procesado.
+ */
+router.get('/results/:id/raw', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId;
+    const { id } = req.params;
+
+    const db = getDb();
+    await ensureTable(db);
+
+    const row: any = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, timestamp, target_domain, competitors, country_code, cost_usd, configuration, results, raw_data FROM ai_overview_analyses WHERE id = ? AND user_id = ?',
+        [id, userId],
+        (err, row) => {
+          db.close();
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!row) {
+      res.status(404).json({ error: 'Análisis no encontrado' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        timestamp: row.timestamp,
+        targetDomain: row.target_domain,
+        competitors: JSON.parse(row.competitors),
+        countryCode: row.country_code,
+        costUsd: row.cost_usd,
+        configuration: JSON.parse(row.configuration),
+        results: JSON.parse(row.results),
+        byDomain: row.raw_data ? JSON.parse(row.raw_data) : null,
+      }
+    });
+  } catch (error: any) {
+    console.error('Error obteniendo raw data AI Overview:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener datos crudos' });
   }
 });
 

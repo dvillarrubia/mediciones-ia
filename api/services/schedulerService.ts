@@ -247,7 +247,7 @@ class SchedulerService {
       keywordsLimit: keywordsLimit === 0 ? 0 : (keywordsLimit || 1000),
     };
 
-    const result = await aiOverviewService.executeAnalysis(credentials, config);
+    const { result, byDomain } = await aiOverviewService.executeAnalysis(credentials, config);
 
     const dbPath = path.join(process.cwd(), 'data', 'analysis.db');
     const db = new sqlite3.Database(dbPath);
@@ -260,8 +260,8 @@ class SchedulerService {
           `INSERT INTO ai_overview_analyses
             (id, user_id, project_id, timestamp, target_domain, competitors,
              location_code, language_code, country_code, configuration, results,
-             cost_usd, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             raw_data, cost_usd, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             schedule.userId,
@@ -274,6 +274,7 @@ class SchedulerService {
             countryCode,
             JSON.stringify(config),
             JSON.stringify(result),
+            JSON.stringify(byDomain),
             result.metadata.total_cost_usd,
             'completed',
           ],

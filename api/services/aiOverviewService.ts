@@ -178,12 +178,15 @@ class AIOverviewService {
 
   /**
    * Ejecutar análisis completo: fetch → parse → analyze
+   *
+   * Devuelve el resultado procesado y los ParsedEntry crudos por dominio
+   * (byDomain) para poder exportar los datos en bruto a Excel.
    */
   async executeAnalysis(
     credentials: DataForSEOCredentials,
     config: AIOverviewConfig,
     onProgress?: (stage: string, detail: string) => void
-  ): Promise<AIOverviewResult> {
+  ): Promise<{ result: AIOverviewResult; byDomain: Record<string, ParsedEntry[]> }> {
     const location = COUNTRY_TO_LOCATION_CODE[config.countryCode];
     if (!location) {
       throw new Error(`País no soportado: ${config.countryCode}`);
@@ -230,7 +233,7 @@ class AIOverviewService {
     const result = this.analyze(byDomain, keywordIndex, config, location_code, language_code, totalCost);
 
     onProgress?.('done', 'Análisis completado');
-    return result;
+    return { result, byDomain };
   }
 
   /**

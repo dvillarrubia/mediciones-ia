@@ -2,13 +2,15 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
   Globe, TrendingUp, Eye, Target, Zap, Loader2,
   ArrowUp, ArrowDown, MessageSquareQuote, BarChart3,
-  AlertTriangle, Shield, ExternalLink, ChevronDown, ChevronUp
+  AlertTriangle, Shield, ExternalLink, ChevronDown, ChevronUp,
+  Download
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import API_BASE_URL, { apiFetch } from '../../config/api';
+import { exportAIOverviewToExcel } from './aioExcelExport';
 
 // ==================== TYPES ====================
 
@@ -110,10 +112,27 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
   const [loading, setLoading] = useState(true);
   const [fullResult, setFullResult] = useState<FullResult | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Collapsible sections
   const [showGaps, setShowGaps] = useState(true);
   const [showExclusive, setShowExclusive] = useState(true);
+
+  const handleDownloadExcel = async () => {
+    if (!fullResult?.id || exporting) return;
+    setExporting(true);
+    try {
+      const resp = await apiFetch(`${API_BASE_URL}/api/ai-overview/results/${fullResult.id}/raw`);
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Error al obtener datos crudos');
+      exportAIOverviewToExcel(data.data);
+    } catch (e: any) {
+      console.error('Error exportando AI Overview a Excel:', e);
+      alert(`No se pudo generar el Excel: ${e.message || e}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Fetch history
   useEffect(() => {
@@ -244,9 +263,23 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-2">
-          <Globe className="w-8 h-8" />
-          <h2 className="text-2xl font-bold">AI Overviews — Dashboard</h2>
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <div className="flex items-center gap-3">
+            <Globe className="w-8 h-8" />
+            <h2 className="text-2xl font-bold">AI Overviews — Dashboard</h2>
+          </div>
+          <button
+            type="button"
+            onClick={handleDownloadExcel}
+            disabled={!fullResult?.id || exporting || loadingFull}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium border border-white/20"
+            title="Descargar datos del análisis en Excel (una pestaña por dominio + resumen)"
+          >
+            {exporting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />}
+            <span>{exporting ? 'Generando...' : 'Descargar Excel'}</span>
+          </button>
         </div>
         <p className="text-cyan-100">
           Dominio: <strong>{latest.targetDomain}</strong> vs {latest.competitors.join(', ')}
