@@ -1,14 +1,14 @@
 /**
- * Admin tab: importar análisis desde un export local.
- * Flujo:
- *  1. Cargar proyectos existentes de la instancia (dropdown de mapeo).
- *  2. El admin sube el JSON generado por scripts/export-db.ts.
- *  3. Mapear cada project_id origen → project_id destino (obligatorio).
- *  4. Seleccionar qué análisis y AI overviews subir.
- *  5. POST a /api/admin/import/analyses.
+ * Admin tab: importar / exportar análisis para mover datos entre servidores.
+ *
+ * Export (arriba): descarga un JSON con projects + analyses + aiOverviews
+ * de esta instancia. Selecciona qué incluir y se descarga el archivo.
+ *
+ * Import (abajo): sube un JSON exportado (de aquí o del script CLI),
+ * mapea project_id origen → destino y se insertan los registros.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Upload, Check, AlertCircle, FileJson, ChevronsUpDown } from 'lucide-react';
+import { Upload, Download, Check, AlertCircle, FileJson, ChevronsUpDown } from 'lucide-react';
 import API_BASE_URL from '../../config/api';
 
 interface TargetProject {
@@ -214,10 +214,16 @@ export default function ImportAnalysesTab({ authToken, onMessage }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* ============================== EXPORT ============================== */}
+      <ExportSection authToken={authToken} onMessage={onMessage} />
+
+      <div className="border-t border-gray-200" />
+
+      {/* ============================== IMPORT ============================== */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Importar análisis desde export local</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Importar análisis desde un export</h2>
         <p className="text-sm text-gray-500">
-          Sube el JSON generado con <code className="px-1 bg-gray-100 rounded text-xs">npx tsx scripts/export-db.ts</code> y mapea cada proyecto de origen contra uno existente antes de subir.
+          Sube el JSON generado arriba (o con <code className="px-1 bg-gray-100 rounded text-xs">npx tsx scripts/export-db.ts</code>) y mapea cada proyecto de origen contra uno existente antes de subir.
         </p>
       </div>
 
@@ -406,6 +412,206 @@ interface SelectionTableProps {
   selected: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: (on: boolean) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Export section: pull all projects/analyses/aiOverviews from this server,
+// let admin pick what to include, download as JSON.
+// ---------------------------------------------------------------------------
+interface ExportSectionProps {
+  authToken: string;
+  onMessage: (msg: { type: 'success' | 'error'; text: string }) => void;
+}
+
+function ExportSection({ authToken, onMessage }: ExportSectionProps) {
+  const [loading, setLoading] = useState(false);
+  const [payload, setPayload] = useState<ExportPayload | null>(null);
+  const [selProjects, setSelProjects] = useState<Set<string>>(new Set());
+  const [selAnalyses, setSelAnalyses] = useState<Set<string>>(new Set());
+  const [selAiOverviews, setSelAiOverviews] = useState<Set<string>>(new Set());
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/import/export-data`, {
+        headers: { Authorization: `Basic ${authToken}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as ExportPayload;
+      setPayload(data);
+      setSelProjects(new Set(data.projects.map(p => p.id)));
+      setSelAnalyses(new Set(data.analyses.map(a => a.id)));
+      setSelAiOverviews(new Set(data.aiOverviews.map(a => a.id)));
+    } catch (e: any) {
+      onMessage({ type: 'error', text: `No se pudo cargar el export: ${e.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
+
+  const projectName = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!payload) return m;
+    for (const p of payload.projects) m.set(p.id, p.name);
+    return m;
+  }, [payload]);
+
+  // Project ids referenced by the currently selected analyses/AIOs.
+  // We auto-include those projects in the export so the importer can map them.
+  const referencedProjectIds = useMemo(() => {
+    if (!payload) return new Set<string>();
+    const s = new Set<string>();
+    for (const a of payload.analyses) if (selAnalyses.has(a.id) && a.project_id) s.add(a.project_id);
+    for (const a of payload.aiOverviews) if (selAiOverviews.has(a.id) && a.project_id) s.add(a.project_id);
+    return s;
+  }, [payload, selAnalyses, selAiOverviews]);
+
+  const toggle = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setter(next);
+  };
+
+  const setAll = (ids: string[], setter: (s: Set<string>) => void, on: boolean) => {
+    setter(on ? new Set(ids) : new Set());
+  };
+
+  const handleDownload = () => {
+    if (!payload) return;
+    // Union of explicitly selected projects + projects referenced by selected rows
+    const includedProjectIds = new Set<string>(selProjects);
+    for (const pid of referencedProjectIds) includedProjectIds.add(pid);
+
+    const out: ExportPayload = {
+      version: payload.version,
+      exportedAt: new Date().toISOString(),
+      source: payload.source,
+      projects: payload.projects.filter(p => includedProjectIds.has(p.id)),
+      analyses: payload.analyses.filter(a => selAnalyses.has(a.id)),
+      aiOverviews: payload.aiOverviews.filter(a => selAiOverviews.has(a.id)),
+    };
+
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `mediciones-export-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    onMessage({
+      type: 'success',
+      text: `Export descargado · ${out.projects.length} proyectos · ${out.analyses.length} análisis · ${out.aiOverviews.length} AI overviews`,
+    });
+  };
+
+  const totalSelected = selAnalyses.size + selAiOverviews.size;
+  const canDownload = !!payload && totalSelected > 0 && !loading;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Exportar análisis de esta instancia</h2>
+        <p className="text-sm text-gray-500">
+          Descarga un JSON con los datos seleccionados para luego importarlos en otro servidor desde la sección de abajo.
+        </p>
+      </div>
+
+      {loading && !payload && (
+        <div className="bg-white rounded-lg shadow p-5 text-sm text-gray-500">Cargando datos del servidor…</div>
+      )}
+
+      {payload && (
+        <>
+          <div className="bg-white rounded-lg shadow p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{payload.projects.length}</span> proyectos ·{' '}
+              <span className="font-medium text-gray-900">{payload.analyses.length}</span> análisis ·{' '}
+              <span className="font-medium text-gray-900">{payload.aiOverviews.length}</span> AI overviews disponibles
+              {payload.exportedAt && (
+                <span className="text-gray-400"> · snapshot {new Date(payload.exportedAt).toLocaleString('es-ES')}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadData}
+                disabled={loading}
+                className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Refrescar
+              </button>
+              <button
+                onClick={handleDownload}
+                disabled={!canDownload}
+                className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                Descargar export.json ({totalSelected})
+              </button>
+            </div>
+          </div>
+
+          <SelectionTable
+            title="Análisis"
+            rows={payload.analyses.map(a => ({
+              id: a.id,
+              cols: [
+                a.brand,
+                projectName.get(a.project_id || '') || '—',
+                new Date(a.timestamp).toLocaleString('es-ES'),
+                (a.questions_count ?? '').toString(),
+              ],
+            }))}
+            headers={['Marca', 'Proyecto', 'Timestamp', 'Preguntas']}
+            selected={selAnalyses}
+            onToggle={(id) => toggle(selAnalyses, id, setSelAnalyses)}
+            onToggleAll={(on) => setAll(payload.analyses.map(a => a.id), setSelAnalyses, on)}
+          />
+
+          <SelectionTable
+            title="AI Overviews"
+            rows={payload.aiOverviews.map(a => ({
+              id: a.id,
+              cols: [
+                a.target_domain,
+                projectName.get(a.project_id || '') || '—',
+                new Date(a.timestamp).toLocaleString('es-ES'),
+                a.status || '—',
+              ],
+            }))}
+            headers={['Dominio', 'Proyecto', 'Timestamp', 'Status']}
+            selected={selAiOverviews}
+            onToggle={(id) => toggle(selAiOverviews, id, setSelAiOverviews)}
+            onToggleAll={(on) => setAll(payload.aiOverviews.map(a => a.id), setSelAiOverviews, on)}
+          />
+
+          <SelectionTable
+            title="Proyectos (opcional)"
+            rows={payload.projects.map(p => ({
+              id: p.id,
+              cols: [
+                p.name,
+                p.description || '—',
+                referencedProjectIds.has(p.id) ? 'auto (referenciado)' : '',
+              ],
+            }))}
+            headers={['Nombre', 'Descripción', 'Estado']}
+            selected={selProjects}
+            onToggle={(id) => toggle(selProjects, id, setSelProjects)}
+            onToggleAll={(on) => setAll(payload.projects.map(p => p.id), setSelProjects, on)}
+          />
+        </>
+      )}
+    </div>
+  );
 }
 
 function SelectionTable({ title, headers, rows, selected, onToggle, onToggleAll }: SelectionTableProps) {

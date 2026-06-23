@@ -1082,6 +1082,64 @@ class DatabaseService {
     });
   }
 
+  /**
+   * Cross-user dump de proyectos para export. Mismo shape que el script CLI.
+   */
+  async getAllProjectsForExport(): Promise<Array<{ id: string; name: string; description: string | null; user_id: string | null }>> {
+    await this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('DB not initialized'));
+      this.db.all(
+        'SELECT id, name, description, user_id FROM projects ORDER BY name ASC',
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  }
+
+  /**
+   * Cross-user dump de análisis para export. Mismo shape que el script CLI.
+   */
+  async getAllAnalysesForExport(): Promise<any[]> {
+    await this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('DB not initialized'));
+      this.db.all(
+        `SELECT id, user_id, project_id, timestamp, brand, competitors, template_id,
+                questions_count, configuration, results, metadata, created_at
+         FROM analysis
+         ORDER BY timestamp DESC`,
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  }
+
+  /**
+   * Cross-user dump de AI overviews para export. Mismo shape que el script CLI.
+   */
+  async getAllAiOverviewsForExport(): Promise<any[]> {
+    await this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('DB not initialized'));
+      this.db.all(
+        `SELECT id, user_id, project_id, timestamp, target_domain, competitors,
+                location_code, language_code, country_code, configuration, results,
+                cost_usd, status, created_at
+         FROM ai_overview_analyses
+         ORDER BY timestamp DESC`,
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  }
+
   async bulkImportAnalyses(
     rows: Array<{
       id: string;

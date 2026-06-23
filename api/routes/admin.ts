@@ -356,6 +356,34 @@ router.get('/import/projects', requireAdminAuth, async (_req: Request, res: Resp
 });
 
 /**
+ * Export completo (cross-user) de proyectos, análisis y AI overviews.
+ * Devuelve el mismo payload que scripts/export-db.ts para que se pueda
+ * importar luego en otra instancia vía POST /api/admin/import/analyses.
+ * GET /api/admin/import/export-data
+ */
+router.get('/import/export-data', requireAdminAuth, async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const [projects, analyses, aiOverviews] = await Promise.all([
+      databaseService.getAllProjectsForExport(),
+      databaseService.getAllAnalysesForExport(),
+      databaseService.getAllAiOverviewsForExport(),
+    ]);
+
+    res.json({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      source: 'api',
+      projects,
+      analyses,
+      aiOverviews,
+    });
+  } catch (error: any) {
+    console.error('Error generando export-data:', error);
+    res.status(500).json({ error: error.message || 'Error al generar export' });
+  }
+});
+
+/**
  * Importar análisis desde un payload JSON exportado por scripts/export-db.ts
  * Mapea project_id origen → project_id destino (obligatorio).
  * Ignora filas cuyo id ya exista en la DB (INSERT OR IGNORE).

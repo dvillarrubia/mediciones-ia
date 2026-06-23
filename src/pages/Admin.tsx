@@ -651,7 +651,7 @@ export default function Admin() {
               }`}
             >
               <Upload className="h-5 w-5" />
-              Importar análisis
+              Import / Export análisis
             </button>
           </nav>
         </div>
