@@ -178,10 +178,12 @@ export const providerQueues = {
   openai: buildQueue('openai', 'OPENAI_QUEUE', { maxConcurrent: 5, minIntervalMs: 120, maxRetries: 6 }),
   anthropic: buildQueue('anthropic', 'ANTHROPIC_QUEUE', { maxConcurrent: 3, minIntervalMs: 200, maxRetries: 6 }),
   google: buildQueue('google', 'GOOGLE_QUEUE', { maxConcurrent: 3, minIntervalMs: 200, maxRetries: 6 }),
+  openrouter: buildQueue('openrouter', 'OPENROUTER_QUEUE', { maxConcurrent: 5, minIntervalMs: 120, maxRetries: 6 }),
 };
 
 export const getQueueStats = () => ({
   openai: providerQueues.openai.getStats(),
   anthropic: providerQueues.anthropic.getStats(),
   google: providerQueues.google.getStats(),
+  openrouter: providerQueues.openrouter.getStats(),
 });

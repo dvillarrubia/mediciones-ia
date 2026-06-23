@@ -94,12 +94,14 @@ const Configuration: React.FC = () => {
     openai: '',
     anthropic: '',
     google: '',
+    openrouter: '',
     dataforseo: ''
   });
   const [showApiKeys, setShowApiKeys] = useState({
     openai: false,
     anthropic: false,
     google: false,
+    openrouter: false,
     dataforseo: false
   });
 
@@ -128,7 +130,8 @@ const Configuration: React.FC = () => {
     if (savedKeys) {
       try {
         const parsed = JSON.parse(savedKeys);
-        setApiKeys(parsed);
+        // Merge con defaults para no perder claves nuevas (p.ej. openrouter)
+        setApiKeys(prev => ({ ...prev, ...parsed }));
       } catch (e) {
         console.error('Error loading API keys:', e);
       }
@@ -142,6 +145,7 @@ const Configuration: React.FC = () => {
         openai: apiKeys.openai.trim(),
         anthropic: apiKeys.anthropic.trim(),
         google: apiKeys.google.trim(),
+        openrouter: apiKeys.openrouter.trim(),
         dataforseo: apiKeys.dataforseo.trim()
       };
       setApiKeys(trimmedKeys);
@@ -149,7 +153,7 @@ const Configuration: React.FC = () => {
 
       // Persistir también en el servidor (cifradas). Necesario para
       // automatizaciones programadas que corren sin sesión activa.
-      const providers = ['openai', 'anthropic', 'google', 'dataforseo'] as const;
+      const providers = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'] as const;
       const serverErrors: string[] = [];
       for (const provider of providers) {
         const apiKey = trimmedKeys[provider];
@@ -187,11 +191,11 @@ const Configuration: React.FC = () => {
 
   const clearApiKeys = async () => {
     if (window.confirm('¿Eliminar todas las API Keys?')) {
-      setApiKeys({ openai: '', anthropic: '', google: '', dataforseo: '' });
+      setApiKeys({ openai: '', anthropic: '', google: '', openrouter: '', dataforseo: '' });
       localStorage.removeItem('userApiKeys');
 
       // También en el servidor
-      const providers = ['openai', 'anthropic', 'google', 'dataforseo'];
+      const providers = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'];
       await Promise.all(
         providers.map(p =>
           apiFetch(`${API_BASE_URL}/api/auth/api-keys/${p}`, { method: 'DELETE' }).catch(() => null)
@@ -1162,6 +1166,43 @@ const Configuration: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* OpenRouter */}
+              <div className="border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <Key className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">OpenRouter</h3>
+                      <p className="text-sm text-gray-500">Una sola key para ChatGPT, Claude, Gemini y Perplexity (con búsqueda)</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.openrouter ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {apiKeys.openrouter ? 'Configurada' : 'No configurada'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showApiKeys.openrouter ? 'text' : 'password'}
+                    value={apiKeys.openrouter}
+                    onChange={(e) => setApiKeys(prev => ({ ...prev, openrouter: e.target.value }))}
+                    placeholder="sk-or-..."
+                    className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  />
+                  <button
+                    onClick={() => setShowApiKeys(prev => ({ ...prev, openrouter: !prev.openrouter }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showApiKeys.openrouter ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  Obtén tu clave en openrouter.ai/keys. Habilita los modelos OpenRouter en el selector de análisis.
+                </p>
+              </div>
+
               {/* DataForSEO */}
               <div className="border border-gray-200 rounded-lg p-5">
                 <div className="flex items-center justify-between mb-3">

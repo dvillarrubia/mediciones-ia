@@ -9,13 +9,19 @@
 export interface AIModelInfo {
   id: string;
   name: string;
-  provider: 'openai' | 'anthropic' | 'google';
+  provider: 'openai' | 'anthropic' | 'google' | 'openrouter';
   description: string;
   strengths: string[];
   contextWindow: string;
   pricing: string;
   recommended?: boolean;
   requiresApiKey: string;
+  /**
+   * Indica si el modelo tiene búsqueda web. Hasta ahora se infería por
+   * id.includes('search'); para OpenRouter (sufijo ':online' / Perplexity Sonar)
+   * lo marcamos explícitamente.
+   */
+  supportsWebSearch?: boolean;
 }
 
 export const AI_MODELS: AIModelInfo[] = [
@@ -303,9 +309,114 @@ export const COUNTRIES: CountryInfo[] = [
   }
 ] as const;
 
-// Helper para obtener modelo por ID
+// =====================================================
+// OPENROUTER - Una sola API key, acceso a todos los modelos.
+// Todos llevan búsqueda web (sufijo ':online' / plugin web) salvo que
+// el modelo sea "online" de forma nativa (Perplexity Sonar).
+//
+// ⚠️ Los slugs de OpenRouter cambian con frecuencia. Verifícalos en
+//    https://openrouter.ai/models y actualízalos aquí. El "modo avanzado"
+//    del dropdown permite pegar cualquier model-id, así que esta lista es
+//    solo el atajo curado de los modelos recomendados.
+// =====================================================
+export const OPENROUTER_MODELS: AIModelInfo[] = [
+  {
+    id: 'openai/gpt-5.5:online',
+    name: 'ChatGPT (GPT-5.5) + Search',
+    provider: 'openrouter',
+    description: 'Último GPT de OpenAI vía OpenRouter con búsqueda web (plugin :online).',
+    strengths: ['🌐 Búsqueda web', '🧠 Último GPT', '📚 Citaciones', '✅ URLs reales'],
+    contextWindow: '400K tokens',
+    pricing: 'Según OpenRouter',
+    recommended: true,
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'anthropic/claude-sonnet-4.6:online',
+    name: 'Claude Sonnet 4.6 + Search',
+    provider: 'openrouter',
+    description: 'Claude Sonnet con búsqueda web vía OpenRouter (la integración directa de Claude no tiene search).',
+    strengths: ['🌐 Búsqueda web', '🧠 Razonamiento', '📚 Citaciones'],
+    contextWindow: '200K tokens',
+    pricing: 'Según OpenRouter',
+    recommended: true,
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'google/gemini-3.5-flash:online',
+    name: 'Gemini 3.5 Flash + Search',
+    provider: 'openrouter',
+    description: 'Gemini de Google vía OpenRouter con búsqueda web. (Para Gemini Pro usa el modo avanzado con el slug exacto de openrouter.ai/models.)',
+    strengths: ['🌐 Búsqueda web', '🧠 Multimodal', '📚 Citaciones', '⚡ Rápido'],
+    contextWindow: '1M tokens',
+    pricing: 'Según OpenRouter',
+    recommended: true,
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'perplexity/sonar-pro',
+    name: 'Perplexity Sonar Pro',
+    provider: 'openrouter',
+    description: 'Perplexity Sonar Pro: búsqueda online nativa con citaciones.',
+    strengths: ['🌐 Búsqueda online nativa', '📚 Citaciones', '🕐 Info actualizada'],
+    contextWindow: '200K tokens',
+    pricing: 'Según OpenRouter',
+    recommended: true,
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'perplexity/sonar-reasoning-pro',
+    name: 'Perplexity Sonar Reasoning Pro',
+    provider: 'openrouter',
+    description: 'Perplexity Sonar con razonamiento y búsqueda online nativa.',
+    strengths: ['🌐 Búsqueda online nativa', '🧠 Razonamiento', '📚 Citaciones'],
+    contextWindow: '128K tokens',
+    pricing: 'Según OpenRouter',
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+];
+
+/**
+ * Construye un AIModelInfo sintético para un model-id arbitrario de OpenRouter
+ * (modo avanzado: el usuario pega el slug). La búsqueda web se asume si el id
+ * termina en ':online' o es un modelo Perplexity Sonar (online nativo).
+ */
+export const buildAdHocOpenRouterModel = (modelId: string): AIModelInfo => {
+  const isOnline = modelId.endsWith(':online') || /perplexity\/.*sonar/i.test(modelId);
+  return {
+    id: modelId,
+    name: modelId,
+    provider: 'openrouter',
+    description: 'Modelo personalizado de OpenRouter (modo avanzado).',
+    strengths: [],
+    contextWindow: 'Según OpenRouter',
+    pricing: 'Según OpenRouter',
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: isOnline,
+  };
+};
+
+// Helper para obtener modelo por ID. Busca primero en los modelos directos,
+// luego en los curados de OpenRouter, y si no, si parece un slug de OpenRouter
+// (contiene '/') construye un modelo ad-hoc para el modo avanzado.
 export const getModelById = (modelId: string): AIModelInfo | undefined => {
-  return AI_MODELS.find(m => m.id === modelId);
+  const direct = AI_MODELS.find(m => m.id === modelId);
+  if (direct) return direct;
+
+  const curatedOpenRouter = OPENROUTER_MODELS.find(m => m.id === modelId);
+  if (curatedOpenRouter) return curatedOpenRouter;
+
+  // Modo avanzado: cualquier slug de OpenRouter tiene forma "vendor/model[...]"
+  if (modelId.includes('/')) {
+    return buildAdHocOpenRouterModel(modelId);
+  }
+
+  return undefined;
 };
 
 // Helper para obtener país por código

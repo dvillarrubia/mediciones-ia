@@ -17,14 +17,18 @@ interface AnalysisQuestion {
 interface AIModelInfo {
   id: string;
   name: string;
-  provider: 'openai' | 'anthropic' | 'google';
+  provider: 'openai' | 'anthropic' | 'google' | 'openrouter';
   description: string;
   strengths: string[];
   contextWindow: string;
   pricing: string;
   recommended?: boolean;
   requiresApiKey: string;
+  supportsWebSearch?: boolean;
 }
+
+// Valor centinela en el <select> para el modo avanzado de OpenRouter
+const CUSTOM_OPENROUTER_OPTION = '__custom_openrouter__';
 
 // Tipos para países
 interface CountryInfo {
@@ -134,6 +138,9 @@ const Analysis = () => {
   const [aiModels, setAiModels] = useState<AIModelInfo[]>([]);
   const [countries, setCountries] = useState<CountryInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('gpt-4o-mini');
+  // Modo avanzado de OpenRouter: pegar un model-id arbitrario
+  const [useCustomModel, setUseCustomModel] = useState(false);
+  const [customModelId, setCustomModelId] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<string>('ES');
   const [showModelInfo, setShowModelInfo] = useState(false);
   const [showCountryInfo, setShowCountryInfo] = useState(false);
@@ -709,8 +716,17 @@ const Analysis = () => {
             </div>
 
             <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              value={useCustomModel ? CUSTOM_OPENROUTER_OPTION : selectedModel}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === CUSTOM_OPENROUTER_OPTION) {
+                  setUseCustomModel(true);
+                  setSelectedModel(customModelId.trim());
+                } else {
+                  setUseCustomModel(false);
+                  setSelectedModel(val);
+                }
+              }}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
               <optgroup label="OpenAI (GPT)">
@@ -734,7 +750,34 @@ const Analysis = () => {
                   </option>
                 ))}
               </optgroup>
+              <optgroup label="OpenRouter (una key, con búsqueda)">
+                {aiModels.filter(m => m.provider === 'openrouter').map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.recommended ? '⭐' : ''}
+                  </option>
+                ))}
+                <option value={CUSTOM_OPENROUTER_OPTION}>✏️ Avanzado: pegar model-id de OpenRouter…</option>
+              </optgroup>
             </select>
+
+            {/* Modo avanzado: input para pegar cualquier model-id de OpenRouter */}
+            {useCustomModel && (
+              <div className="mt-3">
+                <input
+                  type="text"
+                  value={customModelId}
+                  onChange={(e) => {
+                    setCustomModelId(e.target.value);
+                    setSelectedModel(e.target.value.trim());
+                  }}
+                  placeholder="p.ej. anthropic/claude-sonnet-4.6:online  o  meta-llama/llama-3.1-405b-instruct"
+                  className="w-full p-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Slug exacto de openrouter.ai/models. Añade <code className="px-1 bg-gray-100 rounded">:online</code> para activar búsqueda web. Requiere API Key de OpenRouter.
+                </p>
+              </div>
+            )}
 
             {/* Model Info Panel */}
             {showModelInfo && (() => {
@@ -755,10 +798,12 @@ const Analysis = () => {
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       model.provider === 'openai' ? 'bg-green-100 text-green-800' :
                       model.provider === 'anthropic' ? 'bg-orange-100 text-orange-800' :
+                      model.provider === 'openrouter' ? 'bg-indigo-100 text-indigo-800' :
                       'bg-blue-100 text-blue-800'
                     }`}>
                       {model.provider === 'openai' ? 'OpenAI' :
-                       model.provider === 'anthropic' ? 'Anthropic' : 'Google'}
+                       model.provider === 'anthropic' ? 'Anthropic' :
+                       model.provider === 'openrouter' ? 'OpenRouter' : 'Google'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-3">{model.description}</p>

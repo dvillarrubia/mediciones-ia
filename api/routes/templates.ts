@@ -9,6 +9,7 @@ import {
 } from '../config/templates.js';
 import {
   AI_MODELS,
+  OPENROUTER_MODELS,
   COUNTRIES,
   DEFAULT_MODEL,
   DEFAULT_COUNTRY,
@@ -43,11 +44,16 @@ router.get('/ai-models', async (req: Request, res: Response) => {
       models = AI_MODELS as any[];
     }
 
+    // Los modelos de OpenRouter son curados en código (no gestionados por admin):
+    // se añaden siempre. El frontend filtra por las API keys que tenga el usuario.
+    models = [...models, ...(OPENROUTER_MODELS as any[])];
+
     // Agrupar modelos por proveedor
     const modelsByProvider = {
       openai: models.filter(m => m.provider === 'openai'),
       anthropic: models.filter(m => m.provider === 'anthropic'),
-      google: models.filter(m => m.provider === 'google')
+      google: models.filter(m => m.provider === 'google'),
+      openrouter: models.filter(m => m.provider === 'openrouter')
     };
 
     res.json({
@@ -62,17 +68,19 @@ router.get('/ai-models', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error al obtener modelos de IA:', error);
     // Fallback a constants.ts en caso de error
+    const fallbackModels = [...AI_MODELS, ...OPENROUTER_MODELS];
     res.json({
       success: true,
       data: {
-        models: AI_MODELS,
+        models: fallbackModels,
         byProvider: {
-          openai: AI_MODELS.filter(m => m.provider === 'openai'),
-          anthropic: AI_MODELS.filter(m => m.provider === 'anthropic'),
-          google: AI_MODELS.filter(m => m.provider === 'google')
+          openai: fallbackModels.filter(m => m.provider === 'openai'),
+          anthropic: fallbackModels.filter(m => m.provider === 'anthropic'),
+          google: fallbackModels.filter(m => m.provider === 'google'),
+          openrouter: fallbackModels.filter(m => m.provider === 'openrouter')
         },
         defaultModel: DEFAULT_MODEL,
-        recommended: AI_MODELS.filter(m => m.recommended)
+        recommended: fallbackModels.filter(m => m.recommended)
       }
     });
   }

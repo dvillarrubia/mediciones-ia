@@ -131,7 +131,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       }
     }
 
-    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google && !apiKeysToUse.openrouter)) {
       return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
@@ -146,6 +146,9 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       }
       if (provider === 'google' && !apiKeysToUse.google) {
         return res.status(400).json({ error: 'API Key de Google AI requerida', code: 'GOOGLE_KEY_REQUIRED' });
+      }
+      if (provider === 'openrouter' && !apiKeysToUse.openrouter) {
+        return res.status(400).json({ error: 'API Key de OpenRouter requerida', code: 'OPENROUTER_KEY_REQUIRED' });
       }
     }
 
@@ -342,7 +345,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     }
 
     // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
-    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
         error: 'API Keys requeridas',
         message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.',
@@ -373,6 +376,13 @@ router.post('/execute', async (req: Request, res: Response) => {
           error: 'API Key de Google AI requerida',
           message: 'Para usar modelos Gemini, configura tu API Key de Google AI en Configuración > API Keys.',
           code: 'GOOGLE_KEY_REQUIRED'
+        });
+      }
+      if (provider === 'openrouter' && !apiKeysToUse.openrouter) {
+        return res.status(400).json({
+          error: 'API Key de OpenRouter requerida',
+          message: 'Para usar modelos de OpenRouter, configura tu API Key de OpenRouter en Configuración > API Keys.',
+          code: 'OPENROUTER_KEY_REQUIRED'
         });
       }
     }

@@ -162,6 +162,7 @@ class OpenAIService {
     openai?: string;
     anthropic?: string;
     google?: string;
+    openrouter?: string;
   };
 
   // Configuración de procesamiento por análisis. El throttle real lo hace
@@ -172,6 +173,10 @@ class OpenAIService {
   private readonly MAX_RETRIES = 2; // Intentos máximos por petición
   private readonly REQUEST_TIMEOUT = 60000; // 60 segundos
   private readonly ENABLE_CACHE = true; // Habilitar caché
+  // Dedup intra-ejecución: dos preguntas idénticas en el mismo análisis comparten
+  // una sola llamada al proveedor. El servicio se instancia por petición, así que
+  // este Map vive solo durante una ejecución (no reutiliza datos de semanas previas).
+  private readonly inFlightGenerations = new Map<string, Promise<{ content: string; webSources: WebSearchSource[] }>>();
 
   // Configuración de modelos (CON BÚSQUEDA WEB REAL)
   private readonly GENERATION_MODEL = "gpt-4o-search-preview"; // Modelo con búsqueda web para GENERAR respuestas
@@ -181,8 +186,10 @@ class OpenAIService {
   // Clientes para múltiples proveedores
   private anthropicClient: Anthropic | null = null;
   private googleClient: GoogleGenAI | null = null;
+  // OpenRouter usa el SDK de OpenAI apuntando a su baseURL (API-compatible)
+  private openrouterClient: OpenAI | null = null;
 
-  constructor(userApiKeys?: { openai?: string; anthropic?: string; google?: string }) {
+  constructor(userApiKeys?: { openai?: string; anthropic?: string; google?: string; openrouter?: string }) {
     this.userApiKeys = userApiKeys;
 
     console.log('🔧 AIService constructor - Inicializando proveedores:');
@@ -213,6 +220,22 @@ class OpenAIService {
       console.log('✅ Google AI client initialized con key del usuario');
     } else {
       console.log('ℹ️ No hay API key de Google del usuario');
+    }
+
+    // OpenRouter - SDK de OpenAI apuntando a su baseURL (una key, todos los modelos)
+    const openrouterKey = userApiKeys?.openrouter;
+    if (openrouterKey) {
+      this.openrouterClient = new OpenAI({
+        apiKey: openrouterKey,
+        baseURL: 'https://openrouter.ai/api/v1',
+        defaultHeaders: {
+          'HTTP-Referer': process.env.APP_PUBLIC_URL || 'https://mediciones.lin3s.dev',
+          'X-Title': 'Mediciones IA',
+        },
+      });
+      console.log('✅ OpenRouter client initialized con key del usuario');
+    } else {
+      console.log('ℹ️ No hay API key de OpenRouter del usuario');
     }
 
     console.log(`⚙️ Configuración: Concurrencia=${this.CONCURRENT_REQUESTS}, Cache=${this.ENABLE_CACHE}`);
@@ -493,7 +516,15 @@ class OpenAIService {
     const selectedModel = configuration.selectedModel;
 
     if (selectedModel) {
-      // Verificar que el modelo tenga búsqueda web
+      // Modelos de OpenRouter (Claude/Gemini/Perplexity/GPT vía OpenRouter):
+      // se usan tal cual; la búsqueda la gestiona generateWithOpenRouter.
+      const modelInfo = getModelById(selectedModel);
+      if (modelInfo?.provider === 'openrouter') {
+        console.log(`🔀 Modelo OpenRouter seleccionado: ${selectedModel}`);
+        return selectedModel;
+      }
+
+      // Modelos directos: exigir búsqueda web (id con 'search')
       if (selectedModel.includes('search')) {
         console.log(`🌐 Modelo con búsqueda web seleccionado: ${selectedModel}`);
         return selectedModel;
@@ -506,6 +537,22 @@ class OpenAIService {
     // Fallback: modelo con búsqueda web por defecto
     console.log('🌐 Usando modelo con búsqueda web por defecto: gpt-4o-search-preview');
     return 'gpt-4o-search-preview';
+  }
+
+  /**
+   * Cliente y modelo para la FASE 2 (extracción de menciones, JSON barato).
+   * Prefiere OpenAI directo (gpt-4o-mini); si el usuario solo tiene OpenRouter,
+   * usa gpt-4o-mini a través de OpenRouter. Así un usuario solo-OpenRouter
+   * puede completar el análisis sin key directa de OpenAI.
+   */
+  private getAnalysisClientAndModel(): { client: OpenAI; model: string; queue: 'openai' | 'openrouter' } {
+    if (this.client) {
+      return { client: this.client, model: this.ANALYSIS_MODEL, queue: 'openai' };
+    }
+    if (this.openrouterClient) {
+      return { client: this.openrouterClient, model: 'openai/gpt-4o-mini', queue: 'openrouter' };
+    }
+    throw new Error('No hay cliente para la fase de análisis de menciones. Configura una API key de OpenAI u OpenRouter.');
   }
 
   /**
@@ -542,9 +589,74 @@ class OpenAIService {
       case 'google':
         return await this.generateWithGoogle(question, modelId, configuration);
 
+      case 'openrouter':
+        return await this.generateWithOpenRouter(question, modelId, configuration);
+
       default:
         throw new Error(`Proveedor no soportado: ${provider}`);
     }
+  }
+
+  /**
+   * Genera contenido con OpenRouter (API-compatible con OpenAI).
+   * La búsqueda web se activa con el plugin 'web' salvo que el modelo sea
+   * "online" de forma nativa (sufijo ':online' o Perplexity Sonar).
+   * Devuelve contenido Y fuentes web (thread-safe para ejecución paralela).
+   */
+  private async generateWithOpenRouter(question: string, modelId: string, configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
+    if (!this.openrouterClient) {
+      throw new Error('No hay API key de OpenRouter configurada. Añade tu API key de OpenRouter para usar este modelo.');
+    }
+
+    const modelInfo = getModelById(modelId);
+    const countryName = configuration?.countryName || 'España';
+    const now = new Date();
+    const systemPrompt = `País: ${countryName}. Fecha y hora actual: ${now.toLocaleString('es-ES', {
+      timeZone: configuration?.timezone || 'Europe/Madrid',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    })}.`;
+
+    // El sufijo ':online' ya activa búsqueda en OpenRouter; Perplexity Sonar es
+    // online nativo. Para otros modelos marcados con supportsWebSearch añadimos
+    // explícitamente el plugin 'web'. No añadir plugin si el id ya lleva ':online'.
+    const needsWebPlugin = modelInfo?.supportsWebSearch && !modelId.endsWith(':online') && !/perplexity\/.*sonar/i.test(modelId);
+
+    const requestBody: any = {
+      model: modelId,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: question }
+      ],
+    };
+    if (needsWebPlugin) {
+      requestBody.plugins = [{ id: 'web' }];
+    }
+
+    console.log(`🌐 [OpenRouter] Generando con modelo: ${modelId}${needsWebPlugin ? ' (+plugin web)' : ''}`);
+
+    const response = await Promise.race([
+      providerQueues.openrouter.enqueue(
+        () => this.openrouterClient!.chat.completions.create(requestBody),
+        `generateWithOpenRouter:${modelId}`
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: OpenRouter tardó más de 120 segundos')), 120000)
+      )
+    ]) as any;
+
+    const message = response.choices?.[0]?.message;
+    const content = message?.content;
+
+    if (!content) {
+      throw new Error('OpenRouter devolvió una respuesta vacía');
+    }
+
+    // Fuentes: annotations (plugin web, formato OpenAI) + citations top-level (Perplexity)
+    const webSources = this.extractWebSources(message, response);
+    console.log(`📚 [OpenRouter] Fuentes web extraídas: ${webSources.length}`);
+
+    return { content, webSources };
   }
 
   /**
@@ -608,10 +720,34 @@ class OpenAIService {
   }
 
   /**
-   * Extrae las fuentes web de las annotations de OpenAI
+   * Extrae las fuentes web de las annotations de OpenAI.
+   * @param message  message del choice (annotations url_citation)
+   * @param response respuesta completa (opcional) — para leer `citations`
+   *                 de Perplexity vía OpenRouter (array de URLs/objetos).
    */
-  private extractWebSources(message: any): WebSearchSource[] {
+  private extractWebSources(message: any, response?: any): WebSearchSource[] {
     const sources: WebSearchSource[] = [];
+
+    // Perplexity (vía OpenRouter) devuelve un array `citations` en el top-level
+    // de la respuesta. Puede ser ['https://...', ...] o [{ url, title }, ...].
+    const seenUrls = new Set<string>();
+    const citations = response?.citations || message?.citations;
+    if (Array.isArray(citations)) {
+      for (const c of citations) {
+        const url = typeof c === 'string' ? c : c?.url;
+        if (url && !seenUrls.has(url)) {
+          seenUrls.add(url);
+          sources.push({
+            url,
+            title: (typeof c === 'object' && c?.title) || this.extractDomainFromUrl(url),
+            snippet: (typeof c === 'object' && (c?.snippet || c?.text)) || '',
+          });
+        }
+      }
+      if (sources.length > 0) {
+        console.log(`📎 [citations] ${sources.length} fuentes de Perplexity/OpenRouter`);
+      }
+    }
 
     // Debug: ver estructura del mensaje
     if (message) {
@@ -647,7 +783,8 @@ class OpenAIService {
         const url = citation.url || annotation.url;
         const title = citation.title || annotation.title;
 
-        if (url) {
+        if (url && !seenUrls.has(url)) {
+          seenUrls.add(url);
           sources.push({
             url: url,
             title: title || this.extractDomainFromUrl(url),
@@ -834,8 +971,14 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         // Generar clave de caché incluyendo país y modelo
         const cacheKey = `${questionData.question}_${configuration.countryCode || 'ES'}_${generationModel}`;
 
-        // Intentar obtener del caché primero
-        if (this.ENABLE_CACHE) {
+        // Las monitorizaciones programadas piden datos frescos: bypassCache salta
+        // la lectura de la caché persistente (TTL 7 días) para no reutilizar
+        // respuestas de semanas anteriores. La dedup intra-ejecución sigue activa.
+        const bypassCache = !!configuration?.bypassCache;
+        const useCache = this.ENABLE_CACHE && !bypassCache;
+
+        // Intentar obtener del caché persistente primero (salvo bypass)
+        if (useCache) {
           try {
             const cachedResponse = await cacheService.get(
               cacheKey,
@@ -852,13 +995,25 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
             console.warn(`⚠️ [${questionId}] Error al consultar caché:`, cacheError);
             // Continuar sin caché
           }
+        } else if (bypassCache) {
+          console.log(`🆕 [${questionId}] bypassCache activo — se generará respuesta fresca`);
         }
 
         // Si no está en caché, llamar al proveedor correspondiente
         if (!generatedContent) {
-          // Usar el proveedor correcto según el modelo seleccionado (OpenAI, Anthropic, o Google)
-          // IMPORTANTE: Usar la versión que devuelve fuentes directamente (thread-safe para paralelo)
-          const result = await this.generateContentWithProviderAndSources(questionData.question, generationModel, configuration);
+          // Dedup intra-ejecución: si ya hay una generación en curso para esta
+          // misma clave (misma pregunta+país+modelo en este análisis), reutilizarla.
+          let inflight = this.inFlightGenerations.get(cacheKey);
+          if (!inflight) {
+            // Usar el proveedor correcto según el modelo (OpenAI/Anthropic/Google/OpenRouter).
+            // Versión que devuelve fuentes directamente (thread-safe para paralelo).
+            inflight = this.generateContentWithProviderAndSources(questionData.question, generationModel, configuration);
+            this.inFlightGenerations.set(cacheKey, inflight);
+          } else {
+            console.log(`🔁 [${questionId}] Reutilizando generación en curso (dedup intra-ejecución)`);
+          }
+
+          const result = await inflight;
           generatedContent = result.content;
           questionWebSources = result.webSources;
 
@@ -893,10 +1048,11 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
 
         const analysisPrompt = this.buildGenerativeAnalysisPrompt(questionData.question, generatedContent, configuration);
 
+        const analysis2 = this.getAnalysisClientAndModel();
         const analysisResponse = await Promise.race([
-          providerQueues.openai.enqueue(
-            () => this.client.chat.completions.create({
-              model: this.ANALYSIS_MODEL, // Usar modelo ECONÓMICO para analizar menciones (ahorro de costos)
+          providerQueues[analysis2.queue].enqueue(
+            () => analysis2.client.chat.completions.create({
+              model: analysis2.model, // Modelo ECONÓMICO para analizar menciones (OpenAI directo u OpenRouter)
               messages: [{ role: 'user', content: analysisPrompt }],
               temperature: 0.1, // Baja temperatura para análisis más preciso
               max_tokens: 2500,
@@ -1522,8 +1678,20 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.
         lastError = error;
         console.error(`❌ [${context}] Fallo en intento ${attempt}:`, error);
 
-        // Errores fatales (auth/cuota): no reintentar
-        if (error?.isAuthError || error?.isQuotaError || error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' || error?.status === 429) {
+        // Fail-fast: errores de cliente 4xx NO son transitorios (404 slug
+        // inválido, 400 request mala, 401 auth, 403, 422...). Reintentarlos solo
+        // hace esperar al usuario en vano. Excepciones: 408 (timeout) y 429
+        // (rate limit) sí pueden ser transitorios. La cola del proveedor ya
+        // gestiona el 429 con backoff; aquí lo propagamos.
+        const status = typeof error?.status === 'number' ? error.status : undefined;
+        const isClientError = status !== undefined && status >= 400 && status < 500 && status !== 408;
+        if (
+          error?.isAuthError || error?.isQuotaError ||
+          error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' ||
+          error?.name === 'NotFoundError' ||
+          isClientError
+        ) {
+          console.error(`🚫 [${context}] Error no recuperable (${status ?? error?.code ?? error?.name}). No se reintenta.`);
           throw error;
         }
 
@@ -2560,9 +2728,10 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
 
   console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 
-  const analysisResponse = await providerQueues.openai.enqueue(
-    () => this.client.chat.completions.create({
-      model: this.ANALYSIS_MODEL, // gpt-4o-mini - económico
+  const analysis2 = this.getAnalysisClientAndModel();
+  const analysisResponse = await providerQueues[analysis2.queue].enqueue(
+    () => analysis2.client.chat.completions.create({
+      model: analysis2.model, // gpt-4o-mini - económico (OpenAI directo u OpenRouter)
       messages: [{ role: 'user', content: analysisPrompt }],
       temperature: 0.1,
       max_tokens: 1500,

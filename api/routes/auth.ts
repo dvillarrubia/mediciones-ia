@@ -204,7 +204,7 @@ router.post('/api-keys', requireAuth, async (req: Request, res: Response): Promi
       return;
     }
 
-    const validProviders = ['openai', 'anthropic', 'google', 'dataforseo'];
+    const validProviders = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'];
     if (!validProviders.includes(provider)) {
       res.status(400).json({ error: `Provider inválido. Debe ser uno de: ${validProviders.join(', ')}` });
       return;
@@ -242,7 +242,7 @@ router.get('/api-keys', requireAuth, async (req: Request, res: Response): Promis
 
     // Solo devolver qué providers tienen keys configuradas, no las keys en sí
     const status: { [provider: string]: boolean } = {};
-    for (const provider of ['openai', 'anthropic', 'google', 'dataforseo']) {
+    for (const provider of ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo']) {
       status[provider] = !!keys[provider];
     }
 
@@ -261,7 +261,7 @@ router.delete('/api-keys/:provider', requireAuth, async (req: Request, res: Resp
   try {
     const { provider } = req.params;
 
-    const validProviders = ['openai', 'anthropic', 'google', 'dataforseo'];
+    const validProviders = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'];
     if (!validProviders.includes(provider)) {
       res.status(400).json({ error: `Provider inválido. Debe ser uno de: ${validProviders.join(', ')}` });
       return;

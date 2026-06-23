@@ -135,7 +135,7 @@ class SchedulerService {
     }
 
     const apiKeys = await authService.getApiKeys(schedule.userId);
-    if (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.google) {
+    if (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.google && !apiKeys.openrouter) {
       throw new Error('El usuario no tiene API Keys de LLM configuradas');
     }
 
@@ -165,6 +165,9 @@ class SchedulerService {
       timezone,
       countryContext,
       countryLanguage,
+      // Monitorización recurrente: siempre datos frescos (no reutilizar caché de
+      // respuestas con TTL 7 días entre ejecuciones semanales).
+      bypassCache: true,
     };
 
     const aiModels = configAny.aiModels;
