@@ -30,7 +30,10 @@ import {
   Zap,
   Info,
   Settings,
-  MessageSquare
+  MessageSquare,
+  Heart,
+  Hash,
+  Link2
 } from 'lucide-react';
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -38,6 +41,9 @@ import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer'
 import MetricsDashboard from '../components/intelligence/MetricsDashboard';
 import AIOverviewDashboard from '../components/intelligence/AIOverviewDashboard';
 import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
+import SentimentDashboard from '../components/intelligence/SentimentDashboard';
+import TopicsDashboard from '../components/intelligence/TopicsDashboard';
+import CitationsDashboard from '../components/intelligence/CitationsDashboard';
 import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
@@ -129,13 +135,13 @@ const IntelligenceHub: React.FC = () => {
   const initialTab = (() => {
     const params = new URLSearchParams(location.search);
     const t = params.get('tab');
-    if (t === 'schedules' || t === 'ai-overview' || t === 'metrics' || t === 'insights' || t === 'compare' || t === 'trends' || t === 'list') {
+    if (t === 'schedules' || t === 'ai-overview' || t === 'metrics' || t === 'sentiment' || t === 'topics' || t === 'citations' || t === 'insights' || t === 'compare' || t === 'trends' || t === 'list') {
       return t;
     }
     return 'list';
   })();
   // Estado principal
-  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights' | 'metrics' | 'ai-overview' | 'schedules'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'list' | 'trends' | 'compare' | 'insights' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'ai-overview' | 'schedules'>(initialTab);
   const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
 
   useEffect(() => {
@@ -303,7 +309,7 @@ const IntelligenceHub: React.FC = () => {
 
   // Cargar detalles cuando se cambia a la pestaña de tendencias o insights
   useEffect(() => {
-    if ((activeTab === 'trends' || activeTab === 'insights' || activeTab === 'metrics' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
+    if ((activeTab === 'trends' || activeTab === 'insights' || activeTab === 'metrics' || activeTab === 'sentiment' || activeTab === 'topics' || activeTab === 'citations' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
       loadAllAnalysesDetails();
     }
   }, [activeTab, analyses]);
@@ -1127,6 +1133,42 @@ const IntelligenceHub: React.FC = () => {
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
                 Métricas
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('sentiment')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'sentiment'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Heart className="w-4 h-4" />
+                Sentimiento
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('topics')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'topics'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4" />
+                Topics
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('citations')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'citations'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4" />
+                URLs / Citas
               </div>
             </button>
             <button
@@ -2296,6 +2338,21 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
             <MetricsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+          )}
+
+          {/* TAB: SENTIMIENTO */}
+          {activeTab === 'sentiment' && (
+            <SentimentDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+          )}
+
+          {/* TAB: TOPICS */}
+          {activeTab === 'topics' && (
+            <TopicsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+          )}
+
+          {/* TAB: URLs / CITAS */}
+          {activeTab === 'citations' && (
+            <CitationsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
           )}
 
           {/* TAB 6: AI OVERVIEWS */}

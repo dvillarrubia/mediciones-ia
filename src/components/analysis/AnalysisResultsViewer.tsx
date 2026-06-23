@@ -10,7 +10,11 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
-  Sparkles
+  Sparkles,
+  Bot,
+  Quote,
+  Hash,
+  Percent
 } from 'lucide-react';
 
 interface AnalysisSource {
@@ -144,8 +148,14 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
 
   const tabs = [
     { id: 'overview', label: 'Resumen Ejecutivo', icon: TrendingUp },
+    { id: 'responses', label: 'Respuestas por Modelo', icon: Bot },
     { id: 'questions', label: 'Analisis por Pregunta', icon: FileText },
   ];
+
+  const normalizeKey = (s: string | undefined) => (s || '').toLowerCase().replace(/[\s\-_]+/g, '');
+  const PERSONA_LABEL: Record<string, string> = { chatgpt: 'ChatGPT', claude: 'Claude', gemini: 'Gemini', perplexity: 'Perplexity' };
+  const isWebSource = (url: string | undefined) =>
+    !!url && url.startsWith('http') && !url.includes('ai-generated') && !url.includes('generative');
 
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment?.toLowerCase()) {
@@ -189,6 +199,65 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
         .filter((n): n is string => !!n)
     )
   ).join(', ');
+
+  // === Métricas de cabecera (Módulo A) ===
+  const targetBrandName: string =
+    analysisResult?.brandSummary?.targetBrands?.[0]?.brand || configurationName || '';
+  const targetKey = normalizeKey(targetBrandName);
+  const questionsArr: any[] = analysisResult?.questions || [];
+
+  let brandMentionsTotal = 0;
+  let questionsWithTarget = 0;
+  let citationsTotal = 0;
+  let posSum = 0;
+  let posCount = 0;
+
+  questionsArr.forEach((q) => {
+    citationsTotal += (q.sources || []).filter((s: any) => isWebSource(s.url)).length;
+    let mentionedInQ = false;
+    (q.brandMentions || []).forEach((bm: any) => {
+      if (!bm.mentioned) return;
+      if (targetKey && normalizeKey(bm.brand) === targetKey) {
+        brandMentionsTotal += bm.frequency || 1;
+        mentionedInQ = true;
+        if (bm.appearanceOrder && bm.appearanceOrder > 0) {
+          posSum += bm.appearanceOrder;
+          posCount++;
+        }
+      }
+    });
+    if (mentionedInQ) questionsWithTarget++;
+  });
+
+  const mentionRate = questionsArr.length > 0 ? (questionsWithTarget / questionsArr.length) * 100 : 0;
+  const avgPosition = posCount > 0 ? posSum / posCount : null;
+
+  // === Filas de respuestas por modelo ===
+  interface ResponseRow {
+    question: string;
+    model: string;
+    sentiment: string;
+    position: number | null;
+    citations: number;
+    mentioned: boolean;
+  }
+  const responseRows: ResponseRow[] = [];
+  questionsArr.forEach((q) => {
+    const models: any[] = q.multiModelAnalysis && q.multiModelAnalysis.length > 0 ? q.multiModelAnalysis : [null];
+    const webCitations = (q.sources || []).filter((s: any) => isWebSource(s.url)).length;
+    models.forEach((m: any) => {
+      const mentions: any[] = (m?.brandMentions && m.brandMentions.length > 0 ? m.brandMentions : q.brandMentions) || [];
+      const targetM = mentions.find((bm: any) => bm.mentioned && targetKey && normalizeKey(bm.brand) === targetKey);
+      responseRows.push({
+        question: q.question,
+        model: m?.modelName || PERSONA_LABEL[m?.modelPersona] || m?.modelPersona || 'IA',
+        sentiment: m?.overallSentiment || targetM?.detailedSentiment || q.sentiment,
+        position: targetM?.appearanceOrder || null,
+        citations: webCitations,
+        mentioned: !!targetM,
+      });
+    });
+  });
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -265,6 +334,34 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
       <div className="p-6">
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Métricas clave (Módulo A) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
+                  <Target className="h-4 w-4 text-blue-500" /> Brand Mentions
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{brandMentionsTotal}</div>
+              </div>
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
+                  <Percent className="h-4 w-4 text-emerald-500" /> Mention Rate
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{mentionRate.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
+                  <Quote className="h-4 w-4 text-indigo-500" /> Citations
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{citationsTotal}</div>
+              </div>
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
+                  <Hash className="h-4 w-4 text-amber-500" /> Position
+                </div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{avgPosition !== null ? avgPosition.toFixed(1) : '—'}</div>
+              </div>
+            </div>
+
             {/* Metricas principales - Solo 2 cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-blue-50 rounded-lg p-4">
@@ -342,6 +439,56 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                   <span className="text-gray-500 text-sm">No hay categorias disponibles</span>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'responses' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">Respuestas por Modelo</h3>
+              <span className="text-sm text-gray-500">{responseRows.length} respuestas</span>
+            </div>
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Pregunta</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Modelo</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Sentimiento</th>
+                    <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase">Mención</th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Posición</th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Citas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {responseRows.map((r, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 max-w-md truncate text-gray-700" title={r.question}>{r.question}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded-full">
+                          <Bot className="h-3 w-3" />{r.model}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getSentimentColor(r.sentiment)}`}>
+                          {getSentimentLabel(r.sentiment)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {r.mentioned
+                          ? <CheckCircle className="h-4 w-4 text-green-500 inline" />
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-700">{r.position !== null ? `#${r.position}` : '—'}</td>
+                      <td className="px-4 py-2 text-right text-gray-700">{r.citations}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {responseRows.length === 0 && (
+                <p className="text-sm text-gray-400 py-6 text-center">No hay respuestas por modelo disponibles.</p>
+              )}
             </div>
           </div>
         )}
