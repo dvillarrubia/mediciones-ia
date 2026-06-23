@@ -41,6 +41,8 @@ interface BrandMention {
 
 interface MultiModelAnalysis {
   modelPersona: 'chatgpt' | 'claude' | 'gemini' | 'perplexity';
+  modelId?: string;
+  modelName?: string;
   generatedContent: string;
   response?: string;
   brandMentions: BrandMention[];
@@ -179,6 +181,15 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
     }
   };
 
+  // Modelo(s) realmente usado(s) en el informe, derivado de cada pregunta.
+  const modelsUsedLabel = Array.from(
+    new Set(
+      (analysisResult?.questions || [])
+        .map(q => q.multiModelAnalysis?.[0]?.modelName)
+        .filter((n): n is string => !!n)
+    )
+  ).join(', ');
+
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
       {/* Header */}
@@ -189,6 +200,11 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
             <p className="text-blue-100 text-sm mt-1">
               ID: {analysisResult?.analysisId || 'N/A'} - {analysisResult?.timestamp ? new Date(analysisResult.timestamp).toLocaleString() : 'N/A'}
             </p>
+            {modelsUsedLabel && (
+              <p className="text-blue-100 text-sm mt-1">
+                🤖 Modelo: <span className="font-semibold text-white">{modelsUsedLabel}</span>
+              </p>
+            )}
           </div>
           <div className="flex space-x-2">
             <button
@@ -368,10 +384,15 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
 
                 {expandedSections.has(`question-${question.questionId}`) && (
                   <div className="border-t p-4 space-y-4">
-                    {/* Seccion 1: Respuesta Completa de ChatGPT */}
+                    {/* Seccion 1: Respuesta Completa del modelo usado */}
                     <div>
-                      <h5 className="font-medium text-gray-900 mb-2 flex items-center">
-                        Respuesta Completa de ChatGPT
+                      <h5 className="font-medium text-gray-900 mb-2 flex items-center justify-between">
+                        <span>Respuesta Completa de {question.multiModelAnalysis?.[0]?.modelName || 'la IA'}</span>
+                        {question.multiModelAnalysis?.[0]?.modelName && (
+                          <span className="ml-2 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded-full font-normal">
+                            {question.multiModelAnalysis[0].modelName}
+                          </span>
+                        )}
                       </h5>
                       <div className="bg-gray-50 rounded-lg p-4 border text-sm text-gray-700 max-h-64 overflow-y-auto whitespace-pre-wrap">
                         {question.multiModelAnalysis?.[0]?.response || question.summary || 'Respuesta no disponible'}

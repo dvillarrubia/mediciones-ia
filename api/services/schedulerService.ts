@@ -14,6 +14,7 @@ import {
 import { authService } from './authService.js';
 import ConfigService from './configService.js';
 import OpenAIService from './openaiService.js';
+import { getModelById } from '../config/constants.js';
 
 const configService = new ConfigService();
 import { aiOverviewService, type AIOverviewConfig } from './aiOverviewService.js';
@@ -202,7 +203,9 @@ class SchedulerService {
       results: result,
       metadata: {
         duration: (result as any).duration,
-        modelsUsed: aiModels || ['chatgpt'],
+        modelsUsed: isMultiModel
+          ? (aiModels || ['chatgpt'])
+          : [getModelById(selectedModel)?.name || selectedModel],
         totalQuestions: configAny.questions.length,
       },
     }, schedule.userId);

@@ -23,6 +23,8 @@ export interface ContextualAnalysis {
 
 export interface MultiModelAnalysis {
   modelPersona: AIModelPersona;
+  modelId?: string;    // id real del modelo usado (ej: 'google/gemini-3.5-flash:online')
+  modelName?: string;  // nombre legible para mostrar (ej: 'Gemini 3.5 Flash + Search')
   response: string;
   brandMentions: BrandMention[];
   sourcesCited?: SourceCited[];
@@ -556,6 +558,18 @@ class OpenAIService {
   }
 
   /**
+   * Mapea un model-id (directo u OpenRouter) a una "persona" para estilado en
+   * frontend. Sirve para etiquetar de qué familia es el modelo realmente usado.
+   */
+  private inferPersonaFromModelId(modelId: string): AIModelPersona {
+    const id = (modelId || '').toLowerCase();
+    if (id.includes('claude') || id.startsWith('anthropic/')) return 'claude';
+    if (id.includes('gemini') || id.startsWith('google/')) return 'gemini';
+    if (id.includes('perplexity') || id.includes('sonar')) return 'perplexity';
+    return 'chatgpt';
+  }
+
+  /**
    * Genera contenido usando el proveedor correcto según el modelo seleccionado
    * FASE 1: Usa el modelo que el usuario eligió (sin fallback)
    */
@@ -1072,7 +1086,7 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
           throw new Error('Respuesta de análisis no válida o vacía');
         }
 
-        const analysis = this.parseGenerativeAnalysisResponse(questionData, generatedContent, analysisResult, configuration, questionWebSources);
+        const analysis = this.parseGenerativeAnalysisResponse(questionData, generatedContent, analysisResult, configuration, questionWebSources, generationModel);
         console.log(`✅ [${questionId}] Análisis de respuesta generativa completado exitosamente`);
         
         return analysis;
@@ -1218,8 +1232,12 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
    * Parsea la respuesta del análisis de contenido generativo
    * ACTUALIZADO: Ahora usa fuentes web REALES de OpenAI Web Search
    */
-  private parseGenerativeAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, configuration: any, providedWebSources?: WebSearchSource[]): QuestionAnalysis {
+  private parseGenerativeAnalysisResponse(questionData: any, generatedContent: string, analysisResponse: string, configuration: any, providedWebSources?: WebSearchSource[], generationModel?: string): QuestionAnalysis {
     const questionId = questionData.id;
+    // Modelo real usado en la generación (fase 1), para mostrarlo en el informe.
+    const usedModelId = generationModel || configuration?.selectedModel || this.GENERATION_MODEL;
+    const usedModelName = getModelById(usedModelId)?.name || usedModelId;
+    const usedModelPersona: AIModelPersona = this.inferPersonaFromModelId(usedModelId);
 
     console.log(`🔍 [${questionId}] Parseando respuesta de análisis generativo...`);
     console.log(`📄 [${questionId}] Respuesta a parsear (${analysisResponse.length} chars):`, analysisResponse.substring(0, 300));
@@ -1307,23 +1325,42 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
       const competitorBrands = (configuration.competitorBrands || []).map((b: string) => b.toLowerCase());
       const knownBrands = new Set([...targetBrands, ...competitorBrands]);
 
-      const brandMentions: BrandMention[] = (parsedData.brandMentions || []).map((mention: any, index: number) => {
-        const brandLower = (mention.brand || '').toLowerCase();
+      // Orden de aparición DETERMINISTA: en vez de fiarnos del orden en que el
+      // LLM lista las marcas (que se le cruza), buscamos el índice real de cada
+      // marca en el texto generado. Así el ranking coincide siempre con la respuesta.
+      const lowerContent = (generatedContent || '').toLowerCase();
+      const rawMentions = (parsedData.brandMentions || []).map((mention: any, index: number) => {
+        const brandName = mention.brand || 'Desconocida';
+        const brandLower = brandName.toLowerCase();
         const isTarget = targetBrands.some((t: string) => brandLower.includes(t) || t.includes(brandLower));
         const isCompetitor = competitorBrands.some((c: string) => brandLower.includes(c) || c.includes(brandLower));
         const isDiscovered = mention.mentioned && !isTarget && !isCompetitor;
-
-        return {
-          brand: mention.brand || 'Desconocida',
-          mentioned: mention.mentioned || false,
-          frequency: mention.frequency || 0,
-          context: mention.context || 'neutral',
-          evidence: Array.isArray(mention.evidence) ? mention.evidence : [],
-          appearanceOrder: mention.mentioned ? index + 1 : 0,
-          isDiscovered,
-          detailedSentiment: mention.context || 'neutral'
-        };
+        const firstIndex = mention.mentioned ? lowerContent.indexOf(brandLower) : -1;
+        return { mention, brandName, isDiscovered, firstIndex, llmIndex: index };
       });
+
+      // Ordenar las marcas mencionadas por su primera aparición real en el texto.
+      // Las que no se localizan (-1) van al final, conservando el orden del LLM.
+      const orderMap = new Map<number, number>(); // llmIndex -> appearanceOrder (1-based)
+      rawMentions
+        .filter((m: any) => m.mention.mentioned)
+        .sort((a: any, b: any) => {
+          const ai = a.firstIndex < 0 ? Number.MAX_SAFE_INTEGER : a.firstIndex;
+          const bi = b.firstIndex < 0 ? Number.MAX_SAFE_INTEGER : b.firstIndex;
+          return ai !== bi ? ai - bi : a.llmIndex - b.llmIndex;
+        })
+        .forEach((m: any, i: number) => orderMap.set(m.llmIndex, i + 1));
+
+      const brandMentions: BrandMention[] = rawMentions.map((m: any) => ({
+        brand: m.brandName,
+        mentioned: m.mention.mentioned || false,
+        frequency: m.mention.frequency || 0,
+        context: m.mention.context || 'neutral',
+        evidence: Array.isArray(m.mention.evidence) ? m.mention.evidence : [],
+        appearanceOrder: m.mention.mentioned ? (orderMap.get(m.llmIndex) || 0) : 0,
+        isDiscovered: m.isDiscovered,
+        detailedSentiment: m.mention.context || 'neutral'
+      }));
 
       const result: QuestionAnalysis = {
         questionId: questionId,
@@ -1337,7 +1374,9 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         confidenceScore: parsedData.confidenceScore || 0.5,
         // Guardar la respuesta generativa original para que el frontend la muestre
         multiModelAnalysis: [{
-          modelPersona: 'chatgpt' as any,
+          modelPersona: usedModelPersona,
+          modelId: usedModelId,
+          modelName: usedModelName,
           response: generatedContent,
           brandMentions: brandMentions,
           sourcesCited: sourcesCited,

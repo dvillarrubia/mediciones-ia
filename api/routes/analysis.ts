@@ -198,6 +198,12 @@ router.post('/execute-async', async (req: Request, res: Response) => {
           result = await service.executeAnalysisWithConfiguration(configuration.questions, extendedConfiguration, onProgress);
         }
 
+        // Modelo(s) realmente usado(s), con nombre legible, para mostrar en informes.
+        const effectiveModel = selectedModel || 'gpt-4o-search-preview';
+        const modelsUsedLabel = isMultiModel
+          ? (configuration.aiModels || ['chatgpt'])
+          : [getModelById(effectiveModel)?.name || effectiveModel];
+
         // Guardar en BD
         try {
           const analysisId = result.analysisId || `analysis_${Date.now()}`;
@@ -214,7 +220,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
             results: result,
             metadata: {
               duration: result.duration,
-              modelsUsed: configuration.aiModels || ['chatgpt'],
+              modelsUsed: modelsUsedLabel,
               totalQuestions: configuration.questions.length
             }
           }, req.userId);
@@ -228,7 +234,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
           success: true,
           data: result,
           analysisType: isMultiModel ? 'multi-model' : 'standard',
-          modelsUsed: configuration.aiModels || ['chatgpt']
+          modelsUsed: modelsUsedLabel
         };
 
       } catch (error: any) {
