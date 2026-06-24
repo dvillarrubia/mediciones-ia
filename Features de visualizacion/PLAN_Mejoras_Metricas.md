@@ -186,5 +186,48 @@ Tras revisar la app entera, varias piezas del PDF **encajan mejor en pestañas q
 
 ---
 
+## 11. Análisis de lógica GEO (¿esto sirve de verdad? ¿falta algo?)
+
+GEO = optimizar la visibilidad de marca en motores generativos (ChatGPT, Gemini, Perplexity, AI Overviews). El valor de una herramienta GEO se mide por cuánto ayuda al bucle **medir → diagnosticar → actuar**. Una herramienta que solo "mide bonito" no mueve la aguja; el usuario necesita saber **qué hacer** después.
+
+### 11.1 Evaluación de lo planificado contra el bucle GEO
+
+| Mejora | ¿Mide? | ¿Diagnostica? | ¿Acciona? | Veredicto GEO |
+|---|---|---|---|---|
+| **Glosario de alias** | — | — | — | **Crítico pero indirecto**: sin él, SoV/sentimiento/gaps están **mal contados** (BIESS≠biess). Es *higiene de datos*: hace que TODO lo demás sea fiable. Imprescindible. |
+| **Mención vs citación .com vs blog** | ✅ | ✅ | ✅ | **Muy GEO**: una **citación con enlace a tu dominio** vale mucho más que una mención pasiva (controlas el contenido + posible tráfico). Distinguirlas es exactamente la métrica que un GEO quiere subir. |
+| **GAPS (temporal + competencia)** | ✅ | ✅✅ | ⚠️ | **El corazón de GEO**: encontrar prompts donde estás ausente o detrás. Diagnostica perfecto. Le falta el último paso: **qué hacer** con cada gap. |
+| **KPI con delta** | ✅ | ⚠️ | — | Útil para ver evolución; por sí solo no acciona. Bien como contexto. |
+| **Position distribution** | ✅ | ✅ | — | GEO relevante (aparecer el 1º importa), pero secundario frente a GAPS. |
+
+**Conclusión:** el plan cubre muy bien **medir y diagnosticar**. Donde flojea es en **accionar** (cerrar el bucle) y en una dimensión GEO clave que hoy no se explota: **el modelo**.
+
+### 11.2 Lo que falta desde lógica GEO (candidatos a incluir)
+
+| Propuesta | Valor GEO | Coste | ¿Datos? |
+|---|---|---|---|
+| **A. Visibilidad por modelo** (¿visible en ChatGPT pero ausente en Gemini?) | **Alto** — cada motor cita distinto; la estrategia GEO es por-motor | Bajo | ✅ `multiModelAnalysis[].modelPersona` ya existe |
+| **B. Gap de citaciones** (dominios que citan al competidor y a ti **no**) | **Alto** — dice *dónde* conseguir presencia (PR, guest posts, Wikipedia, Reddit) | Medio | ✅ `sources[].domain` por marca |
+| **C. Drivers de sentimiento** (por qué te citan mal: precio, soporte…) | **Alto** — convierte el sentimiento en acción | Bajo | ✅ `contextualAnalysis.reasoning` ya se guarda |
+| **D. Priorización de GAPS** (no todos valen igual: ordenar por nº de modelos/prompts donde faltas) | **Medio-Alto** — enfoca el esfuerzo | Bajo | ✅ derivable |
+| **E. Recomendación de contenido por gap** ("crea contenido sobre X") | **Muy alto** pero ambicioso | Alto (LLM) | parcial |
+| **F. Peso/importancia del prompt** (no todos los prompts valen igual) | Medio | Alto (volumen externo) | ❌ sin datos de volumen |
+
+### 11.3 Recomendación
+
+- **Incluir ya (alto valor / bajo coste, datos existentes):**
+  - **A. Visibilidad por modelo** — es la dimensión GEO más infrautilizada hoy; encaja como desglose en Métricas y como columna/filtro en GAPS.
+  - **C. Drivers de sentimiento** — surfacar `reasoning` en la pestaña Sentimiento (mini-tabla "por qué"): barato y muy accionable.
+  - **D. Priorización de GAPS** — ordenar la tabla de GAPS por severidad (en cuántos modelos/fechas faltas). Hace GAPS *accionable*, no solo descriptivo.
+- **Incluir si hay margen:**
+  - **B. Gap de citaciones** — potente para estrategia de fuentes; extiende URLs/Citas.
+- **Aparcar (ambicioso / sin datos):**
+  - **E. Recomendación de contenido** (necesita LLM; nota: el "Insights AI" que quitamos iba por aquí pero mal ejecutado — el concepto es válido, la ejecución no).
+  - **F. Peso de prompt por volumen** — requiere integrar datos de volumen (DataForSEO ya está en el proyecto para AIO; reutilizable a futuro).
+
+**Síntesis GEO:** el plan actual es sólido en diagnóstico. Con **A + C + D** (todo con datos que ya tenemos) pasa de "mide y diagnostica" a "**diagnostica y orienta la acción**", que es donde un usuario GEO percibe el valor real. **B** es el siguiente salto. **E/F** son fase futura.
+
+---
+
 ### Anexo — Mapa PDF → feature
 `pág.1` → Glosario (§2.1) · `pág.2` → Menciones diferenciadas (§2.2) · `pág.3` → GAPS temporal (§2.3) · `pág.4` → GAPS competencia (§2.4)

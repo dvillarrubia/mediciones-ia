@@ -40,9 +40,10 @@
 - [ ] **3.3 Tab + componente** — `GapsDashboard.tsx` + nueva pestaña "GAPS" en `IntelligenceHub`.
 - [ ] **3.4 Matriz** — col1 prompts, columnas por fecha, celdas con punto de color (+ tooltip con posición).
 - [ ] **3.5 Filtros (prompt-level, componente compartido)** — toggle "Solo GAPS (no aparece)" + selector de competidor. La lista de competidores sale de configurados+descubiertos **ya unificados por el glosario (Hito 1)**. Reutilizable en Hito 4.
-- [ ] **3.6 Verificar** — devtools.
+- [ ] **3.6 Priorización (GEO, accionable)** — ordenar/colorear la tabla por **severidad del gap**: en cuántos modelos × fechas falta la marca (y si el competidor sí está). Convierte GAPS de descriptivo a accionable.
+- [ ] **3.7 Verificar** — devtools.
 
-**Entregable:** vista de evolución temporal de GAPS.
+**Entregable:** vista de evolución temporal de GAPS, ordenada por severidad.
 
 ---
 
@@ -68,6 +69,19 @@
 
 ---
 
+## Hito 6 — Capa GEO accionable (datos ya existentes)
+*Objetivo: cerrar el bucle medir→diagnosticar→**actuar**. Ver §11 del plan.*
+
+- [ ] **6.1 Visibilidad por modelo (A)** — desglose por motor (ChatGPT/Gemini/Perplexity/AIO): mention rate / SoV / posición media de la marca. Responde "¿visible en ChatGPT pero ausente en Gemini?". En **Métricas** (desglose) + filtro por modelo en **GAPS**. Datos: `multiModelAnalysis[].modelPersona`.
+- [ ] **6.2 Drivers de sentimiento (C)** — en **Sentimiento**: mini-tabla "por qué" surfacando `contextualAnalysis.reasoning` / `competitiveReasoning` agrupado por tema. Convierte el score en acción.
+- [ ] **6.3 (Stretch) Gap de citaciones (B)** — en **URLs/Citas**: dominios que citan al competidor y a la marca **no** (dónde conseguir presencia). Datos: `sources[].domain` por marca.
+
+**Entregable:** las 3 piezas GEO de mayor leverage con datos que ya tenemos.
+
+> **Aparcado (fase futura):** recomendación de contenido por gap vía LLM (era la idea del "Insights AI" retirado; concepto válido, ejecución a rehacer) y peso de prompt por volumen (requiere datos externos; DataForSEO ya está en el proyecto para AIO, reutilizable).
+
+---
+
 ## Orden y dependencias
 
 ```
@@ -76,6 +90,7 @@ Hito 2 (Menciones diferenciadas)  ──> usa brandDomain (2.1)
 Hito 3 (GAPS temporal)  ──> usa clasificador (2.2) + emparejado (3.1)
 Hito 4 (GAPS competencia)  ──> usa lo de Hito 3
 Hito 5 (Position)  ──> independiente, encaja cuando se quiera
+Hito 6 (Capa GEO: A/C/D)  ──> 6.1 y 6.2 independientes (datos ya existen); D ya integrado en 3.6
 ```
 - **Empezamos por Hito 1** (glosario en Configuración). Es el cimiento y el problema #1 del cliente.
 - **Los filtros de GAPS refuerzan el orden**: el *selector de competidor* necesita el **glosario (Hito 1)** para no duplicar bancos, y el *color de celda* necesita el **clasificador de tipo (Hito 2)**. Por eso GAPS (Hitos 3-4) va después de 1 y 2.
