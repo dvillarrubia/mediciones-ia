@@ -107,7 +107,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, brandAliases } = req.body;
 
     const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
@@ -117,9 +117,17 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const updates: { name?: string; description?: string } = {};
+    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[] } = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
+    if (brandAliases !== undefined && Array.isArray(brandAliases)) {
+      updates.brandAliases = brandAliases
+        .filter((a: any) => a && typeof a.canonical === 'string' && a.canonical.trim())
+        .map((a: any) => ({
+          canonical: a.canonical.trim(),
+          variants: Array.isArray(a.variants) ? a.variants.map((v: any) => String(v).trim()).filter(Boolean) : []
+        }));
+    }
 
     const updatedProject = await databaseService.updateProject(id, updates, req.userId);
 

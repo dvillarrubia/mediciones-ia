@@ -141,6 +141,62 @@ export function normalizeBrandName(brand: string, configuredBrands: string[]): s
   return brand;
 }
 
+// === Glosario de marcas (alias) ===
+
+export interface BrandAlias {
+  canonical: string;
+  variants: string[];
+}
+
+const aliasKey = (s: string) => s.toLowerCase().replace(/[\s\-_.]+/g, '').trim();
+
+/** Construye un mapa variante-normalizada → marca canónica desde el glosario. */
+export function buildAliasMap(aliases: BrandAlias[] | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  (aliases || []).forEach(a => {
+    if (!a.canonical) return;
+    map.set(aliasKey(a.canonical), a.canonical);
+    (a.variants || []).forEach(v => { if (v) map.set(aliasKey(v), a.canonical); });
+  });
+  return map;
+}
+
+/** Resuelve un nombre de marca a su forma canónica si está en el glosario; si no, lo deja igual. */
+export function resolveBrandName(name: string, aliasMap: Map<string, string>): string {
+  if (!name) return name;
+  return aliasMap.get(aliasKey(name)) || name;
+}
+
+/** Canonicaliza los nombres de marca de un conjunto de análisis aplicando el glosario, una sola vez. */
+export function applyAliasesToAnalyses(analyses: AnalysisDetail[], aliases: BrandAlias[] | undefined): AnalysisDetail[] {
+  if (!aliases || aliases.length === 0) return analyses;
+  const map = buildAliasMap(aliases);
+  if (map.size === 0) return analyses;
+
+  const fixMention = (bm: BrandMention): BrandMention => ({ ...bm, brand: resolveBrandName(bm.brand, map) });
+  const fixMentions = (arr?: BrandMention[]) => (arr ? arr.map(fixMention) : arr);
+
+  return analyses.map(a => ({
+    ...a,
+    results: {
+      ...a.results,
+      questions: (a.results?.questions || []).map(q => ({
+        ...q,
+        brandMentions: fixMentions(q.brandMentions) || [],
+        multiModelAnalysis: q.multiModelAnalysis
+          ? q.multiModelAnalysis.map(m => ({ ...m, brandMentions: fixMentions(m.brandMentions) }))
+          : q.multiModelAnalysis,
+      })),
+      brandSummary: a.results?.brandSummary
+        ? {
+            targetBrands: fixMentions(a.results.brandSummary.targetBrands) || [],
+            competitors: fixMentions(a.results.brandSummary.competitors) || [],
+          }
+        : a.results?.brandSummary,
+    },
+  }));
+}
+
 // === Modelo / Proveedor (dimensión transversal) ===
 
 export type ModelPersona = 'chatgpt' | 'claude' | 'gemini' | 'perplexity';

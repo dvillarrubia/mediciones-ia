@@ -42,6 +42,7 @@ import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
 import SentimentDashboard from '../components/intelligence/SentimentDashboard';
 import TopicsDashboard from '../components/intelligence/TopicsDashboard';
 import CitationsDashboard from '../components/intelligence/CitationsDashboard';
+import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
 import { useProjectStore } from '../store/projectStore';
 
 interface SavedAnalysis {
@@ -191,7 +192,16 @@ const IntelligenceHub: React.FC = () => {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Proyecto seleccionado
-  const { selectedProjectId } = useProjectStore();
+  const { selectedProjectId, projects } = useProjectStore();
+  // Glosario de marcas del proyecto seleccionado → canonicaliza menciones para todos los dashboards
+  const brandAliases = useMemo(
+    () => projects.find(p => p.id === selectedProjectId)?.brandAliases || [],
+    [projects, selectedProjectId]
+  );
+  const displayAnalyses = useMemo(
+    () => applyAliasesToAnalyses(allAnalysesDetails as any, brandAliases) as any[],
+    [allAnalysesDetails, brandAliases]
+  );
 
   useEffect(() => {
     loadAnalyses();
@@ -1316,22 +1326,22 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
-            <MetricsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+            <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} />
           )}
 
           {/* TAB: SENTIMIENTO */}
           {activeTab === 'sentiment' && (
-            <SentimentDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+            <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} />
           )}
 
           {/* TAB: TOPICS */}
           {activeTab === 'topics' && (
-            <TopicsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+            <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} />
           )}
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
-            <CitationsDashboard analyses={allAnalysesDetails} loading={trendsLoading} />
+            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} />
           )}
 
           {/* TAB 6: AI OVERVIEWS */}

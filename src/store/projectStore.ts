@@ -2,10 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 
+export interface BrandAlias {
+  canonical: string;
+  variants: string[];
+}
+
 export interface Project {
   id: string;
   name: string;
   description?: string;
+  brandAliases?: BrandAlias[];
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +26,7 @@ interface ProjectState {
   fetchProjects: () => Promise<void>;
   createProject: (name: string, description?: string) => Promise<Project | null>;
   updateProject: (id: string, name: string, description?: string) => Promise<Project | null>;
+  updateBrandAliases: (id: string, brandAliases: BrandAlias[]) => Promise<Project | null>;
   deleteProject: (id: string) => Promise<boolean>;
   selectProject: (projectId: string | null) => void;
   getSelectedProject: () => Project | null;
@@ -99,6 +106,33 @@ export const useProjectStore = create<ProjectState>()(
           }
         } catch (error) {
           set({ error: 'Error de conexion al actualizar proyecto', isLoading: false });
+          return null;
+        }
+      },
+
+      updateBrandAliases: async (id: string, brandAliases: BrandAlias[]) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await apiFetch(`${API_ENDPOINTS.projects}/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ brandAliases })
+          });
+          const data = await response.json();
+
+          if (data.success) {
+            const updatedProject = data.data;
+            set(state => ({
+              projects: state.projects.map(p => p.id === id ? updatedProject : p),
+              isLoading: false
+            }));
+            return updatedProject;
+          } else {
+            set({ error: data.error || 'Error al guardar glosario', isLoading: false });
+            return null;
+          }
+        } catch (error) {
+          set({ error: 'Error de conexion al guardar glosario', isLoading: false });
           return null;
         }
       },
