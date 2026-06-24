@@ -1074,10 +1074,10 @@ const IntelligenceHub: React.FC = () => {
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
+          <nav className="flex -mb-px overflow-x-auto">
             <button
               onClick={() => setActiveTab('list')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'list'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'list'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1089,7 +1089,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('trends')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'trends'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'trends'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1101,7 +1101,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('compare')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'compare'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'compare'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1113,7 +1113,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('insights')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'insights'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'insights'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1125,7 +1125,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('metrics')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'metrics'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'metrics'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1137,7 +1137,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('sentiment')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'sentiment'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'sentiment'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1149,7 +1149,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('topics')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'topics'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'topics'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1161,7 +1161,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('citations')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'citations'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'citations'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1173,7 +1173,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('ai-overview')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'ai-overview'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'ai-overview'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
@@ -1185,7 +1185,7 @@ const IntelligenceHub: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('schedules')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'schedules'
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'schedules'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
