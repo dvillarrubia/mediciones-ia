@@ -18,17 +18,17 @@
 
 ---
 
-## Hito 2 — Menciones diferenciadas (en Métricas)
-*Objetivo: separar mención / citación .com / citación blog, con deltas y tablas.*
+## Hito 2 — Menciones diferenciadas (repartido: Métricas + URLs/Citas + detalle)
+*Objetivo: separar mención / citación .com / citación blog, con deltas y tablas. Cada parte en su pestaña natural (ver §10 del plan).*
 
 - [ ] **2.1 Config de dominio** — añadir `brandDomain` (+ `blogPattern`) a la config del proyecto, junto al glosario. Editable en Configuración.
 - [ ] **2.2 Clasificador** — `sharedMetrics.ts`: por respuesta y marca → `no_aparece | mencion | citacion_com | citacion_blog` comparando `sources[].domain/url` con `brandDomain`.
-- [ ] **2.3 KPI cards con delta** — Menciones, Citaciones .com, Citaciones blog, Posición; delta vs análisis anterior (últimos 2 por fecha).
-- [ ] **2.4 Tabla de menciones** — prompt · url citada · frase (`evidence[]`) · fuentes citadas.
-- [ ] **2.5 Tabla de citaciones** — prompt · url · frase · posición vs competencia · quién es nº1 (`appearanceOrder`).
-- [ ] **2.6 Verificar** — devtools con datos reales.
+- [ ] **2.3 KPI cards con delta** → **en Métricas** — Menciones, Citaciones .com, Citaciones blog, Posición; delta vs análisis anterior (últimos 2 por fecha).
+- [ ] **2.4 Desglose por tipo + tabla por prompt** → **en URLs/Citas** — breakdown mención/.com/blog + tabla: prompt · url citada · frase (`evidence[]`) · fuentes citadas · posición · nº1.
+- [ ] **2.5 Columna "nº1 / vs competencia"** → **en panel de detalle "Respuestas por Modelo"** (ampliar la tabla existente con `appearanceOrder` del líder).
+- [ ] **2.6 Verificar** — devtools con datos reales en las tres ubicaciones.
 
-**Entregable:** sección de menciones/citaciones diferenciadas dentro de Métricas.
+**Entregable:** menciones/citaciones diferenciadas, repartidas en su sitio natural (no todo en Métricas).
 
 ---
 

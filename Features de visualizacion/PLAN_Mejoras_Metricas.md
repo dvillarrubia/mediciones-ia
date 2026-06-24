@@ -149,5 +149,22 @@ Se añaden a `MetricsDashboard.tsx` (o como sub-secciones plegables):
 
 ---
 
+## 10. Encaje por pestaña (no todo va a Métricas) ⭐
+
+Tras revisar la app entera, varias piezas del PDF **encajan mejor en pestañas que ya existen** que metiéndolas en Métricas. Reparto recomendado:
+
+| Pieza del PDF | Mejor ubicación | Por qué |
+|---|---|---|
+| **Glosario de alias** (§2.1) | **Configuración** (cross-cutting) | Es un primitivo de datos; al resolverse, propaga a Métricas, Sentimiento, Comparar y GAPS. *(decidido)* |
+| **Diferenciar mención / citación .com / citación blog** + tablas por prompt (url, frase, posición, nº1) (§2.2) | **URLs / Citas** (ampliar la pestaña existente) | Ya es la pestaña de citas/URLs (Citation rate, top dominios, top URLs, citations by model). Aquí encaja el desglose por tipo y la tabla por prompt — **no** una sección nueva en Métricas. |
+| **KPI cards con delta** vs análisis anterior (Menciones ↑+8, Citaciones ↓-12%) (§2.2) | **Métricas** (fila de KPIs) | Son métricas-resumen; su sitio natural es la cabecera de Métricas (y opcionalmente la de URLs/Citas). |
+| **Posición vs competencia / quién es nº1** por prompt (§2.2) | **Panel de detalle → "Respuestas por Modelo"** (ya existe) | Esa tabla ya tiene Posición #N; añadir columna "nº1 / vs competencia" es barato y es contexto de un único análisis. |
+| **GAPS — evolución temporal** (matriz prompt × fecha) (§2.3) | **Tab nuevo "GAPS"** | No tiene hogar; es lo genuinamente nuevo. *(decidido)* |
+| **GAPS — por competencia** (§2.4) | **Tab "GAPS"** | Conceptualmente roza *Comparar*, pero *Comparar* es a nivel de **análisis**, no de **prompt**. Va en GAPS. |
+
+**Implicación:** el plan deja de ser "engordar Métricas" y pasa a **repartir**: Configuración (glosario), Métricas (KPIs con delta + position distribution), URLs/Citas (mención/citación + tablas por prompt), panel de detalle (nº1), y tab GAPS (matriz temporal + competencia). Esto mantiene cada pestaña enfocada y evita duplicar la lógica de citas que **ya** vive en URLs/Citas.
+
+---
+
 ### Anexo — Mapa PDF → feature
 `pág.1` → Glosario (§2.1) · `pág.2` → Menciones diferenciadas (§2.2) · `pág.3` → GAPS temporal (§2.3) · `pág.4` → GAPS competencia (§2.4)
