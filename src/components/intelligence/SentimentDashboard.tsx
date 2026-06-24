@@ -225,7 +225,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
               <AreaChart data={data.overTime}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                <YAxis tickFormatter={(v) => `${Math.round(Number(v))}%`} domain={[0, 100]} allowDataOverflow />
                 <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
                 <Legend />
                 {SENTIMENT_KEYS.map(k => (
