@@ -289,6 +289,64 @@ export function isBrandBlog(source: AnalysisSource, brandDomain: string): boolea
   return (source.url || '').toLowerCase().includes('/blog');
 }
 
+export const APPEARANCE_LABELS: Record<AppearanceType, string> = {
+  no_aparece: 'No aparece',
+  mencion: 'Mención',
+  citacion_com: 'Citación al sitio',
+  citacion_blog: 'Citación al blog',
+};
+
+// Código de color del brief de Pichincha: rojo / naranja / amarillo / verde
+export const APPEARANCE_COLORS: Record<AppearanceType, string> = {
+  no_aparece: '#dc2626',
+  mencion: '#f59e0b',
+  citacion_com: '#eab308',
+  citacion_blog: '#16a34a',
+};
+
+export interface BrandAppearanceRow {
+  analysisId: string;
+  date: string;
+  prompt: string;
+  type: AppearanceType;
+  url?: string;
+  phrase?: string;
+  model?: string;
+}
+
+/** Filas por prompt con el tipo de aparición de la marca (mención/citación). Excluye "no aparece". */
+export function getBrandAppearanceRows(
+  analyses: AnalysisDetail[],
+  targetBrand: string,
+  brandDomain: string
+): BrandAppearanceRow[] {
+  const targetKey = aliasKey(targetBrand);
+  const rows: BrandAppearanceRow[] = [];
+  analyses.forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
+      const brandSources = (q.sources || []).filter(s => sourceBelongsToBrand(s, brandDomain));
+      const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain));
+      let type: AppearanceType;
+      let url: string | undefined;
+      if (blogSource) { type = 'citacion_blog'; url = blogSource.url; }
+      else if (brandSources.length > 0) { type = 'citacion_com'; url = brandSources[0].url; }
+      else if (target) { type = 'mencion'; }
+      else return; // no aparece → no se lista
+      rows.push({
+        analysisId: a.id,
+        date: a.timestamp,
+        prompt: q.question,
+        type,
+        url,
+        phrase: target?.evidence?.[0],
+        model: modelLabel(q.multiModelAnalysis?.[0]),
+      });
+    });
+  });
+  return rows;
+}
+
 export interface BrandAppearanceCounts {
   mentionedResponses: number; // respuestas donde la marca aparece nombrada
   citacionCom: number;        // fuentes que enlazan al dominio de marca (no blog)

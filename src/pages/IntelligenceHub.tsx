@@ -1343,7 +1343,7 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
-            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
           )}
 
           {/* TAB 6: AI OVERVIEWS */}

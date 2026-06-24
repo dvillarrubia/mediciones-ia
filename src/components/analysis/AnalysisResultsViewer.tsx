@@ -240,6 +240,8 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
     position: number | null;
     citations: number;
     mentioned: boolean;
+    leader: string | null;     // marca que ocupa la posición nº1
+    leaderIsTarget: boolean;
   }
   const responseRows: ResponseRow[] = [];
   questionsArr.forEach((q) => {
@@ -248,6 +250,11 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
     models.forEach((m: any) => {
       const mentions: any[] = (m?.brandMentions && m.brandMentions.length > 0 ? m.brandMentions : q.brandMentions) || [];
       const targetM = mentions.find((bm: any) => bm.mentioned && targetKey && normalizeKey(bm.brand) === targetKey);
+      // Marca en posición nº1 (menor appearanceOrder entre las mencionadas)
+      const ranked = mentions
+        .filter((bm: any) => bm.mentioned && bm.appearanceOrder && bm.appearanceOrder > 0)
+        .sort((a: any, b: any) => a.appearanceOrder - b.appearanceOrder);
+      const leaderBrand: string | null = ranked.length > 0 ? ranked[0].brand : null;
       responseRows.push({
         question: q.question,
         model: m?.modelName || PERSONA_LABEL[m?.modelPersona] || m?.modelPersona || 'IA',
@@ -255,6 +262,8 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
         position: targetM?.appearanceOrder || null,
         citations: webCitations,
         mentioned: !!targetM,
+        leader: leaderBrand,
+        leaderIsTarget: !!leaderBrand && !!targetKey && normalizeKey(leaderBrand) === targetKey,
       });
     });
   });
@@ -458,6 +467,7 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Sentimiento</th>
                     <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase">Mención</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Posición</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Nº1</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Citas</th>
                   </tr>
                 </thead>
@@ -481,6 +491,11 @@ const AnalysisResultsViewer: React.FC<AnalysisResultsViewerProps> = ({
                           : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-700">{r.position !== null ? `#${r.position}` : '—'}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        {r.leader
+                          ? <span className={`px-2 py-0.5 text-xs rounded-full ${r.leaderIsTarget ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>{r.leader}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-4 py-2 text-right text-gray-700">{r.citations}</td>
                     </tr>
                   ))}

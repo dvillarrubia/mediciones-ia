@@ -6,19 +6,35 @@ import {
 } from 'recharts';
 import {
   AnalysisDetail, COLORS, PERSONA_LABELS, PERSONA_COLORS,
-  personasInQuestion, isRealDomain, isWebUrl, dateLabel, sortByDate
+  personasInQuestion, isRealDomain, isWebUrl, dateLabel, sortByDate,
+  getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
 } from './sharedMetrics';
 
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
+  brandDomain?: string;
 }
 
 interface UrlRank { url: string; domain: string; count: number; }
 interface DomainRank { domain: string; count: number; percentage: number; }
 
-const CitationsDashboard: React.FC<Props> = ({ analyses, loading }) => {
+const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | AppearanceType>('all');
+
+  // Filas mención/citación de la marca (Hito 2.4)
+  const brandRows = useMemo(() => {
+    if (!analyses || analyses.length === 0) return [];
+    const target = sortByDate(analyses).slice(-1)[0]?.configuration.brand || '';
+    return getBrandAppearanceRows(analyses, target, brandDomain || '');
+  }, [analyses, brandDomain]);
+
+  const brandCounts = useMemo(() => {
+    const c: Record<AppearanceType, number> = { no_aparece: 0, mencion: 0, citacion_com: 0, citacion_blog: 0 };
+    brandRows.forEach(r => { c[r.type]++; });
+    return c;
+  }, [brandRows]);
 
   const data = useMemo(() => {
     if (!analyses || analyses.length === 0) return null;
@@ -115,6 +131,68 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           <div className="text-xs text-gray-500 uppercase tracking-wide">Dominios únicos</div>
           <div className="text-2xl font-bold text-gray-900">{data.uniqueDomains}</div>
         </div>
+      </div>
+
+      {/* Menciones y citaciones de la marca (Hito 2.4) */}
+      <div className="bg-white rounded-lg border p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h3 className="font-semibold text-gray-900">Menciones y citaciones de la marca</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(['all', 'mencion', 'citacion_com', 'citacion_blog'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${typeFilter === t ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+              >
+                {t === 'all' ? 'Todas' : APPEARANCE_LABELS[t]}
+                {t !== 'all' && <span className="ml-1 opacity-70">{brandCounts[t]}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+        {!brandDomain && (
+          <p className="text-xs text-amber-600 mb-3 flex items-center gap-1">
+            <Info className="w-3 h-3" /> Configura el <strong>dominio de marca</strong> en Configuración → Glosario para distinguir citaciones de menciones.
+          </p>
+        )}
+        {brandRows.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">La marca no aparece en estos análisis.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Prompt</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Tipo</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">URL citada</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Frase</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Modelo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {brandRows.filter(r => typeFilter === 'all' || r.type === typeFilter).slice(0, 200).map((r, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-2 max-w-xs truncate text-gray-700" title={r.prompt}>{r.prompt}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ backgroundColor: APPEARANCE_COLORS[r.type] }}>
+                        {APPEARANCE_LABELS[r.type]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 max-w-xs truncate">
+                      {r.url ? (
+                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                          <span className="truncate">{r.url}</span><ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        </a>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2 max-w-sm truncate text-gray-500" title={r.phrase || ''}>{r.phrase || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.model}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Citas por modelo + over time */}
