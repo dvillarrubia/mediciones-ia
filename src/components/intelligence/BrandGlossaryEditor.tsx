@@ -8,17 +8,19 @@ import { useProjectStore, BrandAlias } from '../../store/projectStore';
  * del Intelligence Hub unifican esas menciones como una sola marca.
  */
 const BrandGlossaryEditor: React.FC = () => {
-  const { selectedProjectId, projects, updateBrandAliases, isLoading } = useProjectStore();
+  const { selectedProjectId, projects, updateBrandSettings, isLoading } = useProjectStore();
   const project = projects.find(p => p.id === selectedProjectId) || null;
 
   const [entries, setEntries] = useState<BrandAlias[]>([]);
   const [variantInputs, setVariantInputs] = useState<Record<number, string>>({});
+  const [brandDomain, setBrandDomain] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setEntries((project?.brandAliases || []).map(a => ({ canonical: a.canonical, variants: [...(a.variants || [])] })));
+    setBrandDomain(project?.brandDomain || '');
     setSaved(false);
-  }, [selectedProjectId, project?.brandAliases]);
+  }, [selectedProjectId, project?.brandAliases, project?.brandDomain]);
 
   if (!selectedProjectId || !project) {
     return (
@@ -49,7 +51,7 @@ const BrandGlossaryEditor: React.FC = () => {
     const clean = entries
       .map(e => ({ canonical: e.canonical.trim(), variants: e.variants.map(v => v.trim()).filter(Boolean) }))
       .filter(e => e.canonical);
-    const result = await updateBrandAliases(selectedProjectId, clean);
+    const result = await updateBrandSettings(selectedProjectId, { brandAliases: clean, brandDomain: brandDomain.trim() });
     if (result) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -67,6 +69,20 @@ const BrandGlossaryEditor: React.FC = () => {
           (p. ej. <code className="text-xs bg-gray-100 px-1 rounded">BIESS</code>, <code className="text-xs bg-gray-100 px-1 rounded">biess</code>,
           <code className="text-xs bg-gray-100 px-1 rounded ml-1">Instituto Ecuatoriano de Seguridad Social</code>). Se aplica a todos los gráficos.
         </p>
+      </div>
+
+      {/* Dominio de la marca */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <label className="block text-sm font-medium text-gray-800 mb-1">Dominio de la marca</label>
+        <p className="text-xs text-gray-500 mb-2">
+          Para distinguir <strong>mención</strong> (sin enlace) de <strong>citación</strong> (la IA enlaza a tu sitio) y <strong>citación al blog</strong> (ruta <code className="bg-gray-100 px-1 rounded">/blog</code>).
+        </p>
+        <input
+          value={brandDomain}
+          onChange={(e) => setBrandDomain(e.target.value)}
+          placeholder="pichincha.com"
+          className="w-full border rounded-md px-3 py-2 text-sm text-gray-900"
+        />
       </div>
 
       <div className="space-y-4">

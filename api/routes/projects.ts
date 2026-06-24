@@ -107,7 +107,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, brandAliases } = req.body;
+    const { name, description, brandAliases, brandDomain } = req.body;
 
     const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
@@ -117,9 +117,13 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[] } = {};
+    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[]; brandDomain?: string } = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
+    if (brandDomain !== undefined) {
+      // Normaliza: quita protocolo, www y barras
+      updates.brandDomain = String(brandDomain).trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
+    }
     if (brandAliases !== undefined && Array.isArray(brandAliases)) {
       updates.brandAliases = brandAliases
         .filter((a: any) => a && typeof a.canonical === 'string' && a.canonical.trim())

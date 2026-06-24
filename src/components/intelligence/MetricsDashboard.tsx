@@ -8,6 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
+import { countBrandAppearances } from './sharedMetrics';
 
 // Re-use types from IntelligenceHub
 interface BrandMention {
@@ -64,6 +65,7 @@ interface AnalysisDetail {
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
+  brandDomain?: string;
 }
 
 // === HELPERS ===
@@ -363,8 +365,18 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
   </div>
 );
 
-const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
+const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const metrics = useMemo(() => calculateMetrics(analyses), [analyses]);
+
+  // KPIs de menciones/citaciones con delta vs análisis anterior (Hito 2)
+  const mentionKpis = useMemo(() => {
+    if (!analyses || analyses.length === 0) return null;
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const target = sorted[sorted.length - 1].configuration.brand;
+    const cur = countBrandAppearances([sorted[sorted.length - 1]] as any, target, brandDomain || '');
+    const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '') : null;
+    return { cur, prev, hasDomain: !!brandDomain };
+  }, [analyses, brandDomain]);
 
   if (loading) {
     return (
@@ -415,6 +427,19 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
     isTarget: s.isTarget,
   }));
 
+  const renderDelta = (cur: number, prev: number | null | undefined) => {
+    if (prev === null || prev === undefined) return null;
+    const d = cur - prev;
+    if (d === 0) return <span className="text-xs text-gray-400 ml-2">=</span>;
+    const up = d > 0;
+    const pct = prev > 0 ? Math.round((d / prev) * 100) : null;
+    return (
+      <span className={`text-xs ml-2 ${up ? 'text-green-600' : 'text-red-600'}`}>
+        {up ? '▲' : '▼'} {up ? '+' : ''}{d}{pct !== null ? ` (${up ? '+' : ''}${pct}%)` : ''}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -428,6 +453,40 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           Marca target: <strong>{cs.targetBrand}</strong>
         </p>
       </div>
+
+      {/* Menciones vs Citaciones (Hito 2) */}
+      {mentionKpis && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Menciones</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.mentionedResponses}{renderDelta(mentionKpis.cur.mentionedResponses, mentionKpis.prev?.mentionedResponses)}
+            </div>
+            <div className="text-xs text-gray-400">respuestas que nombran la marca</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al sitio</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.citacionCom}{renderDelta(mentionKpis.cur.citacionCom, mentionKpis.prev?.citacionCom)}
+            </div>
+            <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'fuentes que enlazan al dominio' : 'configura el dominio de marca'}</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al blog</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.citacionBlog}{renderDelta(mentionKpis.cur.citacionBlog, mentionKpis.prev?.citacionBlog)}
+            </div>
+            <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'enlaces a /blog' : 'configura el dominio de marca'}</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Posición media</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.posCount > 0 ? (mentionKpis.cur.posSum / mentionKpis.cur.posCount).toFixed(1) : '—'}
+            </div>
+            <div className="text-xs text-gray-400">orden de aparición (menor = mejor)</div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

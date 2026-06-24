@@ -194,10 +194,12 @@ const IntelligenceHub: React.FC = () => {
   // Proyecto seleccionado
   const { selectedProjectId, projects } = useProjectStore();
   // Glosario de marcas del proyecto seleccionado → canonicaliza menciones para todos los dashboards
-  const brandAliases = useMemo(
-    () => projects.find(p => p.id === selectedProjectId)?.brandAliases || [],
+  const selectedProject = useMemo(
+    () => projects.find(p => p.id === selectedProjectId) || null,
     [projects, selectedProjectId]
   );
+  const brandAliases = selectedProject?.brandAliases || [];
+  const brandDomain = selectedProject?.brandDomain || '';
   const displayAnalyses = useMemo(
     () => applyAliasesToAnalyses(allAnalysesDetails as any, brandAliases) as any[],
     [allAnalysesDetails, brandAliases]
@@ -1326,7 +1328,7 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
-            <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
           )}
 
           {/* TAB: SENTIMIENTO */}

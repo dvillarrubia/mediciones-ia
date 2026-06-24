@@ -263,3 +263,65 @@ export function isRealDomain(domain: string | undefined): boolean {
 export function isWebUrl(url: string | undefined): boolean {
   return !!url && url.startsWith('http') && !url.includes('ai-generated') && !url.includes('generative');
 }
+
+// === Clasificación mención vs citación (Hito 2) ===
+
+export type AppearanceType = 'no_aparece' | 'mencion' | 'citacion_com' | 'citacion_blog';
+
+/** Normaliza un dominio de marca (sin protocolo/www/barras). */
+export function normalizeDomain(d: string | undefined): string {
+  return (d || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').trim();
+}
+
+/** ¿La fuente (dominio o url) pertenece al dominio de la marca? */
+export function sourceBelongsToBrand(source: AnalysisSource, brandDomain: string): boolean {
+  const bd = normalizeDomain(brandDomain);
+  if (!bd) return false;
+  const d = (source.domain || '').toLowerCase();
+  if (d && (d === bd || d.endsWith('.' + bd))) return true;
+  const u = (source.url || '').toLowerCase();
+  return u.includes('//' + bd) || u.includes('.' + bd + '/') || u.includes('/' + bd + '/');
+}
+
+/** ¿Es una citación al blog de la marca? (dominio de marca + ruta /blog) */
+export function isBrandBlog(source: AnalysisSource, brandDomain: string): boolean {
+  if (!sourceBelongsToBrand(source, brandDomain)) return false;
+  return (source.url || '').toLowerCase().includes('/blog');
+}
+
+export interface BrandAppearanceCounts {
+  mentionedResponses: number; // respuestas donde la marca aparece nombrada
+  citacionCom: number;        // fuentes que enlazan al dominio de marca (no blog)
+  citacionBlog: number;       // fuentes que enlazan al blog de la marca
+  posSum: number;
+  posCount: number;
+}
+
+/** Cuenta menciones/citaciones de la marca objetivo en un conjunto de análisis. */
+export function countBrandAppearances(
+  analyses: AnalysisDetail[],
+  targetBrand: string,
+  brandDomain: string
+): BrandAppearanceCounts {
+  const targetKey = aliasKey(targetBrand);
+  const acc: BrandAppearanceCounts = { mentionedResponses: 0, citacionCom: 0, citacionBlog: 0, posSum: 0, posCount: 0 };
+
+  analyses.forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
+      if (target) {
+        acc.mentionedResponses++;
+        if (target.appearanceOrder && target.appearanceOrder > 0) {
+          acc.posSum += target.appearanceOrder;
+          acc.posCount++;
+        }
+      }
+      (q.sources || []).forEach(s => {
+        if (!sourceBelongsToBrand(s, brandDomain)) return;
+        if (isBrandBlog(s, brandDomain)) acc.citacionBlog++;
+        else acc.citacionCom++;
+      });
+    });
+  });
+  return acc;
+}

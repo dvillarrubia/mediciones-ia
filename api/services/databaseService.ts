@@ -16,6 +16,7 @@ export interface Project {
   name: string;
   description?: string;
   brandAliases?: BrandAlias[]; // Glosario de marcas (unificación de menciones)
+  brandDomain?: string; // Dominio de la marca objetivo (ej. pichincha.com) para distinguir mención vs citación
   createdAt: string;
   updatedAt: string;
 }
@@ -255,6 +256,13 @@ class DatabaseService {
           }
         });
 
+        // Migración idempotente: dominio de la marca objetivo
+        this.db!.run('ALTER TABLE projects ADD COLUMN brand_domain TEXT', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            console.error('Error añadiendo brand_domain:', err);
+          }
+        });
+
         // Crear índices para optimización multi-tenant
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis(user_id)');
@@ -481,6 +489,7 @@ class DatabaseService {
             name: row.name,
             description: row.description,
             brandAliases: this.parseBrandAliases(row.brand_aliases),
+            brandDomain: row.brand_domain || undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at
           }));
@@ -524,6 +533,7 @@ class DatabaseService {
             name: row.name,
             description: row.description,
             brandAliases: this.parseBrandAliases(row.brand_aliases),
+            brandDomain: row.brand_domain || undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at
           });
@@ -542,7 +552,7 @@ class DatabaseService {
     }
   }
 
-  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'brandAliases'>>, userId?: string): Promise<Project | null> {
+  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'brandAliases' | 'brandDomain'>>, userId?: string): Promise<Project | null> {
     await this.ensureInitialized();
 
     return new Promise((resolve, reject) => {
@@ -566,6 +576,10 @@ class DatabaseService {
       if (updates.brandAliases !== undefined) {
         fields.push('brand_aliases = ?');
         params.push(JSON.stringify(updates.brandAliases || []));
+      }
+      if (updates.brandDomain !== undefined) {
+        fields.push('brand_domain = ?');
+        params.push(updates.brandDomain || null);
       }
 
       params.push(id);
