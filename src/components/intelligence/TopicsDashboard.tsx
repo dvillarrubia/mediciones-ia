@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Hash, Info } from 'lucide-react';
+import { Hash } from 'lucide-react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   AnalysisDetail, normalizeSentimentKey, sortByDate
@@ -86,10 +86,6 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-gray-400 flex items-center gap-1">
-        <Info className="w-3 h-3" /> Topics derivados de las categorías de las preguntas. (La extracción granular vía LLM es una mejora futura — ver plan.)
-      </p>
-
       {/* Treemap */}
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Hash className="w-4 h-4 text-indigo-500" /> Topics</h3>
@@ -100,10 +96,7 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
             stroke="#fff"
             content={<TopicCell />}
           >
-            <Tooltip
-              formatter={(v: any) => [`${v} menciones`, 'Menciones']}
-              labelFormatter={(l: any) => l}
-            />
+            <Tooltip content={<TreemapTooltip />} />
           </Treemap>
         </ResponsiveContainer>
       </div>
@@ -146,6 +139,24 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           </table>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Tooltip del treemap: siempre muestra el nombre del topic (aunque la celda sea pequeña y no quepa la etiqueta).
+const TreemapTooltip: React.FC<any> = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0]?.payload || {};
+  if (!d.name) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-md shadow-md px-3 py-2 text-sm">
+      <div className="font-semibold text-gray-900">{d.name}</div>
+      <div className="text-gray-600">{d.size} menciones</div>
+      {typeof d.net === 'number' && (
+        <div style={{ color: d.net >= 0 ? '#15803d' : '#dc2626' }}>
+          Net {d.net >= 0 ? '+' : ''}{d.net.toFixed(0)}%
+        </div>
+      )}
     </div>
   );
 };
