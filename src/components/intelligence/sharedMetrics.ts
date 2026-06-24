@@ -347,6 +347,80 @@ export function getBrandAppearanceRows(
   return rows;
 }
 
+/** Clasifica la aparición de la marca objetivo en una pregunta (incluye 'no_aparece'). */
+export function classifyQuestionForBrand(
+  q: QuestionAnalysis,
+  targetBrand: string,
+  brandDomain: string
+): { type: AppearanceType; position: number | null } {
+  const targetKey = aliasKey(targetBrand);
+  const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
+  const brandSources = (q.sources || []).filter(s => sourceBelongsToBrand(s, brandDomain));
+  const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain));
+  let type: AppearanceType = 'no_aparece';
+  if (blogSource) type = 'citacion_blog';
+  else if (brandSources.length > 0) type = 'citacion_com';
+  else if (target) type = 'mencion';
+  return { type, position: target?.appearanceOrder || null };
+}
+
+// === Matriz de GAPS (prompt × fecha) ===
+
+export interface GapCell { type: AppearanceType; position: number | null; }
+export interface GapRow {
+  promptKey: string;
+  prompt: string;
+  category?: string;
+  cells: Record<string, GapCell>; // por analysisId
+  competitors: string[];          // competidores que aparecen (en cualquier análisis)
+  absentCount: number;            // nº de análisis donde la marca no aparece (severidad)
+  absentLatest: boolean;          // no aparece en el análisis más reciente
+}
+export interface GapsMatrix {
+  columns: { id: string; label: string; date: string }[];
+  rows: GapRow[];
+  allCompetitors: string[];
+}
+
+/** Empareja prompts por texto normalizado y construye la matriz prompt × análisis. */
+export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string): GapsMatrix {
+  const sorted = sortByDate(analyses);
+  const columns = sorted.map(a => ({ id: a.id, label: dateLabel(a.timestamp), date: a.timestamp }));
+  const targetKey = aliasKey(targetBrand);
+  const rowMap = new Map<string, GapRow>();
+  const order: string[] = [];
+
+  sorted.forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      const key = (q.question || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!key) return;
+      if (!rowMap.has(key)) {
+        rowMap.set(key, { promptKey: key, prompt: q.question, category: q.category, cells: {}, competitors: [], absentCount: 0, absentLatest: false });
+        order.push(key);
+      }
+      const row = rowMap.get(key)!;
+      const cls = classifyQuestionForBrand(q, targetBrand, brandDomain);
+      row.cells[a.id] = { type: cls.type, position: cls.position };
+      (q.brandMentions || []).forEach(bm => {
+        if (!bm.mentioned || aliasKey(bm.brand) === targetKey) return;
+        if (!row.competitors.includes(bm.brand)) row.competitors.push(bm.brand);
+      });
+    });
+  });
+
+  const latestId = columns.length ? columns[columns.length - 1].id : null;
+  const allComp = new Set<string>();
+  const rows = order.map(k => {
+    const row = rowMap.get(k)!;
+    row.absentCount = columns.reduce((n, c) => n + ((!row.cells[c.id] || row.cells[c.id].type === 'no_aparece') ? 1 : 0), 0);
+    row.absentLatest = !latestId || !row.cells[latestId] || row.cells[latestId].type === 'no_aparece';
+    row.competitors.forEach(c => allComp.add(c));
+    return row;
+  });
+  rows.sort((a, b) => b.absentCount - a.absentCount); // severidad: más ausencias primero
+  return { columns, rows, allCompetitors: Array.from(allComp).sort() };
+}
+
 export interface BrandAppearanceCounts {
   mentionedResponses: number; // respuestas donde la marca aparece nombrada
   citacionCom: number;        // fuentes que enlazan al dominio de marca (no blog)

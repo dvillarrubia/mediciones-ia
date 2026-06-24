@@ -31,7 +31,8 @@ import {
   MessageSquare,
   Heart,
   Hash,
-  Link2
+  Link2,
+  Crosshair
 } from 'lucide-react';
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -42,6 +43,7 @@ import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
 import SentimentDashboard from '../components/intelligence/SentimentDashboard';
 import TopicsDashboard from '../components/intelligence/TopicsDashboard';
 import CitationsDashboard from '../components/intelligence/CitationsDashboard';
+import GapsDashboard from '../components/intelligence/GapsDashboard';
 import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
 import { useProjectStore } from '../store/projectStore';
 
@@ -134,13 +136,13 @@ const IntelligenceHub: React.FC = () => {
   const initialTab = (() => {
     const params = new URLSearchParams(location.search);
     const t = params.get('tab');
-    if (t === 'schedules' || t === 'ai-overview' || t === 'metrics' || t === 'sentiment' || t === 'topics' || t === 'citations' || t === 'compare' || t === 'list') {
+    if (t === 'schedules' || t === 'ai-overview' || t === 'metrics' || t === 'sentiment' || t === 'topics' || t === 'citations' || t === 'gaps' || t === 'compare' || t === 'list') {
       return t;
     }
     return 'list';
   })();
   // Estado principal
-  const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'ai-overview' | 'schedules'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'gaps' | 'ai-overview' | 'schedules'>(initialTab);
   const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
 
   useEffect(() => {
@@ -313,7 +315,7 @@ const IntelligenceHub: React.FC = () => {
 
   // Cargar detalles cuando se cambia a la pestaña de tendencias o insights
   useEffect(() => {
-    if ((activeTab === 'metrics' || activeTab === 'sentiment' || activeTab === 'topics' || activeTab === 'citations' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
+    if ((activeTab === 'metrics' || activeTab === 'sentiment' || activeTab === 'topics' || activeTab === 'citations' || activeTab === 'gaps' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
       loadAllAnalysesDetails();
     }
   }, [activeTab, analyses]);
@@ -845,6 +847,18 @@ const IntelligenceHub: React.FC = () => {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('gaps')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'gaps'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Crosshair className="w-4 h-4" />
+                GAPS
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('ai-overview')}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'ai-overview'
                   ? 'border-blue-600 text-blue-600'
@@ -1344,6 +1358,11 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
             <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+          )}
+
+          {/* TAB: GAPS */}
+          {activeTab === 'gaps' && (
+            <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
           )}
 
           {/* TAB 6: AI OVERVIEWS */}

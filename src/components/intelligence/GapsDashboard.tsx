@@ -1,0 +1,127 @@
+import React, { useMemo, useState } from 'react';
+import { Crosshair, Info } from 'lucide-react';
+import {
+  AnalysisDetail, sortByDate, buildGapsMatrix,
+  APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
+} from './sharedMetrics';
+
+interface Props {
+  analyses: AnalysisDetail[];
+  loading?: boolean;
+  brandDomain?: string;
+}
+
+const LEGEND: AppearanceType[] = ['no_aparece', 'mencion', 'citacion_com', 'citacion_blog'];
+
+const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
+  const [onlyGaps, setOnlyGaps] = useState(false);
+  const [competitor, setCompetitor] = useState<string>('all');
+
+  const matrix = useMemo(() => {
+    if (!analyses || analyses.length === 0) return null;
+    const target = sortByDate(analyses).slice(-1)[0]?.configuration.brand || '';
+    return buildGapsMatrix(analyses, target, brandDomain || '');
+  }, [analyses, brandDomain]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20 text-gray-400">Cargando GAPS…</div>;
+  }
+  if (!matrix || matrix.rows.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <Crosshair className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">No hay prompts para analizar GAPS.</p>
+      </div>
+    );
+  }
+
+  const rows = matrix.rows.filter(r => {
+    if (onlyGaps && !r.absentLatest) return false;
+    if (competitor !== 'all' && !r.competitors.includes(competitor)) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setOnlyGaps(v => !v)}
+            className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${onlyGaps ? 'border-red-600 bg-red-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+          >
+            ● Solo GAPS (no aparece)
+          </button>
+          <select
+            value={competitor}
+            onChange={(e) => setCompetitor(e.target.value)}
+            className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
+          >
+            <option value="all">Competencia: todos</option>
+            {matrix.allCompetitors.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <span className="text-xs text-gray-400">{rows.length} de {matrix.rows.length} prompts</span>
+      </div>
+
+      {/* Leyenda */}
+      <div className="flex items-center gap-4 flex-wrap text-xs text-gray-600">
+        {LEGEND.map(t => (
+          <span key={t} className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: APPEARANCE_COLORS[t] }} />
+            {APPEARANCE_LABELS[t]}
+          </span>
+        ))}
+        {!brandDomain && (
+          <span className="inline-flex items-center gap-1 text-amber-600">
+            <Info className="w-3 h-3" /> Configura el dominio de marca para distinguir citaciones (.com / blog).
+          </span>
+        )}
+      </div>
+
+      {/* Matriz */}
+      <div className="bg-white rounded-lg border overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10">Prompt</th>
+              {matrix.columns.map(c => (
+                <th key={c.id} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map(row => (
+              <tr key={row.promptKey} className="hover:bg-gray-50">
+                <td className="px-4 py-2 sticky left-0 bg-white z-10 max-w-sm">
+                  <div className="truncate text-gray-800" title={row.prompt}>{row.prompt}</div>
+                  {row.category && <div className="text-xs text-gray-400">{row.category}</div>}
+                </td>
+                {matrix.columns.map(c => {
+                  const cell = row.cells[c.id];
+                  const type = cell?.type || 'no_aparece';
+                  const title = `${APPEARANCE_LABELS[type]}${cell?.position ? ` · pos #${cell.position}` : ''}`;
+                  return (
+                    <td key={c.id} className="px-3 py-2 text-center" title={title}>
+                      <span
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-white mx-auto"
+                        style={{ backgroundColor: APPEARANCE_COLORS[type] }}
+                      >
+                        {type !== 'no_aparece' && cell?.position ? cell.position : ''}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-400 flex items-center gap-1">
+        <Info className="w-3 h-3" /> Ordenado por severidad (más ausencias primero). El número dentro del punto es la posición de la marca.
+      </p>
+    </div>
+  );
+};
+
+export default GapsDashboard;
