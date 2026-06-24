@@ -39,7 +39,7 @@
 - [ ] **3.2 Estado por celda** — para (prompt × análisis): color No aparece (rojo) / Mención (naranja) / .com (amarillo) / blog (verde) + posición.
 - [ ] **3.3 Tab + componente** — `GapsDashboard.tsx` + nueva pestaña "GAPS" en `IntelligenceHub`.
 - [ ] **3.4 Matriz** — col1 prompts, columnas por fecha, celdas con punto de color (+ tooltip con posición).
-- [ ] **3.5 Filtros** — "Solo GAPS (no aparece)" + selector de competencia.
+- [ ] **3.5 Filtros (prompt-level, componente compartido)** — toggle "Solo GAPS (no aparece)" + selector de competidor. La lista de competidores sale de configurados+descubiertos **ya unificados por el glosario (Hito 1)**. Reutilizable en Hito 4.
 - [ ] **3.6 Verificar** — devtools.
 
 **Entregable:** vista de evolución temporal de GAPS.
@@ -51,7 +51,7 @@
 
 - [ ] **4.1 Selector de análisis** — elegir el informe (fecha) a inspeccionar.
 - [ ] **4.2 Tabla** — prompt · posición de la marca (badge "No aparece" / "pos. N — tipo") · competidores que aparecen.
-- [ ] **4.3 Filtros** — selector de competidor + check "solo donde NO aparece la marca".
+- [ ] **4.3 Filtros** — selector de análisis/fecha + selector de competidor (componente compartido del 3.5) + check "Mostrar solo donde NO aparece la marca".
 - [ ] **4.4 Verificar** — devtools.
 
 **Entregable:** vista por competencia completa. Tab GAPS con sus 2 vistas.
@@ -78,6 +78,7 @@ Hito 4 (GAPS competencia)  ──> usa lo de Hito 3
 Hito 5 (Position)  ──> independiente, encaja cuando se quiera
 ```
 - **Empezamos por Hito 1** (glosario en Configuración). Es el cimiento y el problema #1 del cliente.
+- **Los filtros de GAPS refuerzan el orden**: el *selector de competidor* necesita el **glosario (Hito 1)** para no duplicar bancos, y el *color de celda* necesita el **clasificador de tipo (Hito 2)**. Por eso GAPS (Hitos 3-4) va después de 1 y 2.
 - Cada hito se commitea y se valida en el navegador antes del siguiente.
 
 ---

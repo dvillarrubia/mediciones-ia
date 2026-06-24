@@ -48,6 +48,26 @@ El gráfico "Menciones por Marca" del PDF muestra la **misma entidad partida en 
 
 ---
 
+### 2.5 Filtros de la historia de usuario (son el núcleo de GAPS) ⭐
+
+La historia de Pichincha define filtros muy concretos. Son **prompt-level** (filtran prompts, no análisis) — una capacidad que la app **no tiene hoy** (hoy se filtra por fecha/modelo/sentimiento, nunca "prompts donde la marca está ausente").
+
+**Tab 1 · Evolución temporal:**
+- **Toggle "Solo GAPS (no aparece)"** → solo prompts donde la marca NO aparece.
+- **Selector de competencia** ("Competencia: todos ▼", *selector de bancos*) → solo prompts donde aparece ese competidor.
+
+**Tab 2 · Por competencia:**
+- **Selector de análisis/fecha** ("Análisis: 10/06/25 ▼") → informe concreto a inspeccionar.
+- **Selector de competidor** ("Todos los competidores ▼") → solo prompts donde aparece ese competidor.
+- **Check "Mostrar sólo donde NO aparece la marca"**.
+
+**Tres implicaciones de diseño:**
+1. **Filtrado a nivel de prompt es nuevo** → conviene un componente de filtros reutilizable entre las dos vistas de GAPS (toggle de ausencia + selector de competidor son compartidos).
+2. **El "selector de competidor" sale de los datos** → lista = competidores configurados **+ descubiertos**, ya **unificados por el glosario** (Hito 1). Sin glosario, el selector mostraría duplicados (BIESS/biess/…). → otra razón para hacer el glosario primero.
+3. **El código de color de celda depende del clasificador de tipo de aparición** (no aparece / mención / .com / blog) → GAPS temporal **depende de `brandDomain` (Hito 2)**, no solo de la presencia.
+
+---
+
 ## 3. Qué aportan las capturas de referencia (Peec)
 
 Refuerzan el bloque de **posición/competencia** de Métricas:
