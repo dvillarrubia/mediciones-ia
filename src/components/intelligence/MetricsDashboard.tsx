@@ -456,7 +456,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
 
       {/* Menciones vs Citaciones (Hito 2) */}
       {mentionKpis && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide">Menciones</div>
             <div className="text-2xl font-bold text-gray-900">
@@ -477,13 +477,6 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
               {mentionKpis.cur.citacionBlog}{renderDelta(mentionKpis.cur.citacionBlog, mentionKpis.prev?.citacionBlog)}
             </div>
             <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'enlaces a /blog' : 'configura el dominio de marca'}</div>
-          </div>
-          <div className="bg-white rounded-xl border p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Posición media</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {mentionKpis.cur.posCount > 0 ? (mentionKpis.cur.posSum / mentionKpis.cur.posCount).toFixed(1) : '—'}
-            </div>
-            <div className="text-xs text-gray-400">orden de aparición (menor = mejor)</div>
           </div>
         </div>
       )}
