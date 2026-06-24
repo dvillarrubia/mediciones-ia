@@ -421,6 +421,42 @@ export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string,
   return { columns, rows, allCompetitors: Array.from(allComp).sort() };
 }
 
+// === Vista por competencia (Hito 4) ===
+
+export interface CompetitorPos { brand: string; position: number | null; }
+export interface CompetitiveRow {
+  prompt: string;
+  category?: string;
+  type: AppearanceType;        // tipo de aparición de la marca
+  position: number | null;     // posición de la marca
+  isFirst: boolean;            // la marca ocupa el nº1
+  competitors: CompetitorPos[]; // competidores presentes, ordenados por posición
+}
+
+/** Sobre un análisis concreto: posición de la marca y competidores por prompt. */
+export function buildCompetitiveView(
+  analysis: AnalysisDetail | null | undefined,
+  targetBrand: string,
+  brandDomain: string
+): { rows: CompetitiveRow[]; competitors: string[] } {
+  if (!analysis) return { rows: [], competitors: [] };
+  const targetKey = aliasKey(targetBrand);
+  const allComp = new Set<string>();
+  const rows: CompetitiveRow[] = (analysis.results?.questions || []).map(q => {
+    const cls = classifyQuestionForBrand(q, targetBrand, brandDomain);
+    const competitors = (q.brandMentions || [])
+      .filter(bm => bm.mentioned && aliasKey(bm.brand) !== targetKey)
+      .map(bm => ({ brand: bm.brand, position: bm.appearanceOrder || null }))
+      .sort((a, b) => (a.position || 999) - (b.position || 999));
+    competitors.forEach(c => allComp.add(c.brand));
+    return { prompt: q.question, category: q.category, type: cls.type, position: cls.position, isFirst: cls.position === 1, competitors };
+  });
+  // Peores primero: no aparece, luego peor posición
+  const worseness = (r: CompetitiveRow) => (r.type === 'no_aparece' ? 9999 : (r.position || 999));
+  rows.sort((a, b) => worseness(b) - worseness(a));
+  return { rows, competitors: Array.from(allComp).sort() };
+}
+
 export interface BrandAppearanceCounts {
   mentionedResponses: number; // respuestas donde la marca aparece nombrada
   citacionCom: number;        // fuentes que enlazan al dominio de marca (no blog)
