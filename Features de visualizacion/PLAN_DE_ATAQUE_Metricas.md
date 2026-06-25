@@ -1,0 +1,104 @@
+# Plan de Ataque — Mejoras de Métricas + GAPS (incremental)
+
+> Ejecución **poco a poco**. El *qué/por qué* está en `PLAN_Mejoras_Metricas.md`.
+> **Decisiones cerradas:** GAPS = tab propio · Glosario = en Configuración (editable por el usuario, por proyecto) · cambio aditivo.
+> Cada paso es **pequeño, verificable y commiteable por separado**. No se empieza el siguiente hasta validar el anterior en el navegador.
+
+---
+
+## Hito 1 — Glosario de marcas (cimiento transversal)
+*Objetivo: el usuario define alias en Configuración y todos los dashboards unifican las menciones.*
+
+- [ ] **1.1 Modelo de datos** — añadir `aliases` a la config del proyecto (canónica → variantes). Backend: persistir en la config existente (o tabla `brand_aliases`) + endpoints CRUD.
+- [ ] **1.2 Editor en Configuración** — UI en `Configuration.tsx`: añadir/editar/borrar entradas (marca canónica + lista de alias). Por proyecto.
+- [ ] **1.3 Aplicar glosario** — `sharedMetrics.ts`: nueva `resolveBrand(name, glosario, configuredBrands)` que primero resuelve alias y luego normaliza. Sustituir usos de `normalizeBrandName`.
+- [ ] **1.4 Verificar** — en Métricas/SoV/Menciones por Marca: las variantes (BIESS/biess/Instituto…) se cuentan como una sola. Devtools + datos reales.
+
+**Entregable:** glosario editable funcionando y reflejado en los gráficos. *(Resuelve el problema #1 del cliente.)*
+
+---
+
+## Hito 2 — Menciones diferenciadas (repartido: Métricas + URLs/Citas + detalle)
+*Objetivo: separar mención / citación .com / citación blog, con deltas y tablas. Cada parte en su pestaña natural (ver §10 del plan).*
+
+- [ ] **2.1 Config de dominio** — añadir `brandDomain` (+ `blogPattern`) a la config del proyecto, junto al glosario. Editable en Configuración.
+- [ ] **2.2 Clasificador** — `sharedMetrics.ts`: por respuesta y marca → `no_aparece | mencion | citacion_com | citacion_blog` comparando `sources[].domain/url` con `brandDomain`.
+- [ ] **2.3 KPI cards con delta** → **en Métricas** — Menciones, Citaciones .com, Citaciones blog, Posición; delta vs análisis anterior (últimos 2 por fecha).
+- [ ] **2.4 Desglose por tipo + tabla por prompt** → **en URLs/Citas** — breakdown mención/.com/blog + tabla: prompt · url citada · frase (`evidence[]`) · fuentes citadas · posición · nº1.
+- [ ] **2.5 Columna "nº1 / vs competencia"** → **en panel de detalle "Respuestas por Modelo"** (ampliar la tabla existente con `appearanceOrder` del líder).
+- [ ] **2.6 Verificar** — devtools con datos reales en las tres ubicaciones.
+
+**Entregable:** menciones/citaciones diferenciadas, repartidas en su sitio natural (no todo en Métricas).
+
+---
+
+## Hito 3 — Tab "GAPS": Evolución temporal
+*Objetivo: matriz prompt × fecha con código de color.*
+
+- [ ] **3.1 Emparejado de prompts** — decidir clave estable (`questionId` vs texto normalizado); verificar estabilidad entre análisis. Helper en `sharedMetrics.ts`.
+- [ ] **3.2 Estado por celda** — para (prompt × análisis): color No aparece (rojo) / Mención (naranja) / .com (amarillo) / blog (verde) + posición.
+- [ ] **3.3 Tab + componente** — `GapsDashboard.tsx` + nueva pestaña "GAPS" en `IntelligenceHub`.
+- [ ] **3.4 Matriz** — col1 prompts, columnas por fecha, celdas con punto de color (+ tooltip con posición).
+- [ ] **3.5 Filtros (prompt-level, componente compartido)** — toggle "Solo GAPS (no aparece)" + selector de competidor. La lista de competidores sale de configurados+descubiertos **ya unificados por el glosario (Hito 1)**. Reutilizable en Hito 4.
+- [ ] **3.6 Priorización (GEO, accionable)** — ordenar/colorear la tabla por **severidad del gap**: en cuántos modelos × fechas falta la marca (y si el competidor sí está). Convierte GAPS de descriptivo a accionable.
+- [ ] **3.7 Verificar** — devtools.
+
+**Entregable:** vista de evolución temporal de GAPS, ordenada por severidad.
+
+---
+
+## Hito 4 — Tab "GAPS": Por competencia
+*Objetivo: sobre un informe, prompts donde la marca no es nº1 + competidores presentes.*
+
+- [ ] **4.1 Selector de análisis** — elegir el informe (fecha) a inspeccionar.
+- [ ] **4.2 Tabla** — prompt · posición de la marca (badge "No aparece" / "pos. N — tipo") · competidores que aparecen.
+- [ ] **4.3 Filtros** — selector de análisis/fecha + selector de competidor (componente compartido del 3.5) + check "Mostrar solo donde NO aparece la marca".
+- [ ] **4.4 Verificar** — devtools.
+
+**Entregable:** vista por competencia completa. Tab GAPS con sus 2 vistas.
+
+---
+
+## Hito 5 — Position distribution (pulido, opcional)
+*Objetivo: enriquecer el bloque de posición de Métricas.*
+
+- [ ] **5.1 Buckets de posición** (pos.1 / 2-3 / 4-7 / 8+) → pie o barras apiladas.
+- [ ] **5.2 Mejora de "Tracking de Posición"** con la distribución por bucket en el tiempo.
+
+**Entregable:** posición más rica en Métricas. *(Datos ya existen; barato.)*
+
+---
+
+## Hito 6 — Capa GEO accionable (datos ya existentes)
+*Objetivo: cerrar el bucle medir→diagnosticar→**actuar**. Ver §11 del plan.*
+
+- [ ] **6.1 Visibilidad por modelo (A)** — desglose por motor (ChatGPT/Gemini/Perplexity/AIO): mention rate / SoV / posición media de la marca. Responde "¿visible en ChatGPT pero ausente en Gemini?". En **Métricas** (desglose) + filtro por modelo en **GAPS**. Datos: `multiModelAnalysis[].modelPersona`.
+- [ ] **6.2 Drivers de sentimiento (C)** — en **Sentimiento**: mini-tabla "por qué" surfacando `contextualAnalysis.reasoning` / `competitiveReasoning` agrupado por tema. Convierte el score en acción.
+- [ ] **6.3 (Stretch) Gap de citaciones (B)** — en **URLs/Citas**: dominios que citan al competidor y a la marca **no** (dónde conseguir presencia). Datos: `sources[].domain` por marca.
+
+**Entregable:** las 3 piezas GEO de mayor leverage con datos que ya tenemos.
+
+> **Aparcado (fase futura):** recomendación de contenido por gap vía LLM (era la idea del "Insights AI" retirado; concepto válido, ejecución a rehacer) y peso de prompt por volumen (requiere datos externos; DataForSEO ya está en el proyecto para AIO, reutilizable).
+
+---
+
+## Orden y dependencias
+
+```
+Hito 1 (Glosario)  ──> base que mejora todo lo demás
+Hito 2 (Menciones diferenciadas)  ──> usa brandDomain (2.1)
+Hito 3 (GAPS temporal)  ──> usa clasificador (2.2) + emparejado (3.1)
+Hito 4 (GAPS competencia)  ──> usa lo de Hito 3
+Hito 5 (Position)  ──> independiente, encaja cuando se quiera
+Hito 6 (Capa GEO: A/C/D)  ──> 6.1 y 6.2 independientes (datos ya existen); D ya integrado en 3.6
+```
+- **Empezamos por Hito 1** (glosario en Configuración). Es el cimiento y el problema #1 del cliente.
+- **Los filtros de GAPS refuerzan el orden**: el *selector de competidor* necesita el **glosario (Hito 1)** para no duplicar bancos, y el *color de celda* necesita el **clasificador de tipo (Hito 2)**. Por eso GAPS (Hitos 3-4) va después de 1 y 2.
+- Cada hito se commitea y se valida en el navegador antes del siguiente.
+
+---
+
+## Verificación por hito
+- `tsc --noEmit` + `vite build` limpios.
+- Revisión en devtools con datos reales (proyecto con varias marcas/fechas).
+- Commit independiente por hito en la rama `feature/visualizaciones-intelligence-hub`.

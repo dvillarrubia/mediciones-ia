@@ -5,9 +5,11 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
+  PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
+import { countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS } from './sharedMetrics';
 
 // Re-use types from IntelligenceHub
 interface BrandMention {
@@ -64,6 +66,7 @@ interface AnalysisDetail {
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
+  brandDomain?: string;
 }
 
 // === HELPERS ===
@@ -363,8 +366,32 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
   </div>
 );
 
-const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
+const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const metrics = useMemo(() => calculateMetrics(analyses), [analyses]);
+
+  // KPIs de menciones/citaciones con delta vs análisis anterior (Hito 2)
+  const mentionKpis = useMemo(() => {
+    if (!analyses || analyses.length === 0) return null;
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const target = sorted[sorted.length - 1].configuration.brand;
+    const cur = countBrandAppearances([sorted[sorted.length - 1]] as any, target, brandDomain || '');
+    const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '') : null;
+    return { cur, prev, hasDomain: !!brandDomain };
+  }, [analyses, brandDomain]);
+
+  // Visibilidad por modelo (Hito 6.1 — GEO)
+  const modelVis = useMemo(() => {
+    if (!analyses || analyses.length === 0) return [];
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildModelVisibility(analyses as any, sorted[sorted.length - 1].configuration.brand);
+  }, [analyses]);
+
+  // Distribución de posición (Hito 5)
+  const posDist = useMemo(() => {
+    if (!analyses || analyses.length === 0) return null;
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildPositionDistribution(analyses as any, sorted[sorted.length - 1].configuration.brand);
+  }, [analyses]);
 
   if (loading) {
     return (
@@ -415,6 +442,19 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
     isTarget: s.isTarget,
   }));
 
+  const renderDelta = (cur: number, prev: number | null | undefined) => {
+    if (prev === null || prev === undefined) return null;
+    const d = cur - prev;
+    if (d === 0) return <span className="text-xs text-gray-400 ml-2">=</span>;
+    const up = d > 0;
+    const pct = prev > 0 ? Math.round((d / prev) * 100) : null;
+    return (
+      <span className={`text-xs ml-2 ${up ? 'text-green-600' : 'text-red-600'}`}>
+        {up ? '▲' : '▼'} {up ? '+' : ''}{d}{pct !== null ? ` (${up ? '+' : ''}${pct}%)` : ''}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -428,6 +468,33 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           Marca target: <strong>{cs.targetBrand}</strong>
         </p>
       </div>
+
+      {/* Menciones vs Citaciones (Hito 2) */}
+      {mentionKpis && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Menciones</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.mentionedResponses}{renderDelta(mentionKpis.cur.mentionedResponses, mentionKpis.prev?.mentionedResponses)}
+            </div>
+            <div className="text-xs text-gray-400">respuestas que nombran la marca</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al sitio</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.citacionCom}{renderDelta(mentionKpis.cur.citacionCom, mentionKpis.prev?.citacionCom)}
+            </div>
+            <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'fuentes que enlazan al dominio' : 'configura el dominio de marca'}</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al blog</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {mentionKpis.cur.citacionBlog}{renderDelta(mentionKpis.cur.citacionBlog, mentionKpis.prev?.citacionBlog)}
+            </div>
+            <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'enlaces a /blog' : 'configura el dominio de marca'}</div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -462,6 +529,98 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           subtitle="Confianza promedio del análisis"
         />
       </div>
+
+      {/* Visibilidad por modelo (Hito 6.1 — GEO) */}
+      {modelVis.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-semibold text-gray-800 mb-1">Visibilidad por modelo</h3>
+          <p className="text-xs text-gray-400 mb-4">Dónde es visible {cs.targetBrand} según el motor de IA (¿fuerte en uno, ausente en otro?).</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-500 uppercase">
+                  <th className="text-left pb-2">Modelo</th>
+                  <th className="text-left pb-2 w-1/3">Mention rate</th>
+                  <th className="text-right pb-2">SoV</th>
+                  <th className="text-right pb-2">Posición</th>
+                  <th className="text-right pb-2">Respuestas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {modelVis.map(m => (
+                  <tr key={m.persona}>
+                    <td className="py-2">
+                      <span className="inline-flex items-center gap-2 font-medium text-gray-800">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                        {m.label}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${m.mentionRate}%`, backgroundColor: m.color }} />
+                        </div>
+                        <span className="text-xs text-gray-600 w-10 text-right">{m.mentionRate.toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td className="py-2 text-right text-gray-700">{m.sovPct.toFixed(1)}%</td>
+                    <td className="py-2 text-right text-gray-700">{m.avgPosition !== null ? `#${m.avgPosition.toFixed(1)}` : '—'}</td>
+                    <td className="py-2 text-right text-gray-400">{m.mentioned}/{m.responses}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Distribución de posición (Hito 5) */}
+      {posDist && posDist.current.total > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border p-5">
+            <h3 className="font-semibold text-gray-800 mb-1">Distribución de posición</h3>
+            <p className="text-xs text-gray-400 mb-4">En qué posición aparece {cs.targetBrand} (último análisis).</p>
+            {(() => {
+              const c = posDist.current;
+              const pieData = [
+                { name: POSITION_BUCKETS[0], value: c.p1, color: POSITION_COLORS[0] },
+                { name: POSITION_BUCKETS[1], value: c.p2_3, color: POSITION_COLORS[1] },
+                { name: POSITION_BUCKETS[2], value: c.p4_7, color: POSITION_COLORS[2] },
+                { name: POSITION_BUCKETS[3], value: c.p8plus, color: POSITION_COLORS[3] },
+              ].filter(d => d.value > 0);
+              return (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(e: any) => `${((e.value / c.total) * 100).toFixed(0)}%`}>
+                      {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+          {posDist.overTime.length > 1 && (
+            <div className="bg-white rounded-xl shadow-sm border p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Distribución de posición en el tiempo</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={posDist.overTime}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="p1" name={POSITION_BUCKETS[0]} stackId="p" fill={POSITION_COLORS[0]} />
+                  <Bar dataKey="p2_3" name={POSITION_BUCKETS[1]} stackId="p" fill={POSITION_COLORS[1]} />
+                  <Bar dataKey="p4_7" name={POSITION_BUCKETS[2]} stackId="p" fill={POSITION_COLORS[2]} />
+                  <Bar dataKey="p8plus" name={POSITION_BUCKETS[3]} stackId="p" fill={POSITION_COLORS[3]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Row: Brand Position Chart + SoV Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

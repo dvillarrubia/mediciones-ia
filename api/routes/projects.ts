@@ -107,7 +107,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, brandAliases, brandDomain } = req.body;
 
     const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
@@ -117,9 +117,28 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const updates: { name?: string; description?: string } = {};
+    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[]; brandDomain?: string } = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
+    if (brandDomain !== undefined) {
+      // Normaliza: quita protocolo, www y barras; valida que parezca un dominio
+      const normalized = String(brandDomain).trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+      const isDomain = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(normalized);
+      updates.brandDomain = isDomain ? normalized.slice(0, 120) : '';
+    }
+    if (brandAliases !== undefined && Array.isArray(brandAliases)) {
+      // Topes para evitar payloads gigantes en la columna TEXT
+      updates.brandAliases = brandAliases
+        .filter((a: any) => a && typeof a.canonical === 'string' && a.canonical.trim())
+        .slice(0, 300)
+        .map((a: any) => ({
+          canonical: a.canonical.trim().slice(0, 120),
+          variants: (Array.isArray(a.variants) ? a.variants : [])
+            .map((v: any) => String(v).trim().slice(0, 120))
+            .filter(Boolean)
+            .slice(0, 100)
+        }));
+    }
 
     const updatedProject = await databaseService.updateProject(id, updates, req.userId);
 

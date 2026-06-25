@@ -23,9 +23,11 @@ import {
   Briefcase,
   GraduationCap,
   Phone,
-  Shield
+  Shield,
+  Tag
 } from 'lucide-react';
 import API_BASE_URL, { apiFetch } from '../config/api';
+import BrandGlossaryEditor from '../components/intelligence/BrandGlossaryEditor';
 
 interface AnalysisQuestion {
   id: string;
@@ -70,7 +72,7 @@ const Configuration: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'apikeys' | 'templates'>('templates');
+  const [activeTab, setActiveTab] = useState<'apikeys' | 'templates' | 'glosario'>('templates');
 
   // Estado para crear/editar configuración
   const [isCreating, setIsCreating] = useState(false);
@@ -531,6 +533,17 @@ const Configuration: React.FC = () => {
               >
                 <Key className="inline h-5 w-5 mr-2" />
                 API Keys
+              </button>
+              <button
+                onClick={() => setActiveTab('glosario')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'glosario'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Tag className="inline h-5 w-5 mr-2" />
+                Glosario de marcas
               </button>
             </nav>
           </div>
@@ -1271,6 +1284,11 @@ const Configuration: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Glosario Tab */}
+        {activeTab === 'glosario' && (
+          <BrandGlossaryEditor />
         )}
 
       </div>
