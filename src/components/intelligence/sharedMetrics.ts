@@ -264,6 +264,61 @@ export function isWebUrl(url: string | undefined): boolean {
   return !!url && url.startsWith('http') && !url.includes('ai-generated') && !url.includes('generative');
 }
 
+// === Visibilidad por modelo (Hito 6.1 — GEO) ===
+
+export interface ModelVisibility {
+  persona: string;
+  label: string;
+  color: string;
+  responses: number;
+  mentioned: number;
+  mentionRate: number; // %
+  sovPct: number;      // % menciones de la marca sobre el total, en ese modelo
+  avgPosition: number | null;
+}
+
+/** Visibilidad de la marca objetivo desglosada por modelo de IA (¿visible en ChatGPT pero no en Gemini?). */
+export function buildModelVisibility(analyses: AnalysisDetail[], targetBrand: string): ModelVisibility[] {
+  const targetKey = aliasKey(targetBrand);
+  const acc: Record<string, { responses: number; mentioned: number; brandFreq: number; totalFreq: number; posSum: number; posCount: number }> = {};
+
+  analyses.forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      (q.multiModelAnalysis || []).forEach(m => {
+        const persona = m.modelPersona || 'otros';
+        if (!acc[persona]) acc[persona] = { responses: 0, mentioned: 0, brandFreq: 0, totalFreq: 0, posSum: 0, posCount: 0 };
+        acc[persona].responses++;
+        const mentions = (m.brandMentions && m.brandMentions.length > 0 ? m.brandMentions : q.brandMentions) || [];
+        let here = false;
+        mentions.forEach(bm => {
+          if (!bm.mentioned || (bm.frequency || 0) <= 0) return;
+          acc[persona].totalFreq += bm.frequency;
+          if (aliasKey(bm.brand) === targetKey) {
+            acc[persona].brandFreq += bm.frequency;
+            here = true;
+            if (bm.appearanceOrder && bm.appearanceOrder > 0) { acc[persona].posSum += bm.appearanceOrder; acc[persona].posCount++; }
+          }
+        });
+        if (here) acc[persona].mentioned++;
+      });
+    });
+  });
+
+  return Object.entries(acc)
+    .map(([persona, d]) => ({
+      persona,
+      label: PERSONA_LABELS[persona] || persona,
+      color: PERSONA_COLORS[persona] || '#888',
+      responses: d.responses,
+      mentioned: d.mentioned,
+      mentionRate: d.responses > 0 ? (d.mentioned / d.responses) * 100 : 0,
+      sovPct: d.totalFreq > 0 ? (d.brandFreq / d.totalFreq) * 100 : 0,
+      avgPosition: d.posCount > 0 ? d.posSum / d.posCount : null,
+    }))
+    .filter(m => m.responses > 0)
+    .sort((a, b) => b.mentionRate - a.mentionRate);
+}
+
 // === Clasificación mención vs citación (Hito 2) ===
 
 export type AppearanceType = 'no_aparece' | 'mencion' | 'citacion_com' | 'citacion_blog';

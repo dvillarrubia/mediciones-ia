@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
-import { countBrandAppearances } from './sharedMetrics';
+import { countBrandAppearances, buildModelVisibility } from './sharedMetrics';
 
 // Re-use types from IntelligenceHub
 interface BrandMention {
@@ -378,6 +378,13 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     return { cur, prev, hasDomain: !!brandDomain };
   }, [analyses, brandDomain]);
 
+  // Visibilidad por modelo (Hito 6.1 — GEO)
+  const modelVis = useMemo(() => {
+    if (!analyses || analyses.length === 0) return [];
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildModelVisibility(analyses as any, sorted[sorted.length - 1].configuration.brand);
+  }, [analyses]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -514,6 +521,50 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
           subtitle="Confianza promedio del análisis"
         />
       </div>
+
+      {/* Visibilidad por modelo (Hito 6.1 — GEO) */}
+      {modelVis.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-semibold text-gray-800 mb-1">Visibilidad por modelo</h3>
+          <p className="text-xs text-gray-400 mb-4">Dónde es visible {cs.targetBrand} según el motor de IA (¿fuerte en uno, ausente en otro?).</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-500 uppercase">
+                  <th className="text-left pb-2">Modelo</th>
+                  <th className="text-left pb-2 w-1/3">Mention rate</th>
+                  <th className="text-right pb-2">SoV</th>
+                  <th className="text-right pb-2">Posición</th>
+                  <th className="text-right pb-2">Respuestas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {modelVis.map(m => (
+                  <tr key={m.persona}>
+                    <td className="py-2">
+                      <span className="inline-flex items-center gap-2 font-medium text-gray-800">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                        {m.label}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${m.mentionRate}%`, backgroundColor: m.color }} />
+                        </div>
+                        <span className="text-xs text-gray-600 w-10 text-right">{m.mentionRate.toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td className="py-2 text-right text-gray-700">{m.sovPct.toFixed(1)}%</td>
+                    <td className="py-2 text-right text-gray-700">{m.avgPosition !== null ? `#${m.avgPosition.toFixed(1)}` : '—'}</td>
+                    <td className="py-2 text-right text-gray-400">{m.mentioned}/{m.responses}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Row: Brand Position Chart + SoV Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

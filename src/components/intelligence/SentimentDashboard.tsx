@@ -33,6 +33,7 @@ interface DetailRow {
   category: string;
   question: string;
   isTarget: boolean;
+  reasoning?: string;
 }
 
 const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
@@ -71,7 +72,9 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         brandAcc[brand].total++;
 
         const model = modelLabel(q.multiModelAnalysis?.[0]);
-        detailRows.push({ brand, sentiment: key, model, category: q.category || '—', question: q.question, isTarget });
+        const ca = (bm as any).contextualAnalysis;
+        const reasoning = ca?.reasoning || ca?.competitiveReasoning || bm.evidence?.[0];
+        detailRows.push({ brand, sentiment: key, model, category: q.category || '—', question: q.question, isTarget, reasoning });
       });
     });
 
@@ -128,6 +131,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
   }
 
   const filteredRows = data.detailRows.filter(r => sentimentFilter === 'all' || r.sentiment === sentimentFilter);
+  // Drivers de sentimiento negativo (Hito 6.2 — GEO: el "por qué")
+  const negativeDrivers = data.detailRows
+    .filter(r => (r.sentiment === 'negative' || r.sentiment === 'very_negative') && r.reasoning)
+    .slice(0, 20);
 
   return (
     <div className="space-y-6">
@@ -233,6 +240,27 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
                 ))}
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Drivers de sentimiento negativo (Hito 6.2) */}
+      {negativeDrivers.length > 0 && (
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold text-gray-900 mb-1">Drivers de sentimiento negativo</h3>
+          <p className="text-xs text-gray-400 mb-4">Por qué se habla mal: los motivos detrás de las menciones negativas (accionable para GEO).</p>
+          <div className="space-y-2">
+            {negativeDrivers.map((r, i) => (
+              <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${r.isTarget ? 'border-red-200 bg-red-50/40' : 'border-gray-100'}`}>
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white whitespace-nowrap mt-0.5" style={{ backgroundColor: SENTIMENT_COLORS[r.sentiment] }}>
+                  {r.brand}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700">{r.reasoning}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate" title={r.question}>{r.category} · {r.model} · {r.question}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
