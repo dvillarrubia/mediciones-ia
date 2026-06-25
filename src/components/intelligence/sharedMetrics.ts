@@ -264,6 +264,42 @@ export function isWebUrl(url: string | undefined): boolean {
   return !!url && url.startsWith('http') && !url.includes('ai-generated') && !url.includes('generative');
 }
 
+// === Gap de citaciones (Hito 6.B — GEO) ===
+
+export interface CitationGap {
+  domain: string;
+  competitorCitations: number; // preguntas donde el dominio se cita con competencia y SIN la marca
+  competitors: string[];
+}
+
+/** Dominios que la IA cita junto a competidores pero nunca con tu marca → oportunidades de presencia. */
+export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: string): CitationGap[] {
+  const targetKey = aliasKey(targetBrand);
+  const acc: Record<string, { targetCount: number; compCount: number; comps: Set<string> }> = {};
+
+  analyses.forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      const mentions = (q.brandMentions || []).filter(bm => bm.mentioned);
+      const targetHere = mentions.some(bm => aliasKey(bm.brand) === targetKey);
+      const comps = mentions.filter(bm => aliasKey(bm.brand) !== targetKey).map(bm => bm.brand);
+      const domains = new Set(
+        (q.sources || []).filter(s => isWebUrl(s.url) && isRealDomain(s.domain)).map(s => s.domain)
+      );
+      domains.forEach(d => {
+        if (!acc[d]) acc[d] = { targetCount: 0, compCount: 0, comps: new Set() };
+        if (targetHere) acc[d].targetCount++;
+        else if (comps.length > 0) { acc[d].compCount++; comps.forEach(c => acc[d].comps.add(c)); }
+      });
+    });
+  });
+
+  return Object.entries(acc)
+    .filter(([, d]) => d.targetCount === 0 && d.compCount > 0)
+    .map(([domain, d]) => ({ domain, competitorCitations: d.compCount, competitors: Array.from(d.comps).slice(0, 6) }))
+    .sort((a, b) => b.competitorCitations - a.competitorCitations)
+    .slice(0, 20);
+}
+
 // === Distribución de posición (Hito 5) ===
 
 export const POSITION_BUCKETS = ['Posición 1', 'Posición 2-3', 'Posición 4-7', 'Posición 8+'] as const;

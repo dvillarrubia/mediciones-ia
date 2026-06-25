@@ -7,7 +7,8 @@ import {
 import {
   AnalysisDetail, COLORS, PERSONA_LABELS, PERSONA_COLORS,
   personasInQuestion, isRealDomain, isWebUrl, dateLabel, sortByDate,
-  getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
+  getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType,
+  buildCitationGaps
 } from './sharedMetrics';
 
 interface Props {
@@ -35,6 +36,13 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
     brandRows.forEach(r => { c[r.type]++; });
     return c;
   }, [brandRows]);
+
+  // Gap de citaciones (Hito 6.B — GEO)
+  const citationGaps = useMemo(() => {
+    if (!analyses || analyses.length === 0) return [];
+    const target = sortByDate(analyses).slice(-1)[0]?.configuration.brand || '';
+    return buildCitationGaps(analyses, target);
+  }, [analyses]);
 
   const data = useMemo(() => {
     if (!analyses || analyses.length === 0) return null;
@@ -194,6 +202,44 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
           </div>
         )}
       </div>
+
+      {/* Gap de citaciones (Hito 6.B — GEO) */}
+      {citationGaps.length > 0 && (
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold text-gray-900 mb-1">Gap de citaciones</h3>
+          <p className="text-xs text-gray-400 mb-4">Dominios que la IA cita junto a tus competidores pero nunca contigo → dónde conseguir presencia (PR, colaboraciones, contenido).</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Dominio</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Citas con competencia</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Competidores presentes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {citationGaps.map((g, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-2 font-medium text-gray-800">
+                      <a href={`https://${g.domain}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                        {g.domain}<ExternalLink className="w-3 h-3" />
+                      </a>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900">{g.competitorCitations}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {g.competitors.map((c, j) => (
+                          <span key={j} className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full">{c}</span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Citas por modelo + over time */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
