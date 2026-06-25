@@ -200,7 +200,7 @@ const IntelligenceHub: React.FC = () => {
     () => projects.find(p => p.id === selectedProjectId) || null,
     [projects, selectedProjectId]
   );
-  const brandAliases = selectedProject?.brandAliases || [];
+  const brandAliases = useMemo(() => selectedProject?.brandAliases || [], [selectedProject]);
   const brandDomain = selectedProject?.brandDomain || '';
   const displayAnalyses = useMemo(
     () => applyAliasesToAnalyses(allAnalysesDetails as any, brandAliases) as any[],
@@ -292,16 +292,24 @@ const IntelligenceHub: React.FC = () => {
       setTrendsLoading(true);
       const details: AnalysisDetail[] = [];
 
-      for (const analysis of analyses) {
-        try {
-          const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${analysis.id}`);
-          const data = await response.json();
-          if (data.success) {
-            details.push(data.data);
-          }
-        } catch (e) {
-          console.error(`Error loading analysis ${analysis.id}:`, e);
-        }
+      // Carga en paralelo por lotes (evita N peticiones secuenciales a gran escala)
+      const CONCURRENCY = 8;
+      const ids = analyses.map(a => a.id);
+      for (let i = 0; i < ids.length; i += CONCURRENCY) {
+        const chunk = ids.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(
+          chunk.map(async (id) => {
+            try {
+              const response = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
+              const data = await response.json();
+              return data.success ? (data.data as AnalysisDetail) : null;
+            } catch (e) {
+              console.error(`Error loading analysis ${id}:`, e);
+              return null;
+            }
+          })
+        );
+        results.forEach(d => { if (d) details.push(d); });
       }
 
       setAllAnalysesDetails(details);

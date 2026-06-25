@@ -121,15 +121,22 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
     if (brandDomain !== undefined) {
-      // Normaliza: quita protocolo, www y barras
-      updates.brandDomain = String(brandDomain).trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').toLowerCase();
+      // Normaliza: quita protocolo, www y barras; valida que parezca un dominio
+      const normalized = String(brandDomain).trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+      const isDomain = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(normalized);
+      updates.brandDomain = isDomain ? normalized.slice(0, 120) : '';
     }
     if (brandAliases !== undefined && Array.isArray(brandAliases)) {
+      // Topes para evitar payloads gigantes en la columna TEXT
       updates.brandAliases = brandAliases
         .filter((a: any) => a && typeof a.canonical === 'string' && a.canonical.trim())
+        .slice(0, 300)
         .map((a: any) => ({
-          canonical: a.canonical.trim(),
-          variants: Array.isArray(a.variants) ? a.variants.map((v: any) => String(v).trim()).filter(Boolean) : []
+          canonical: a.canonical.trim().slice(0, 120),
+          variants: (Array.isArray(a.variants) ? a.variants : [])
+            .map((v: any) => String(v).trim().slice(0, 120))
+            .filter(Boolean)
+            .slice(0, 100)
         }));
     }
 

@@ -176,7 +176,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.byBrand.map((b, i) => (
+                {data.byBrand.slice(0, 50).map((b, i) => (
                   <tr key={b.brand} className={b.isTarget ? 'bg-blue-50' : ''}>
                     <td className="px-3 py-2 text-gray-500">{i + 1}</td>
                     <td className="px-3 py-2 font-medium text-gray-900">{b.brand}{b.isTarget && <span className="ml-2 text-xs text-blue-600">(tú)</span>}</td>

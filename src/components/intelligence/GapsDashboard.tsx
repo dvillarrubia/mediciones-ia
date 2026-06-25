@@ -148,7 +148,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {temporalRows.map(row => (
+                {temporalRows.slice(0, 200).map(row => (
                   <tr key={row.promptKey} className="hover:bg-gray-50">
                     <td className="px-4 py-2 sticky left-0 bg-white z-10 max-w-sm">
                       <div className="truncate text-gray-800" title={row.prompt}>{row.prompt}</div>
@@ -172,7 +172,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
             </table>
           </div>
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Ordenado por severidad (más ausencias primero). El número dentro del punto es la posición de la marca.
+            <Info className="w-3 h-3" /> Ordenado por severidad (más ausencias primero). El número dentro del punto es la posición de la marca.{temporalRows.length > 200 ? ` Mostrando 200 de ${temporalRows.length}.` : ''}
           </p>
         </>
       )}
@@ -215,7 +215,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {compRows.map((r, i) => (
+                {compRows.slice(0, 200).map((r, i) => (
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 max-w-sm">
                       <div className="truncate text-gray-800" title={r.prompt}>{r.prompt}</div>
@@ -241,7 +241,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
             </table>
           </div>
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Se muestran todos los prompts del análisis. Usa los filtros para ver solo gaps (no nº1 / no aparece). Ordenado peores primero.
+            <Info className="w-3 h-3" /> Se muestran todos los prompts del análisis. Usa los filtros para ver solo gaps (no nº1 / no aparece). Ordenado peores primero.{compRows.length > 200 ? ` Mostrando 200 de ${compRows.length}.` : ''}
           </p>
         </>
       )}

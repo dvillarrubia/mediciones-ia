@@ -301,10 +301,14 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
     });
   });
 
-  // ¿El dominio pertenece a una marca (competidor o propia)? p.ej. endesa.com contiene "endesa".
+  // ¿El dominio pertenece a una marca? Compara por etiqueta (endesa.com → "endesa"), no substring del dominio entero.
   const isBrandOwnedDomain = (domain: string): boolean => {
-    const dk = aliasKey(domain);
-    for (const bk of brandKeys) { if (dk.includes(bk)) return true; }
+    const labels = domain.toLowerCase().split('.').map(l => aliasKey(l)).filter(Boolean);
+    for (const label of labels) {
+      for (const bk of brandKeys) {
+        if (label === bk || (bk.length >= 4 && label.startsWith(bk))) return true;
+      }
+    }
     return false;
   };
 
