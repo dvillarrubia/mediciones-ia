@@ -194,18 +194,23 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       {/* Sentiment by Brand (split) */}
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold text-gray-900 mb-4">Sentiment by Brand</h3>
-        <ResponsiveContainer width="100%" height={Math.max(220, data.byBrand.length * 38)}>
-          <BarChart data={data.byBrand.slice(0, 12)} layout="vertical" stackOffset="expand" margin={{ left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
-            <YAxis type="category" dataKey="brand" width={110} tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v: any, n: any) => [v, n]} />
-            <Legend />
-            <Bar dataKey="positive" name="Positivas" stackId="s" fill={SENTIMENT_COLORS.positive} />
-            <Bar dataKey="neutral" name="Neutras" stackId="s" fill={SENTIMENT_COLORS.neutral} />
-            <Bar dataKey="negative" name="Negativas" stackId="s" fill={SENTIMENT_COLORS.negative} />
-          </BarChart>
-        </ResponsiveContainer>
+        {(() => {
+          const rows = data.byBrand.slice(0, 12);
+          return (
+            <ResponsiveContainer width="100%" height={Math.max(140, rows.length * 42)}>
+              <BarChart data={rows} layout="vertical" stackOffset="expand" margin={{ left: 8, right: 16, top: 4, bottom: 4 }} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} />
+                <YAxis type="category" dataKey="brand" width={130} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v: any, n: any) => [v, n]} />
+                <Legend />
+                <Bar dataKey="positive" name="Positivas" stackId="s" fill={SENTIMENT_COLORS.positive} maxBarSize={26} />
+                <Bar dataKey="neutral" name="Neutras" stackId="s" fill={SENTIMENT_COLORS.neutral} maxBarSize={26} />
+                <Bar dataKey="negative" name="Negativas" stackId="s" fill={SENTIMENT_COLORS.negative} maxBarSize={26} />
+              </BarChart>
+            </ResponsiveContainer>
+          );
+        })()}
       </div>
 
       {/* Series temporales (solo si hay >1 análisis) */}
