@@ -272,14 +272,22 @@ export interface CitationGap {
   competitors: string[];
 }
 
-/** Dominios que la IA cita junto a competidores pero nunca con tu marca → oportunidades de presencia. */
+/** Dominios (de terceros) que la IA cita junto a competidores pero nunca con tu marca → oportunidades de presencia. */
 export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: string): CitationGap[] {
   const targetKey = aliasKey(targetBrand);
   const acc: Record<string, { targetCount: number; compCount: number; comps: Set<string> }> = {};
 
+  // Claves de marca (objetivo + competidores) para excluir dominios PROPIOS de marcas (no son oportunidades).
+  const brandKeys = new Set<string>();
+  const addBrandKey = (name: string) => { const k = aliasKey(name); if (k.length >= 4) brandKeys.add(k); };
+  addBrandKey(targetBrand);
+
   analyses.forEach(a => {
+    addBrandKey(a.configuration?.brand || '');
+    (a.configuration?.competitors || []).forEach(addBrandKey);
     (a.results?.questions || []).forEach(q => {
       const mentions = (q.brandMentions || []).filter(bm => bm.mentioned);
+      mentions.forEach(bm => addBrandKey(bm.brand));
       const targetHere = mentions.some(bm => aliasKey(bm.brand) === targetKey);
       const comps = mentions.filter(bm => aliasKey(bm.brand) !== targetKey).map(bm => bm.brand);
       const domains = new Set(
@@ -293,8 +301,15 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
     });
   });
 
+  // ¿El dominio pertenece a una marca (competidor o propia)? p.ej. endesa.com contiene "endesa".
+  const isBrandOwnedDomain = (domain: string): boolean => {
+    const dk = aliasKey(domain);
+    for (const bk of brandKeys) { if (dk.includes(bk)) return true; }
+    return false;
+  };
+
   return Object.entries(acc)
-    .filter(([, d]) => d.targetCount === 0 && d.compCount > 0)
+    .filter(([domain, d]) => d.targetCount === 0 && d.compCount > 0 && !isBrandOwnedDomain(domain))
     .map(([domain, d]) => ({ domain, competitorCitations: d.compCount, competitors: Array.from(d.comps).slice(0, 6) }))
     .sort((a, b) => b.competitorCitations - a.competitorCitations)
     .slice(0, 20);

@@ -207,7 +207,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {citationGaps.length > 0 && (
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-1">Gap de citaciones</h3>
-          <p className="text-xs text-gray-400 mb-4">Dominios que la IA cita junto a tus competidores pero nunca contigo → dónde conseguir presencia (PR, colaboraciones, contenido).</p>
+          <p className="text-xs text-gray-400 mb-4">Webs de terceros (no de marcas) que la IA cita junto a tus competidores pero nunca contigo → dónde conseguir presencia (PR, colaboraciones, contenido).</p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
