@@ -5,10 +5,11 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
+  PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
-import { countBrandAppearances, buildModelVisibility } from './sharedMetrics';
+import { countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS } from './sharedMetrics';
 
 // Re-use types from IntelligenceHub
 interface BrandMention {
@@ -385,6 +386,13 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     return buildModelVisibility(analyses as any, sorted[sorted.length - 1].configuration.brand);
   }, [analyses]);
 
+  // Distribución de posición (Hito 5)
+  const posDist = useMemo(() => {
+    if (!analyses || analyses.length === 0) return null;
+    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildPositionDistribution(analyses as any, sorted[sorted.length - 1].configuration.brand);
+  }, [analyses]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -563,6 +571,54 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Distribución de posición (Hito 5) */}
+      {posDist && posDist.current.total > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border p-5">
+            <h3 className="font-semibold text-gray-800 mb-1">Distribución de posición</h3>
+            <p className="text-xs text-gray-400 mb-4">En qué posición aparece {cs.targetBrand} (último análisis).</p>
+            {(() => {
+              const c = posDist.current;
+              const pieData = [
+                { name: POSITION_BUCKETS[0], value: c.p1, color: POSITION_COLORS[0] },
+                { name: POSITION_BUCKETS[1], value: c.p2_3, color: POSITION_COLORS[1] },
+                { name: POSITION_BUCKETS[2], value: c.p4_7, color: POSITION_COLORS[2] },
+                { name: POSITION_BUCKETS[3], value: c.p8plus, color: POSITION_COLORS[3] },
+              ].filter(d => d.value > 0);
+              return (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(e: any) => `${((e.value / c.total) * 100).toFixed(0)}%`}>
+                      {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+          {posDist.overTime.length > 1 && (
+            <div className="bg-white rounded-xl shadow-sm border p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">Distribución de posición en el tiempo</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={posDist.overTime}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="p1" name={POSITION_BUCKETS[0]} stackId="p" fill={POSITION_COLORS[0]} />
+                  <Bar dataKey="p2_3" name={POSITION_BUCKETS[1]} stackId="p" fill={POSITION_COLORS[1]} />
+                  <Bar dataKey="p4_7" name={POSITION_BUCKETS[2]} stackId="p" fill={POSITION_COLORS[2]} />
+                  <Bar dataKey="p8plus" name={POSITION_BUCKETS[3]} stackId="p" fill={POSITION_COLORS[3]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 

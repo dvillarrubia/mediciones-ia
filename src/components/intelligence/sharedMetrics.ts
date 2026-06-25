@@ -264,6 +264,44 @@ export function isWebUrl(url: string | undefined): boolean {
   return !!url && url.startsWith('http') && !url.includes('ai-generated') && !url.includes('generative');
 }
 
+// === Distribución de posición (Hito 5) ===
+
+export const POSITION_BUCKETS = ['Posición 1', 'Posición 2-3', 'Posición 4-7', 'Posición 8+'] as const;
+export const POSITION_COLORS = ['#1e3a8a', '#3b82f6', '#93c5fd', '#dbeafe'];
+
+export interface PositionDist { p1: number; p2_3: number; p4_7: number; p8plus: number; total: number; }
+
+function positionBucketKey(pos: number): 'p1' | 'p2_3' | 'p4_7' | 'p8plus' {
+  if (pos === 1) return 'p1';
+  if (pos <= 3) return 'p2_3';
+  if (pos <= 7) return 'p4_7';
+  return 'p8plus';
+}
+
+function positionDistFor(analysis: AnalysisDetail, targetKey: string): PositionDist {
+  const d: PositionDist = { p1: 0, p2_3: 0, p4_7: 0, p8plus: 0, total: 0 };
+  (analysis.results?.questions || []).forEach(q => {
+    const t = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey && bm.appearanceOrder && bm.appearanceOrder > 0);
+    if (t && t.appearanceOrder) { d[positionBucketKey(t.appearanceOrder)]++; d.total++; }
+  });
+  return d;
+}
+
+/** Distribución de la posición de la marca por buckets (actual + evolución). */
+export function buildPositionDistribution(analyses: AnalysisDetail[], targetBrand: string): {
+  current: PositionDist;
+  overTime: { label: string; p1: number; p2_3: number; p4_7: number; p8plus: number }[];
+} {
+  const sorted = sortByDate(analyses);
+  const targetKey = aliasKey(targetBrand);
+  const current = sorted.length > 0 ? positionDistFor(sorted[sorted.length - 1], targetKey) : { p1: 0, p2_3: 0, p4_7: 0, p8plus: 0, total: 0 };
+  const overTime = sorted.map(a => {
+    const d = positionDistFor(a, targetKey);
+    return { label: dateLabel(a.timestamp), p1: d.p1, p2_3: d.p2_3, p4_7: d.p4_7, p8plus: d.p8plus };
+  });
+  return { current, overTime };
+}
+
 // === Visibilidad por modelo (Hito 6.1 — GEO) ===
 
 export interface ModelVisibility {
