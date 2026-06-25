@@ -27,6 +27,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string>('');
   const [compCompetitor, setCompCompetitor] = useState<string>('all');
   const [onlyAbsent, setOnlyAbsent] = useState(false);
+  const [onlyNotFirst, setOnlyNotFirst] = useState(false);
 
   const sorted = useMemo(() => (analyses ? sortByDate(analyses) : []), [analyses]);
   const targetBrand = sorted.slice(-1)[0]?.configuration.brand || '';
@@ -91,7 +92,8 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   });
 
   const compRows = competitive.rows.filter(r => {
-    if (onlyAbsent ? r.type !== 'no_aparece' : r.isFirst) return false; // por defecto: donde NO es nº1
+    if (onlyAbsent && r.type !== 'no_aparece') return false;
+    if (onlyNotFirst && r.isFirst) return false;
     if (compCompetitor !== 'all' && !r.competitors.some(c => c.brand === compCompetitor)) return false;
     return true;
   });
@@ -190,6 +192,10 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                 {competitive.competitors.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <label className="text-sm text-gray-600 inline-flex items-center gap-2">
+                <input type="checkbox" checked={onlyNotFirst} onChange={(e) => setOnlyNotFirst(e.target.checked)} />
+                Solo donde no soy nº1
+              </label>
+              <label className="text-sm text-gray-600 inline-flex items-center gap-2">
                 <input type="checkbox" checked={onlyAbsent} onChange={(e) => setOnlyAbsent(e.target.checked)} />
                 Solo donde NO aparece la marca
               </label>
@@ -229,13 +235,13 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                   </tr>
                 ))}
                 {compRows.length === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">No hay prompts que cumplan el filtro (¿la marca es nº1 en todos?).</td></tr>
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">No hay prompts que cumplan el filtro.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Por defecto se muestran los prompts donde la marca NO ocupa el nº1.
+            <Info className="w-3 h-3" /> Se muestran todos los prompts del análisis. Usa los filtros para ver solo gaps (no nº1 / no aparece). Ordenado peores primero.
           </p>
         </>
       )}
