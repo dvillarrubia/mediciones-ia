@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Crosshair, Info, CalendarDays, Users } from 'lucide-react';
+import { Crosshair, Info, CalendarDays, Users, Download } from 'lucide-react';
 import {
   AnalysisDetail, sortByDate, buildGapsMatrix, buildCompetitiveView,
   APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
 } from './sharedMetrics';
+import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
+import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 interface Props {
   analyses: AnalysisDetail[];
@@ -29,11 +31,24 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [onlyAbsent, setOnlyAbsent] = useState(false);
   const [onlyNotFirst, setOnlyNotFirst] = useState(false);
 
-  const sorted = useMemo(() => (analyses ? sortByDate(analyses) : []), [analyses]);
+  // --- rango de fechas (común a ambas vistas) ---
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const scoped = useMemo(
+    () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
+    [analyses, dateFrom, dateTo]
+  );
+
+  const sorted = useMemo(() => sortByDate(scoped), [scoped]);
   const targetBrand = sorted.slice(-1)[0]?.configuration.brand || '';
 
   useEffect(() => {
-    if (sorted.length > 0 && !selectedAnalysisId) setSelectedAnalysisId(sorted[sorted.length - 1].id);
+    if (sorted.length === 0) return;
+    // Si no hay selección o la actual quedó fuera del rango de fechas, elige el último.
+    if (!selectedAnalysisId || !sorted.some(a => a.id === selectedAnalysisId)) {
+      setSelectedAnalysisId(sorted[sorted.length - 1].id);
+    }
   }, [sorted, selectedAnalysisId]);
 
   const matrix = useMemo(
@@ -52,9 +67,18 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   }
   if (!matrix || matrix.rows.length === 0) {
     return (
-      <div className="text-center py-20">
-        <Crosshair className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500">No hay prompts para analizar GAPS.</p>
+      <div className="space-y-4">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <div className="text-center py-20">
+          <Crosshair className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No hay prompts para analizar GAPS.</p>
+        </div>
       </div>
     );
   }
@@ -98,8 +122,45 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
     return true;
   });
 
+  // Export: matriz temporal (prompt × análisis) respetando los filtros de la vista temporal.
+  const handleExport = () => {
+    const header = ['Prompt', 'Categoría', ...matrix.columns.map(c => c.label)];
+    const rows = temporalRows.map(row => [
+      row.prompt,
+      row.category || '',
+      ...matrix.columns.map(c => {
+        const cell = row.cells[c.id];
+        const type = cell?.type || 'no_aparece';
+        if (type === 'no_aparece') return 'No aparece';
+        return `${APPEARANCE_LABELS[type]}${cell?.position ? ` #${cell.position}` : ''}`;
+      }),
+    ]);
+    const target = sorted.slice(-1)[0]?.configuration.brand || '';
+    exportSheetsToExcel(
+      downloadFilename('gaps', target),
+      [{ name: 'Matriz GAPS', aoa: [header, ...rows], cols: [50, 20, ...matrix.columns.map(() => 16)] }]
+    );
+  };
+
   return (
     <div className="space-y-5">
+      {/* Rango de fechas + export */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <button
+          onClick={handleExport}
+          className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          <Download className="w-4 h-4" /> Exportar Excel
+        </button>
+      </div>
+
       {/* Switch de vista */}
       <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
         <button

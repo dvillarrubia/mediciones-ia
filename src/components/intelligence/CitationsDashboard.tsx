@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Link2, Globe, ExternalLink, Info } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Link2, Globe, ExternalLink, Info, Download } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -10,6 +10,10 @@ import {
   getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType,
   buildCitationGaps
 } from './sharedMetrics';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
+
+const URL_PAGE_SIZE = 50;
 
 interface Props {
   analyses: AnalysisDetail[];
@@ -23,13 +27,21 @@ interface DomainRank { domain: string; count: number; percentage: number; }
 const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AppearanceType>('all');
+  const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const scoped = useMemo(
+    () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
+    [analyses, dateFrom, dateTo]
+  );
 
   // Filas mención/citación de la marca (Hito 2.4)
   const brandRows = useMemo(() => {
-    if (!analyses || analyses.length === 0) return [];
-    const target = sortByDate(analyses).slice(-1)[0]?.configuration.brand || '';
-    return getBrandAppearanceRows(analyses, target, brandDomain || '');
-  }, [analyses, brandDomain]);
+    if (!scoped || scoped.length === 0) return [];
+    const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
+    return getBrandAppearanceRows(scoped, target, brandDomain || '');
+  }, [scoped, brandDomain]);
 
   const brandCounts = useMemo(() => {
     const c: Record<AppearanceType, number> = { no_aparece: 0, mencion: 0, citacion_com: 0, citacion_blog: 0 };
@@ -39,14 +51,14 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
 
   // Gap de citaciones (Hito 6.B — GEO)
   const citationGaps = useMemo(() => {
-    if (!analyses || analyses.length === 0) return [];
-    const target = sortByDate(analyses).slice(-1)[0]?.configuration.brand || '';
-    return buildCitationGaps(analyses, target);
-  }, [analyses]);
+    if (!scoped || scoped.length === 0) return [];
+    const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
+    return buildCitationGaps(scoped, target);
+  }, [scoped]);
 
   const data = useMemo(() => {
-    if (!analyses || analyses.length === 0) return null;
-    const sorted = sortByDate(analyses);
+    if (!scoped || scoped.length === 0) return null;
+    const sorted = sortByDate(scoped);
 
     const urlAcc: Record<string, { domain: string; count: number }> = {};
     const domainAcc: Record<string, number> = {};
@@ -104,26 +116,89 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
     const uniqueDomains = Object.keys(domainAcc).length;
 
     return { topUrls, topDomains, modelPie, overTime, totalCitations, citationRate, uniqueDomains, multiple: sorted.length > 1 };
-  }, [analyses]);
+  }, [scoped]);
+
+  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo]);
+
+  const filteredUrls = useMemo(
+    () => (data ? data.topUrls.filter(u =>
+      !search || u.url.toLowerCase().includes(search.toLowerCase()) || u.domain.toLowerCase().includes(search.toLowerCase())
+    ) : []),
+    [data, search]
+  );
+
+  const handleExport = () => {
+    if (!data) return;
+    const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
+    const urls: any[][] = [
+      ['#', 'URL', 'Dominio', 'Citas'],
+      ...filteredUrls.map((u, i) => [i + 1, u.url, u.domain, u.count]),
+    ];
+    const domains: any[][] = [
+      ['Dominio', 'Citas', '% sobre total'],
+      ...data.topDomains.map(d => [d.domain, d.count, +d.percentage.toFixed(1)]),
+    ];
+    const evolucion: any[][] = [
+      ['Análisis', 'Citas web'],
+      ...data.overTime.map(o => [o.label, o.citations]),
+    ];
+    const menciones: any[][] = [
+      ['Prompt', 'Tipo', 'URL citada', 'Frase', 'Modelo'],
+      ...brandRows.map(r => [r.prompt, APPEARANCE_LABELS[r.type], r.url || '', r.phrase || '', r.model]),
+    ];
+    exportSheetsToExcel(
+      downloadFilename('citas', target),
+      [
+        { name: 'URLs citadas', aoa: urls, cols: [6, 70, 28, 10] },
+        { name: 'Dominios', aoa: domains, cols: [32, 10, 14] },
+        { name: 'Evolución', aoa: evolucion, cols: [22, 12] },
+        { name: 'Menciones marca', aoa: menciones, cols: [50, 14, 60, 60, 16] },
+      ]
+    );
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-20 text-gray-400">Cargando citas…</div>;
   }
+
+  // Barra de fechas + export, reutilizada también en el estado vacío.
+  const toolbar = (
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <DateRangeFilter
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+        count={scoped.length}
+        total={analyses?.length}
+      />
+      <button
+        onClick={handleExport}
+        disabled={!data}
+        className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+      >
+        <Download className="w-4 h-4" /> Exportar Excel
+      </button>
+    </div>
+  );
+
   if (!data || data.totalCitations === 0) {
     return (
-      <div className="text-center py-20">
-        <Link2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500">No se han detectado citas web en estos análisis.</p>
+      <div className="space-y-4">
+        {toolbar}
+        <div className="text-center py-20">
+          <Link2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No se han detectado citas web en estos análisis.</p>
+        </div>
       </div>
     );
   }
 
-  const filteredUrls = data.topUrls.filter(u =>
-    !search || u.url.toLowerCase().includes(search.toLowerCase()) || u.domain.toLowerCase().includes(search.toLowerCase())
-  );
+  const pagedUrls = paginate(filteredUrls, page, URL_PAGE_SIZE);
 
   return (
     <div className="space-y-6">
+      {toolbar}
+
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border p-4">
@@ -325,9 +400,9 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredUrls.map((u, i) => (
+              {pagedUrls.map((u, i) => (
                 <tr key={u.url}>
-                  <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                  <td className="px-3 py-2 text-gray-400">{(page - 1) * URL_PAGE_SIZE + i + 1}</td>
                   <td className="px-3 py-2 max-w-md truncate">
                     <a href={u.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
                       <span className="truncate">{u.url}</span>
@@ -343,6 +418,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
           {filteredUrls.length === 0 && (
             <p className="text-sm text-gray-400 py-4 text-center">Sin resultados para “{search}”.</p>
           )}
+          <Pagination page={page} totalItems={filteredUrls.length} pageSize={URL_PAGE_SIZE} onChange={setPage} />
         </div>
         <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
           <Info className="w-3 h-3" /> "Citations by AI model" atribuye cada fuente web a los modelos presentes en la pregunta.

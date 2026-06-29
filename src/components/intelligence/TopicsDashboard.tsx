@@ -1,9 +1,13 @@
-import React, { useMemo } from 'react';
-import { Hash } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Hash, Download } from 'lucide-react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   AnalysisDetail, normalizeSentimentKey, sortByDate
 } from './sharedMetrics';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
+
+const TOPIC_PAGE_SIZE = 25;
 
 interface Props {
   analyses: AnalysisDetail[];
@@ -33,9 +37,18 @@ function netColor(net: number): string {
 }
 
 const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
+  const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const scoped = useMemo(
+    () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
+    [analyses, dateFrom, dateTo]
+  );
+
   const data = useMemo(() => {
-    if (!analyses || analyses.length === 0) return null;
-    const latest = sortByDate(analyses).slice(-1)[0];
+    if (!scoped || scoped.length === 0) return null;
+    const latest = sortByDate(scoped).slice(-1)[0];
 
     const acc: Record<string, { mentions: number; pos: number; neu: number; neg: number }> = {};
     (latest.results?.questions || []).forEach(q => {
@@ -70,22 +83,67 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
     const treemapData = topics.map(t => ({ name: t.topic, size: t.mentions, net: t.net }));
     return { topics, treemapData };
-  }, [analyses]);
+  }, [scoped]);
+
+  useEffect(() => { setPage(1); }, [dateFrom, dateTo]);
+
+  const handleExport = () => {
+    if (!data) return;
+    const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
+    const aoa: any[][] = [
+      ['Topic', 'Menciones', 'Positivas', 'Neutras', 'Negativas', '% Positivo', '% Negativo', 'Net (%)'],
+      ...data.topics.map(t => [
+        t.topic, t.mentions, t.positive, t.neutral, t.negative,
+        +t.pctPositive.toFixed(1), +t.pctNegative.toFixed(1), +t.net.toFixed(1),
+      ]),
+    ];
+    exportSheetsToExcel(
+      downloadFilename('topics', target),
+      [{ name: 'Topics', aoa, cols: [40, 12, 12, 12, 12, 12, 12, 12] }]
+    );
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-20 text-gray-400">Cargando topics…</div>;
   }
+
+  const toolbar = (
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <DateRangeFilter
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+        count={scoped.length}
+        total={analyses?.length}
+      />
+      <button
+        onClick={handleExport}
+        disabled={!data}
+        className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+      >
+        <Download className="w-4 h-4" /> Exportar Excel
+      </button>
+    </div>
+  );
+
   if (!data || data.topics.length === 0) {
     return (
-      <div className="text-center py-20">
-        <Hash className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500">No hay topics para mostrar.</p>
+      <div className="space-y-4">
+        {toolbar}
+        <div className="text-center py-20">
+          <Hash className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No hay topics para mostrar.</p>
+        </div>
       </div>
     );
   }
 
+  const pagedTopics = paginate(data.topics, page, TOPIC_PAGE_SIZE);
+
   return (
     <div className="space-y-6">
+      {toolbar}
+
       {/* Treemap */}
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Hash className="w-4 h-4 text-indigo-500" /> Topics</h3>
@@ -117,7 +175,7 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {data.topics.map(t => (
+              {pagedTopics.map(t => (
                 <tr key={t.topic}>
                   <td className="px-3 py-2 font-medium text-gray-900">{t.topic}</td>
                   <td className="px-3 py-2 text-right font-semibold">{t.mentions}</td>
@@ -137,6 +195,7 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} totalItems={data.topics.length} pageSize={TOPIC_PAGE_SIZE} onChange={setPage} />
         </div>
       </div>
     </div>
