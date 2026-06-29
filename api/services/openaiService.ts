@@ -649,15 +649,17 @@ class OpenAIService {
 
     console.log(`🌐 [OpenRouter] Generando con modelo: ${modelId}${needsWebPlugin ? ' (+plugin web)' : ''}`);
 
-    const response = await Promise.race([
-      providerQueues.openrouter.enqueue(
-        () => this.openrouterClient!.chat.completions.create(requestBody),
-        `generateWithOpenRouter:${modelId}`
-      ),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: OpenRouter tardó más de 120 segundos')), 120000)
-      )
-    ]) as any;
+    // El timeout va DENTRO del thunk encolado: los 120s miden solo la llamada real
+    // a OpenRouter una vez despachada, no la espera en cola (ver nota en generateWithOpenAI).
+    const response = await providerQueues.openrouter.enqueue(
+      () => Promise.race([
+        this.openrouterClient!.chat.completions.create(requestBody),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout: OpenRouter tardó más de 120 segundos')), 120000)
+        )
+      ]),
+      `generateWithOpenRouter:${modelId}`
+    ) as any;
 
     const message = response.choices?.[0]?.message;
     const content = message?.content;
@@ -700,9 +702,13 @@ class OpenAIService {
     console.log(`🌐 [OpenAI] Ejecutando búsqueda web con modelo: ${modelId}`);
     console.log(`📍 [OpenAI] Sistema: ${systemPrompt}`);
 
-    const response = await Promise.race([
-      providerQueues.openai.enqueue(
-        () => this.client.chat.completions.create({
+    // El timeout va DENTRO del thunk encolado: así los 90s miden solo la llamada
+    // real a OpenAI una vez despachada, no la espera en cola. (En runs programados
+    // con bypassCache se encolan cientos de preguntas; si el timeout contara la
+    // espera en cola, el grueso caducaría sin llegar a la API.)
+    const response = await providerQueues.openai.enqueue(
+      () => Promise.race([
+        this.client.chat.completions.create({
           model: modelId,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -712,12 +718,12 @@ class OpenAIService {
             search_context_size: 'medium', // 'low' | 'medium' | 'high'
           },
         } as any), // TypeScript puede no tener los tipos actualizados
-        `generateWithOpenAI:${modelId}`
-      ),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 90 segundos')), 90000)
-      )
-    ]) as any;
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout: OpenAI tardó más de 90 segundos')), 90000)
+        )
+      ]),
+      `generateWithOpenAI:${modelId}`
+    ) as any;
 
     const message = response.choices[0]?.message;
     const content = message?.content;
