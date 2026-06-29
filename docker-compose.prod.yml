@@ -52,6 +52,10 @@ services:
       - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET}
       - API_KEY_ENCRYPTION_SECRET=${API_KEY_ENCRYPTION_SECRET}
+      # Concurrencia de la cola global de OpenAI. Las monitorizaciones programadas
+      # (bypassCache) encolan cientos de llamadas web-search a la vez; 8 slots
+      # drenan la cola más rápido sin disparar 429 (la cola reintenta con backoff).
+      - OPENAI_QUEUE_MAX_CONCURRENT=${OPENAI_QUEUE_MAX_CONCURRENT:-8}
     volumes:
       - mediciones_data:/app/data
       - ./logs:/app/logs
