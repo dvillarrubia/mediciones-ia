@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Heart, Award, Info } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Heart, Award, Download } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -9,6 +9,10 @@ import {
   normalizeSentimentKey, normalizeBrandName,
   modelLabel, dateLabel, sortByDate, SentimentKey
 } from './sharedMetrics';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
+
+const DETAIL_PAGE_SIZE = 50;
 
 interface Props {
   analyses: AnalysisDetail[];
@@ -38,10 +42,19 @@ interface DetailRow {
 
 const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
   const [sentimentFilter, setSentimentFilter] = useState<'all' | SentimentKey>('all');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const scoped = useMemo(
+    () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
+    [analyses, dateFrom, dateTo]
+  );
 
   const data = useMemo(() => {
-    if (!analyses || analyses.length === 0) return null;
-    const sorted = sortByDate(analyses);
+    if (!scoped || scoped.length === 0) return null;
+    const sorted = sortByDate(scoped);
     const latest = sorted[sorted.length - 1];
     const targetBrand = latest.configuration.brand;
     const configured = [targetBrand, ...(latest.configuration.competitors || [])];
@@ -116,21 +129,82 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     });
 
     return { targetBrand, dist, totalMentions, pieData, byBrand, overTime, detailRows, multiple: sorted.length > 1 };
-  }, [analyses]);
+  }, [scoped]);
+
+  // Reset de página al cambiar cualquier filtro de la tabla de detalle.
+  useEffect(() => { setPage(1); }, [sentimentFilter, brandFilter, dateFrom, dateTo]);
+
+  // Las opciones de marca y el filtrado de detalle deben calcularse siempre (antes de
+  // los early-returns) para no romper el orden de hooks; usan `data` de forma defensiva.
+  const brandOptions = useMemo(
+    () => (data ? data.byBrand.map(b => b.brand) : []),
+    [data]
+  );
+
+  const filteredRows = useMemo(
+    () => (data ? data.detailRows.filter(r =>
+      (sentimentFilter === 'all' || r.sentiment === sentimentFilter) &&
+      (brandFilter === 'all' || r.brand === brandFilter)
+    ) : []),
+    [data, sentimentFilter, brandFilter]
+  );
+
+  const handleExport = () => {
+    if (!data) return;
+    // Hoja "Resumen": ranking Net Sentiment por marca.
+    const resumen: any[][] = [
+      ['SENTIMENT — RESUMEN'],
+      ['Marca target', data.targetBrand],
+      ['Menciones totales', data.totalMentions],
+      ['Rango fechas', dateFrom || '(inicio)', dateTo || '(fin)'],
+      [],
+      ['Distribución'],
+      ...SENTIMENT_KEYS.map(k => [SENTIMENT_LABELS[k], data.dist[k]]),
+      [],
+      ['Ranking Net Sentiment'],
+      ['#', 'Marca', 'Target', 'Menciones', 'Positivas', 'Neutras', 'Negativas', 'Net (%)'],
+      ...data.byBrand.map((b, i) => [
+        i + 1, b.brand, b.isTarget ? 'Sí' : '', b.total, b.positive, b.neutral, b.negative, +b.net.toFixed(1),
+      ]),
+    ];
+    // Hoja "Detalle": menciones filtradas (respeta filtros activos).
+    const detalle: any[][] = [
+      ['Marca', 'Sentimiento', 'Modelo', 'Topic', 'Pregunta', 'Motivo'],
+      ...filteredRows.map(r => [
+        r.brand, SENTIMENT_LABELS[r.sentiment], r.model, r.category, r.question, r.reasoning || '',
+      ]),
+    ];
+    exportSheetsToExcel(
+      downloadFilename('sentiment', data.targetBrand),
+      [
+        { name: 'Resumen', aoa: resumen, cols: [22, 16, 10, 12, 12, 12, 12, 12] },
+        { name: 'Detalle', aoa: detalle, cols: [20, 14, 14, 20, 60, 60] },
+      ]
+    );
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-20 text-gray-400">Cargando datos de sentimiento…</div>;
   }
   if (!data || data.totalMentions === 0) {
     return (
-      <div className="text-center py-20">
-        <Heart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500">No hay menciones con sentimiento para mostrar.</p>
+      <div className="space-y-4">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <div className="text-center py-20">
+          <Heart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No hay menciones con sentimiento para mostrar.</p>
+        </div>
       </div>
     );
   }
 
-  const filteredRows = data.detailRows.filter(r => sentimentFilter === 'all' || r.sentiment === sentimentFilter);
+  const pagedRows = paginate(filteredRows, page, DETAIL_PAGE_SIZE);
   // Drivers de sentimiento negativo (Hito 6.2 — GEO: el "por qué")
   const negativeDrivers = data.detailRows
     .filter(r => (r.sentiment === 'negative' || r.sentiment === 'very_negative') && r.reasoning)
@@ -138,6 +212,23 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
   return (
     <div className="space-y-6">
+      {/* Barra: rango de fechas + export */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <button
+          onClick={handleExport}
+          className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          <Download className="w-4 h-4" /> Exportar Excel
+        </button>
+      </div>
+
       {/* KPIs rápidos */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {([['very_positive', 'Muy Positivo'], ['positive', 'Positivo'], ['negative', 'Negativo'], ['very_negative', 'Muy Negativo']] as [SentimentKey, string][]).map(([k, label]) => (
@@ -272,16 +363,26 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* Sentiment Details */}
       <div className="bg-white rounded-lg border p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-semibold text-gray-900">Sentiment Details</h3>
-          <select
-            value={sentimentFilter}
-            onChange={(e) => setSentimentFilter(e.target.value as any)}
-            className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
-          >
-            <option value="all">Todos los sentimientos</option>
-            {SENTIMENT_KEYS.map(k => <option key={k} value={k}>{SENTIMENT_LABELS[k]}</option>)}
-          </select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
+            >
+              <option value="all">Todas las marcas</option>
+              {brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select
+              value={sentimentFilter}
+              onChange={(e) => setSentimentFilter(e.target.value as any)}
+              className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
+            >
+              <option value="all">Todos los sentimientos</option>
+              {SENTIMENT_KEYS.map(k => <option key={k} value={k}>{SENTIMENT_LABELS[k]}</option>)}
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -295,7 +396,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredRows.slice(0, 100).map((r, i) => (
+              {pagedRows.map((r, i) => (
                 <tr key={i} className={r.isTarget ? 'bg-blue-50/40' : ''}>
                   <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.brand}</td>
                   <td className="px-3 py-2">
@@ -310,9 +411,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
               ))}
             </tbody>
           </table>
-          {filteredRows.length > 100 && (
-            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1"><Info className="w-3 h-3" /> Mostrando 100 de {filteredRows.length} menciones.</p>
+          {filteredRows.length === 0 && (
+            <p className="text-sm text-gray-400 py-4 text-center">No hay menciones que cumplan el filtro.</p>
           )}
+          <Pagination page={page} totalItems={filteredRows.length} pageSize={DETAIL_PAGE_SIZE} onChange={setPage} />
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Award, ArrowUp, TrendingUp, TrendingDown, CheckCircle2,
-  Globe, Users, Minus
+  Globe, Users, Minus, Download
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
@@ -10,6 +10,8 @@ import {
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
 import { countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS } from './sharedMetrics';
+import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
+import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 // Re-use types from IntelligenceHub
 interface BrandMention {
@@ -367,31 +369,39 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
 );
 
 const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
-  const metrics = useMemo(() => calculateMetrics(analyses), [analyses]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const scoped = useMemo(
+    () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
+    [analyses, dateFrom, dateTo]
+  );
+
+  const metrics = useMemo(() => calculateMetrics(scoped), [scoped]);
 
   // KPIs de menciones/citaciones con delta vs análisis anterior (Hito 2)
   const mentionKpis = useMemo(() => {
-    if (!analyses || analyses.length === 0) return null;
-    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    if (!scoped || scoped.length === 0) return null;
+    const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     const target = sorted[sorted.length - 1].configuration.brand;
     const cur = countBrandAppearances([sorted[sorted.length - 1]] as any, target, brandDomain || '');
     const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '') : null;
     return { cur, prev, hasDomain: !!brandDomain };
-  }, [analyses, brandDomain]);
+  }, [scoped, brandDomain]);
 
   // Visibilidad por modelo (Hito 6.1 — GEO)
   const modelVis = useMemo(() => {
-    if (!analyses || analyses.length === 0) return [];
-    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return buildModelVisibility(analyses as any, sorted[sorted.length - 1].configuration.brand);
-  }, [analyses]);
+    if (!scoped || scoped.length === 0) return [];
+    const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildModelVisibility(scoped as any, sorted[sorted.length - 1].configuration.brand);
+  }, [scoped]);
 
   // Distribución de posición (Hito 5)
   const posDist = useMemo(() => {
-    if (!analyses || analyses.length === 0) return null;
-    const sorted = [...analyses].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return buildPositionDistribution(analyses as any, sorted[sorted.length - 1].configuration.brand);
-  }, [analyses]);
+    if (!scoped || scoped.length === 0) return null;
+    const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildPositionDistribution(scoped as any, sorted[sorted.length - 1].configuration.brand);
+  }, [scoped]);
 
   if (loading) {
     return (
@@ -408,10 +418,21 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
 
   if (!metrics) {
     return (
-      <div className="text-center py-16 bg-white rounded-xl shadow-sm border">
-        <BarChart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-        <h3 className="text-lg font-medium text-gray-700 mb-2">Sin datos de métricas</h3>
-        <p className="text-gray-500">Ejecuta al menos un análisis para ver métricas cuantitativas.</p>
+      <div className="space-y-4">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <div className="text-center py-16 bg-white rounded-xl shadow-sm border">
+          <BarChart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <h3 className="text-lg font-medium text-gray-700 mb-2">Sin datos de métricas</h3>
+          <p className="text-gray-500">
+            {analyses?.length ? 'No hay análisis en el rango de fechas seleccionado.' : 'Ejecuta al menos un análisis para ver métricas cuantitativas.'}
+          </p>
+        </div>
       </div>
     );
   }
@@ -455,8 +476,62 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     );
   };
 
+  const handleExport = () => {
+    const sov: any[][] = [
+      ['#', 'Marca', 'Target', 'Menciones', 'SoV (%)', 'Sentimiento'],
+      ...cs.shareOfVoice.map((s, i) => [
+        i + 1, s.brand, s.isTarget ? 'Sí' : '', s.mentions, +s.percentage.toFixed(1), +s.sentimentScore.toFixed(2),
+      ]),
+    ];
+    const modelos: any[][] = [
+      ['Modelo', 'Respuestas', 'Menciones', 'Mention rate (%)', 'SoV (%)', 'Posición media'],
+      ...modelVis.map(m => [
+        m.label, m.responses, m.mentioned, +m.mentionRate.toFixed(1), +m.sovPct.toFixed(1),
+        m.avgPosition !== null ? +m.avgPosition.toFixed(2) : '',
+      ]),
+    ];
+    const posicion: any[][] = posDist ? [
+      ['Bucket', 'Apariciones'],
+      ['Posición 1', posDist.current.p1],
+      ['Posición 2-3', posDist.current.p2_3],
+      ['Posición 4-7', posDist.current.p4_7],
+      ['Posición 8+', posDist.current.p8plus],
+      ['Total', posDist.current.total],
+    ] : [['Sin datos de posición']];
+    const evolucion: any[][] = [
+      ['Análisis', ...topBrands],
+      ...sovAreaData.map(p => [p.label, ...topBrands.map(b => p[b] ?? 0)]),
+    ];
+    exportSheetsToExcel(
+      downloadFilename('metricas', cs.targetBrand),
+      [
+        { name: 'Share of Voice', aoa: sov, cols: [6, 24, 10, 12, 12, 14] },
+        { name: 'Visibilidad por modelo', aoa: modelos, cols: [18, 12, 12, 16, 12, 16] },
+        { name: 'Distribución posición', aoa: posicion, cols: [18, 14] },
+        { name: 'Evolución histórica', aoa: evolucion, cols: [22, ...topBrands.map(() => 14)] },
+      ]
+    );
+  };
+
   return (
     <div className="space-y-6">
+      {/* Rango de fechas + export */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }}
+          count={scoped.length}
+          total={analyses?.length}
+        />
+        <button
+          onClick={handleExport}
+          className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          <Download className="w-4 h-4" /> Exportar Excel
+        </button>
+      </div>
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
         <div className="flex items-center gap-3 mb-2">
