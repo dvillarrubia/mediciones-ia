@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Crosshair, Info, CalendarDays, Users, Download } from 'lucide-react';
+import InfoTip from './InfoTip';
 import {
   AnalysisDetail, sortByDate, buildGapsMatrix, buildCompetitiveView,
   APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
@@ -91,6 +92,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
           {APPEARANCE_LABELS[t]}
         </span>
       ))}
+      <InfoTip text="Clasificación por prompt y análisis: No aparece = la marca no se nombra ni se cita. Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio como fuente. Citación al blog = esa URL es de /blog. El número dentro del punto es la posición de aparición (1 = primera marca nombrada)." />
       {!brandDomain && (
         <span className="inline-flex items-center gap-1 text-amber-600">
           <Info className="w-3 h-3" /> Configura el dominio de marca para distinguir citaciones (.com / blog).
@@ -271,7 +273,11 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Prompt</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Posición {targetBrand}</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                    <span className="inline-flex items-center gap-1.5">Posición {targetBrand}
+                      <InfoTip text="Orden en el que la IA nombra tu marca dentro de la respuesta (1 = primera marca nombrada), junto al tipo de aparición (mención o citación)." />
+                    </span>
+                  </th>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Competidores</th>
                 </tr>
               </thead>

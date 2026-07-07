@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Link2, Globe, ExternalLink, Info, Download } from 'lucide-react';
+import InfoTip from './InfoTip';
 import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -202,16 +203,25 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border p-4">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Citas totales</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+            Citas totales
+            <InfoTip text="Fuentes web (con URL real) que la IA citó en sus respuestas, sumando TODOS los análisis del rango de fechas. Cada vez que se cita una fuente cuenta, aunque sea la misma URL en otra pregunta." />
+          </div>
           <div className="text-2xl font-bold text-gray-900">{data.totalCitations}</div>
         </div>
         <div className="bg-white rounded-lg border p-4">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Citation Rate</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+            Citation Rate
+            <InfoTip text="% de preguntas (de todos los análisis del rango) en cuya respuesta la IA citó al menos una fuente web real." />
+          </div>
           <div className="text-2xl font-bold text-indigo-600">{data.citationRate.toFixed(1)}%</div>
           <div className="text-xs text-gray-400">preguntas con ≥1 fuente web</div>
         </div>
         <div className="bg-white rounded-lg border p-4">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Dominios únicos</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+            Dominios únicos
+            <InfoTip text="Nº de dominios distintos entre todas las fuentes web citadas en el rango (se excluyen placeholders sin dominio real)." />
+          </div>
           <div className="text-2xl font-bold text-gray-900">{data.uniqueDomains}</div>
         </div>
       </div>
@@ -219,7 +229,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* Menciones y citaciones de la marca (Hito 2.4) */}
       <div className="bg-white rounded-lg border p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h3 className="font-semibold text-gray-900">Menciones y citaciones de la marca</h3>
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            Menciones y citaciones de la marca
+            <InfoTip text="Cómo aparece tu marca en cada prompt (todos los análisis del rango). Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio como fuente. Citación al blog = esa URL es de la sección /blog. Requiere configurar el dominio de marca en el proyecto." />
+          </h3>
           <div className="flex items-center gap-2 flex-wrap">
             {(['all', 'mencion', 'citacion_com', 'citacion_blog'] as const).map(t => (
               <button
@@ -281,7 +294,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* Gap de citaciones (Hito 6.B — GEO) */}
       {citationGaps.length > 0 && (
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-1">Gap de citaciones</h3>
+          <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+            Gap de citaciones
+            <InfoTip text="Dominios de terceros que la IA usa como fuente en preguntas donde aparecen tus competidores y tu marca no, en todo el rango de fechas. 'Citas con competencia' = nº de preguntas en esa situación. Se excluyen los dominios propios de marcas." />
+          </h3>
           <p className="text-xs text-gray-400 mb-4">Webs de terceros (no de marcas) que la IA cita junto a tus competidores pero nunca contigo → dónde conseguir presencia (PR, colaboraciones, contenido).</p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -319,7 +335,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* Citas por modelo + over time */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Link2 className="w-4 h-4 text-blue-500" /> Citations by AI model</h3>
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-blue-500" /> Citations by AI model
+            <InfoTip text="Reparto de las fuentes citadas según el modelo de IA. Cada fuente se atribuye a todos los modelos presentes en su pregunta, por lo que los % son sobre el total de atribuciones. 'Otros' = análisis antiguos sin información de modelo." />
+          </h3>
           {(() => {
             // % sobre el total de atribuciones, no de citas: una misma fuente se
             // atribuye a todos los modelos presentes en la pregunta.
@@ -340,7 +359,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
 
         {data.multiple ? (
           <div className="bg-white rounded-lg border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Citations over time</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              Citations over time
+              <InfoTip text="Nº total de fuentes web citadas en cada análisis del rango." />
+            </h3>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={data.overTime}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -353,7 +375,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
           </div>
         ) : (
           <div className="bg-white rounded-lg border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Globe className="w-4 h-4 text-emerald-500" /> Top dominios</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-emerald-500" /> Top dominios
+              <InfoTip text="Dominios cuyas URLs cita más veces la IA como fuente, sumando todos los análisis del rango." />
+            </h3>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={data.topDomains} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -370,7 +395,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* Top dominios (cuando hay serie temporal arriba) */}
       {data.multiple && (
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Globe className="w-4 h-4 text-emerald-500" /> Top dominios citados</h3>
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-emerald-500" /> Top dominios citados
+            <InfoTip text="Dominios cuyas URLs cita más veces la IA como fuente, sumando todos los análisis del rango." />
+          </h3>
           <ResponsiveContainer width="100%" height={Math.max(220, data.topDomains.length * 32)}>
             <BarChart data={data.topDomains} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -386,7 +414,10 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       {/* Top URLs */}
       <div className="bg-white rounded-lg border p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Top URLs citadas</h3>
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            Top URLs citadas
+            <InfoTip text="URLs concretas más citadas por la IA en el rango (se listan las 50 más citadas; 'Citas' = veces que aparece como fuente). El buscador filtra sobre ese top 50." />
+          </h3>
           <div className="relative">
             <input
               value={search}

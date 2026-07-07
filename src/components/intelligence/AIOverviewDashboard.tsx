@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import API_BASE_URL, { apiFetch } from '../../config/api';
 import { exportAIOverviewToExcel } from './aioExcelExport';
+import InfoTip from './InfoTip';
 
 // ==================== TYPES ====================
 
@@ -289,16 +290,24 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KpiCard label="SoV por volumen" value={fmtPct(targetEntry?.share_by_volume_pct || 0)} delta={delta?.sovVolume} deltaUnit="pp" icon={<Target className="w-4 h-4" />} color="bg-blue-50 text-blue-700" />
-        <KpiCard label="SoV por keywords" value={fmtPct(targetEntry?.share_by_count_pct || 0)} icon={<BarChart3 className="w-4 h-4" />} color="bg-indigo-50 text-indigo-700" />
-        <KpiCard label="Keywords citado" value={(targetEntry?.keywords_count || 0).toLocaleString()} delta={delta?.keywords} icon={<Eye className="w-4 h-4" />} color="bg-cyan-50 text-cyan-700" />
-        <KpiCard label="ETV" value={`$${(targetEntry?.total_etv || 0).toLocaleString()}`} delta={delta?.etv} deltaPrefix="$" icon={<Zap className="w-4 h-4" />} color="bg-emerald-50 text-emerald-700" />
-        <KpiCard label="Universo total" value={(latest.uniqueKeywords || 0).toLocaleString()} sub="keywords con AI Overview" icon={<Globe className="w-4 h-4" />} color="bg-amber-50 text-amber-700" />
+        <KpiCard label="SoV por volumen" value={fmtPct(targetEntry?.share_by_volume_pct || 0)} delta={delta?.sovVolume} deltaUnit="pp" icon={<Target className="w-4 h-4" />} color="bg-blue-50 text-blue-700"
+          info="Suma del volumen de búsqueda mensual de las keywords donde tu dominio es citado en el AI Overview de Google, en % sobre el volumen total de los dominios comparados (target + competidores). Datos de DataForSEO." />
+        <KpiCard label="SoV por keywords" value={fmtPct(targetEntry?.share_by_count_pct || 0)} icon={<BarChart3 className="w-4 h-4" />} color="bg-indigo-50 text-indigo-700"
+          info="Nº de keywords donde tu dominio es citado, en % sobre el total de citas de los dominios comparados. A diferencia del SoV por volumen, aquí cada keyword pesa lo mismo." />
+        <KpiCard label="Keywords citado" value={(targetEntry?.keywords_count || 0).toLocaleString()} delta={delta?.keywords} icon={<Eye className="w-4 h-4" />} color="bg-cyan-50 text-cyan-700"
+          info="Nº de keywords con AI Overview en las que Google cita alguna URL de tu dominio como fuente." />
+        <KpiCard label="ETV" value={`$${(targetEntry?.total_etv || 0).toLocaleString()}`} delta={delta?.etv} deltaPrefix="$" icon={<Zap className="w-4 h-4" />} color="bg-emerald-50 text-emerald-700"
+          info="Estimated Traffic Value (DataForSEO): valor estimado en $ del tráfico mensual de las keywords donde tu dominio es citado." />
+        <KpiCard label="Universo total" value={(latest.uniqueKeywords || 0).toLocaleString()} sub="keywords con AI Overview" icon={<Globe className="w-4 h-4" />} color="bg-amber-50 text-amber-700"
+          info="Total de keywords únicas con AI Overview detectadas para el conjunto de dominios analizados. Es el universo sobre el que se calcula todo lo demás." />
       </div>
 
       {/* Ranking de dominios */}
       <div className="bg-white rounded-xl border p-5">
-        <h3 className="font-semibold text-gray-800 mb-1">Ranking de dominios</h3>
+        <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-2">
+          Ranking de dominios
+          <InfoTip text="Último análisis. Keywords = nº de keywords donde el dominio es citado. SoV (vol.) = % del volumen de búsqueda total; SoV (count) = % del nº de citas; Volumen = búsquedas mensuales sumadas; ETV = valor estimado del tráfico. Los % se calculan solo entre los dominios comparados." />
+        </h3>
         <p className="text-xs text-gray-400 mb-4">Quién domina las fuentes citadas por Google en AI Overviews</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -344,7 +353,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {intentData.length > 0 && (
               <div className="bg-white rounded-xl border p-5">
-                <h3 className="font-semibold text-gray-800 mb-1">Intención de búsqueda — {targetDomain}</h3>
+                <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-2">
+                  Intención de búsqueda — {targetDomain}
+                  <InfoTip text="Nº de keywords donde tu dominio es citado, agrupadas por la intención de búsqueda que asigna DataForSEO a cada keyword (informacional, comercial, transaccional o navegacional)." />
+                </h3>
                 <p className="text-xs text-gray-400 mb-4">Distribución de intent en keywords donde tu dominio aparece</p>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={intentData} layout="vertical">
@@ -372,7 +384,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
 
             {volumeData.length > 0 && (
               <div className="bg-white rounded-xl border p-5">
-                <h3 className="font-semibold text-gray-800 mb-1">Distribución por volumen — {targetDomain}</h3>
+                <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-2">
+                  Distribución por volumen — {targetDomain}
+                  <InfoTip text="Nº de keywords donde apareces, agrupadas por rango de volumen de búsqueda mensual (¿te citan en consultas grandes o de cola larga?)." />
+                </h3>
                 <p className="text-xs text-gray-400 mb-4">En qué rangos de volumen de búsqueda aparece tu dominio</p>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={volumeData}>
@@ -390,7 +405,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
           {/* Top Keywords per domain */}
           {r.top_keywords && Object.keys(r.top_keywords).length > 0 && (
             <div className="bg-white rounded-xl border p-5">
-              <h3 className="font-semibold text-gray-800 mb-4">Top Keywords por dominio</h3>
+              <h3 className="font-semibold text-gray-800 mb-4 inline-flex items-center gap-2">
+                Top Keywords por dominio
+                <InfoTip text="Las keywords con más volumen de búsqueda donde cada dominio es citado en el AI Overview (último análisis)." />
+              </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {allDomains.filter(d => r.top_keywords[d]?.length > 0).map((domain, di) => (
                   <div key={domain}>
@@ -424,7 +442,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
           {/* Top Pages per domain */}
           {r.top_pages && Object.keys(r.top_pages).length > 0 && (
             <div className="bg-white rounded-xl border p-5">
-              <h3 className="font-semibold text-gray-800 mb-4">Top Páginas citadas por dominio</h3>
+              <h3 className="font-semibold text-gray-800 mb-4 inline-flex items-center gap-2">
+                Top Páginas citadas por dominio
+                <InfoTip text="Las URLs concretas de cada dominio que Google cita más veces en AI Overviews (nº de citas, volumen y ETV acumulados de sus keywords)." />
+              </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {allDomains.filter(d => r.top_pages[d]?.length > 0).map((domain, di) => (
                   <div key={domain}>
@@ -454,7 +475,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
           {/* Overlap Matrix */}
           {r.overlap_matrix && Object.keys(r.overlap_matrix).length > 1 && (
             <div className="bg-white rounded-xl border p-5">
-              <h3 className="font-semibold text-gray-800 mb-1">Matriz de solapamiento</h3>
+              <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-2">
+                Matriz de solapamiento
+                <InfoTip text="Cada celda cuenta las keywords en cuyo AI Overview Google cita a la vez a ambos dominios (fila y columna). Más intenso = más solapamiento competitivo." />
+              </h3>
               <p className="text-xs text-gray-400 mb-4">Número de keywords donde dos dominios son citados simultáneamente</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -502,6 +526,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-500" />
                     Gap Analysis — Oportunidades perdidas
+                    <InfoTip text="Keywords con AI Overview donde Google cita a uno o más competidores pero no a tu dominio (último análisis), ordenadas por volumen de búsqueda." />
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
                     {r.gap_analysis.total_gaps.toLocaleString()} keywords donde competidores aparecen pero tú no · {fmtVol(r.gap_analysis.total_gap_volume)} vol. total
@@ -546,6 +571,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                     <Shield className="w-4 h-4 text-green-500" />
                     Keywords exclusivas de {targetDomain}
+                    <InfoTip text="Keywords donde Google te cita a ti y a ninguno de los competidores comparados (último análisis). Tu ventaja defendible en AI Overviews." />
                   </h3>
                   <p className="text-xs text-gray-400 mt-1">
                     {r.target_exclusive.count.toLocaleString()} keywords donde solo tú apareces · {fmtVol(r.target_exclusive.total_volume)} vol. total
@@ -675,10 +701,10 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
 
 const KpiCard: React.FC<{
   label: string; value: string; icon: React.ReactNode; color: string;
-  sub?: string; delta?: number | null; deltaUnit?: string; deltaPrefix?: string;
-}> = ({ label, value, icon, color, sub, delta, deltaUnit = '', deltaPrefix = '' }) => (
+  sub?: string; delta?: number | null; deltaUnit?: string; deltaPrefix?: string; info?: string;
+}> = ({ label, value, icon, color, sub, delta, deltaUnit = '', deltaPrefix = '', info }) => (
   <div className={`rounded-xl border p-4 ${color}`}>
-    <div className="flex items-center gap-1.5 mb-1 opacity-70">{icon}<span className="text-xs font-medium">{label}</span></div>
+    <div className="flex items-center gap-1.5 mb-1 opacity-70">{icon}<span className="text-xs font-medium">{label}</span>{info && <InfoTip text={info} className="!text-current opacity-70" />}</div>
     <p className="text-xl font-bold">{value}</p>
     {delta !== undefined && delta !== null && (
       <p className={`text-xs mt-0.5 flex items-center gap-0.5 ${delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-gray-400'}`}>

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Hash, Download } from 'lucide-react';
+import InfoTip from './InfoTip';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   AnalysisDetail, normalizeSentimentKey, sortByDate
@@ -146,7 +147,10 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* Treemap */}
       <div className="bg-white rounded-lg border p-5">
-        <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2"><Hash className="w-4 h-4 text-indigo-500" /> Topics</h3>
+        <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+          <Hash className="w-4 h-4 text-indigo-500" /> Topics
+          <InfoTip text="Topic = la categoría temática asignada a cada prompt en la configuración del análisis. Tamaño de la caja = nº de menciones de marca en ese topic; color = net sentiment (verde positivo, gris neutro, rojo negativo)." />
+        </h3>
         <p className="text-xs text-gray-400 mb-4">Último análisis del rango. "Menciones" = marcas detectadas por respuesta en cada topic (una marca mencionada en una respuesta cuenta una vez).</p>
         <ResponsiveContainer width="100%" height={360}>
           <Treemap
@@ -162,7 +166,10 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* Topic Details */}
       <div className="bg-white rounded-lg border p-5">
-        <h3 className="font-semibold text-gray-900 mb-4">Topic Details</h3>
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          Topic Details
+          <InfoTip text="Menciones = marcas detectadas en las respuestas de ese topic (una por marca y respuesta, último análisis). % Positivo / % Negativo = proporción de esas menciones con ese sentimiento. Net = % positivo − % negativo." />
+        </h3>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">

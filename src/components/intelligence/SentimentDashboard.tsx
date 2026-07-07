@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Heart, Award, Download } from 'lucide-react';
+import InfoTip from './InfoTip';
 import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -236,7 +237,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {([['very_positive', 'Muy Positivo'], ['positive', 'Positivo'], ['negative', 'Negativo'], ['very_negative', 'Muy Negativo']] as [SentimentKey, string][]).map(([k, label]) => (
           <div key={k} className="bg-white rounded-lg border p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">{label}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+              {label}
+              <InfoTip text={`Menciones de marca del último análisis cuyo sentimiento la IA clasificó como "${label}". Cuenta menciones de TODAS las marcas (tuya, competidores y descubiertas), una por marca y respuesta. El % es sobre el total de menciones con sentimiento.`} />
+            </div>
             <div className="text-2xl font-bold" style={{ color: SENTIMENT_COLORS[k] }}>{data.dist[k]}</div>
             <div className="text-xs text-gray-400">{((data.dist[k] / data.totalMentions) * 100).toFixed(1)}% del total</div>
           </div>
@@ -246,7 +250,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       {/* Pie + Net Sentiment Ranking */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Heart className="w-4 h-4 text-pink-500" /> Share of Sentiment</h3>
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Heart className="w-4 h-4 text-pink-500" /> Share of Sentiment
+            <InfoTip text="Reparto del sentimiento de todas las menciones de marca del último análisis. La IA asigna el sentimiento a cada mención al analizar la respuesta (según el contexto en que se nombra la marca)." />
+          </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie data={data.pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(e: any) => `${((e.value / data.totalMentions) * 100).toFixed(0)}%`}>
@@ -259,7 +266,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         </div>
 
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-500" /> Net Sentiment Score (Ranking)</h3>
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Award className="w-4 h-4 text-amber-500" /> Net Sentiment Score (Ranking)
+            <InfoTip text="Net = % de menciones positivas menos % de negativas de cada marca, sobre sus propias menciones en el último análisis. Ojo: con pocas menciones el valor es poco representativo (1 sola mención positiva ya da +100%)." />
+          </h3>
           <div className="overflow-y-auto max-h-[300px]">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
@@ -287,7 +297,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* Sentiment by Brand (split) */}
       <div className="bg-white rounded-lg border p-5">
-        <h3 className="font-semibold text-gray-900 mb-4">Sentiment by Brand</h3>
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          Sentiment by Brand
+          <InfoTip text="Reparto positivo/neutro/negativo de las menciones de cada marca en el último análisis, normalizado a 100%. Se muestran las 12 marcas con mejor net sentiment; el tooltip de cada barra da los conteos absolutos." />
+        </h3>
         {(() => {
           const rows = data.byBrand.slice(0, 12);
           return (
@@ -311,7 +324,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       {data.multiple && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Sentiment Distribution (over time)</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              Sentiment Distribution (over time)
+              <InfoTip text="Nº de menciones de marca por sentimiento en cada análisis del rango (valores absolutos, todas las marcas)." />
+            </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.overTime}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -326,7 +342,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
             </ResponsiveContainer>
           </div>
           <div className="bg-white rounded-lg border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Share of Sentiment Over Time</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              Share of Sentiment Over Time
+              <InfoTip text="Lo mismo que el gráfico de la izquierda pero en % sobre el total de menciones de cada análisis, para comparar análisis con distinto tamaño." />
+            </h3>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={data.overTime}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -346,7 +365,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       {/* Drivers de sentimiento negativo (Hito 6.2) */}
       {negativeDrivers.length > 0 && (
         <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold text-gray-900 mb-1">Drivers de sentimiento negativo</h3>
+          <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+            Drivers de sentimiento negativo
+            <InfoTip text="Menciones clasificadas como negativas en el último análisis, con el motivo que dio la propia IA al clasificarlas (su razonamiento o la cita textual de la respuesta)." />
+          </h3>
           <p className="text-xs text-gray-400 mb-4">Por qué se habla mal: los motivos detrás de las menciones negativas (accionable para GEO).</p>
           <div className="space-y-2">
             {negativeDrivers.map((r, i) => (
@@ -367,7 +389,10 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       {/* Sentiment Details */}
       <div className="bg-white rounded-lg border p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h3 className="font-semibold text-gray-900">Sentiment Details</h3>
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            Sentiment Details
+            <InfoTip text="Una fila por cada mención de marca del último análisis. 'Modelo' indica el primer modelo de IA de la pregunta: cuando una pregunta se lanzó a varios modelos, las menciones se consolidan y no se puede atribuir cada una a un modelo concreto." />
+          </h3>
           <div className="flex items-center gap-2 flex-wrap">
             <select
               value={brandFilter}

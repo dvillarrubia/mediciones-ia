@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   Award, ArrowUp, TrendingUp, TrendingDown, CheckCircle2,
-  Globe, Users, Minus, Download, Info, BarChart3
+  Globe, Users, Minus, Download, BarChart3
 } from 'lucide-react';
+import InfoTip from './InfoTip';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   PieChart, Pie, Cell,
@@ -348,13 +349,6 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 }
 
 // === COMPONENTS ===
-
-/** Icono ⓘ con tooltip nativo para aclarar qué mide cada métrica. */
-const InfoTip: React.FC<{ text: string }> = ({ text }) => (
-  <span className="inline-flex align-middle text-gray-400 cursor-help flex-shrink-0" title={text}>
-    <Info className="w-3.5 h-3.5" />
-  </span>
-);
 
 const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; color: string; subtitle?: string; info?: string }> = ({ label, value, icon, color, subtitle, info }) => (
   <div className={`bg-white rounded-xl shadow-sm border p-5`}>
