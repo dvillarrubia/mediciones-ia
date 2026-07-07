@@ -6,7 +6,7 @@ import {
   Download
 } from 'lucide-react';
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import API_BASE_URL, { apiFetch } from '../../config/api';
@@ -354,7 +354,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
                     <Tooltip formatter={(v: number, name: string) => [v.toLocaleString(), name === 'count' ? 'Keywords' : 'Volumen']} />
                     <Bar dataKey="count" name="Keywords" radius={[0, 4, 4, 0]}>
                       {intentData.map((entry, i) => (
-                        <rect key={i} fill={entry.fill} />
+                        <Cell key={i} fill={entry.fill} />
                       ))}
                     </Bar>
                   </BarChart>
