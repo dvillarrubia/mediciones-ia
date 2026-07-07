@@ -134,9 +134,11 @@ export const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#
 
 /** Agrupa variantes del mismo nombre de marca usando la lista configurada como referencia canónica. */
 export function normalizeBrandName(brand: string, configuredBrands: string[]): string {
-  const lower = brand.toLowerCase().replace(/[\s\-_]+/g, '');
+  // Misma clave que aliasKey (ignora espacios, guiones, guiones bajos y puntos)
+  // para que todas las métricas agrupen igual (p.ej. "U.O.C." → "UOC").
+  const lower = brand.toLowerCase().replace(/[\s\-_.]+/g, '');
   for (const cb of configuredBrands) {
-    if (cb.toLowerCase().replace(/[\s\-_]+/g, '') === lower) return cb;
+    if (cb.toLowerCase().replace(/[\s\-_.]+/g, '') === lower) return cb;
   }
   return brand;
 }

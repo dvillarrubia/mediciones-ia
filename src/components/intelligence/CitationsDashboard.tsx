@@ -320,15 +320,22 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Link2 className="w-4 h-4 text-blue-500" /> Citations by AI model</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={data.modelPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label={(e: any) => `${((e.value / data.totalCitations) * 100).toFixed(0)}%`}>
-                {data.modelPie.map((d, i) => <Cell key={i} fill={d.color || COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          {(() => {
+            // % sobre el total de atribuciones, no de citas: una misma fuente se
+            // atribuye a todos los modelos presentes en la pregunta.
+            const pieTotal = data.modelPie.reduce((s, d) => s + d.value, 0) || 1;
+            return (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={data.modelPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label={(e: any) => `${((e.value / pieTotal) * 100).toFixed(0)}%`}>
+                    {data.modelPie.map((d, i) => <Cell key={i} fill={d.color || COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            );
+          })()}
         </div>
 
         {data.multiple ? (
@@ -421,7 +428,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
           <Pagination page={page} totalItems={filteredUrls.length} pageSize={URL_PAGE_SIZE} onChange={setPage} />
         </div>
         <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
-          <Info className="w-3 h-3" /> "Citations by AI model" atribuye cada fuente web a los modelos presentes en la pregunta.
+          <Info className="w-3 h-3" /> "Citations by AI model" atribuye cada fuente web a todos los modelos presentes en la pregunta (los porcentajes son sobre el total de atribuciones, no de citas).
         </p>
       </div>
     </div>

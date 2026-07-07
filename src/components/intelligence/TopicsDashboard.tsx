@@ -146,7 +146,8 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* Treemap */}
       <div className="bg-white rounded-lg border p-5">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Hash className="w-4 h-4 text-indigo-500" /> Topics</h3>
+        <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2"><Hash className="w-4 h-4 text-indigo-500" /> Topics</h3>
+        <p className="text-xs text-gray-400 mb-4">Último análisis del rango. "Menciones" = marcas detectadas por respuesta en cada topic (una marca mencionada en una respuesta cuenta una vez).</p>
         <ResponsiveContainer width="100%" height={360}>
           <Treemap
             data={data.treemapData}

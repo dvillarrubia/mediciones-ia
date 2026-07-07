@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Award, ArrowUp, TrendingUp, TrendingDown, CheckCircle2,
-  Globe, Users, Minus, Download
+  Globe, Users, Minus, Download, Info, BarChart3
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
@@ -9,7 +9,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
-import { countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS } from './sharedMetrics';
+import {
+  countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS,
+  sentimentToNumeric, fmtSentiment, COLORS, normalizeBrandName, isRealDomain,
+} from './sharedMetrics';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
@@ -69,36 +72,6 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
-}
-
-// === HELPERS ===
-
-function sentimentToNumeric(s: string | undefined): number {
-  if (!s) return 0;
-  const lower = s.toLowerCase();
-  if (lower.includes('very_positive') || lower.includes('muy_positiv')) return 2;
-  if (lower.includes('positiv')) return 1;
-  if (lower.includes('very_negative') || lower.includes('muy_negativ')) return -2;
-  if (lower.includes('negativ')) return -1;
-  return 0;
-}
-
-function fmtSentiment(n: number): string {
-  return n > 0 ? `+${n.toFixed(2)}` : n.toFixed(2);
-}
-
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
-
-/**
- * Normaliza el nombre de una marca para agrupar variantes (e.g. "HolaLuz" → "Holaluz").
- * Recibe la lista de marcas configuradas (target + competidores) como referencia canónica.
- */
-function normalizeBrandName(brand: string, configuredBrands: string[]): string {
-  const lower = brand.toLowerCase().replace(/[\s\-_]+/g, '');
-  for (const cb of configuredBrands) {
-    if (cb.toLowerCase().replace(/[\s\-_]+/g, '') === lower) return cb;
-  }
-  return brand;
 }
 
 // === CALCULATION ===
@@ -173,6 +146,7 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 
   // Build canonical brand list for normalization
   const configuredBrandsList = [targetBrand, ...latest.configuration.competitors];
+  const configuredSet = new Set(configuredBrandsList.map(b => b.toLowerCase()));
 
   // SoV
   const brandAcc: Record<string, { mentions: number; sentSum: number; sentCount: number; isTarget: boolean }> = {};
@@ -191,10 +165,13 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 
     // Domains
     (q.sources || []).forEach(s => {
-      if (s.domain && s.domain !== 'ai-models' && s.domain !== 'unknown' && s.domain !== 'ai-generated') domainAcc[s.domain] = (domainAcc[s.domain] || 0) + 1;
+      if (isRealDomain(s.domain)) domainAcc[s.domain] = (domainAcc[s.domain] || 0) + 1;
     });
 
     // Brands
+    // La posición del target se toma una vez por pregunta (la mejor), no por entrada:
+    // el glosario de alias puede dejar varias entradas de la misma marca en una pregunta.
+    let qTargetOrder: number | null = null;
     (q.brandMentions || []).forEach(bm => {
       if (!bm.mentioned || bm.frequency <= 0) return;
       const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
@@ -206,17 +183,22 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
       brandAcc[brandName].sentCount++;
 
       if (isTarget && bm.appearanceOrder && bm.appearanceOrder > 0) {
-        targetOrderSum += bm.appearanceOrder;
-        targetOrderCount++;
+        qTargetOrder = qTargetOrder === null ? bm.appearanceOrder : Math.min(qTargetOrder, bm.appearanceOrder);
       }
 
-      if (bm.isDiscovered) {
+      // Una marca configurada no es "descubierta" aunque la IA la marque así
+      // (pasa cuando el glosario canonicaliza una variante descubierta).
+      if (bm.isDiscovered && !configuredSet.has(brandName.toLowerCase())) {
         if (!discoveredMap[brandName]) discoveredMap[brandName] = { freq: 0, sentSum: 0, count: 0 };
         discoveredMap[brandName].freq += bm.frequency;
         discoveredMap[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
         discoveredMap[brandName].count++;
       }
     });
+    if (qTargetOrder !== null) {
+      targetOrderSum += qTargetOrder;
+      targetOrderCount++;
+    }
   });
 
   const totalMentions = Object.values(brandAcc).reduce((s, b) => s + b.mentions, 0);
@@ -259,13 +241,16 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 
   // Category × Brand mentions
   const catBrandAcc: Record<string, { total: number; brands: Record<string, { count: number; sentSum: number; sentCount: number }> }> = {};
-  const configuredBrands = new Set([targetBrand.toLowerCase(), ...latest.configuration.competitors.map(c => c.toLowerCase())]);
+  const configuredBrands = configuredSet;
 
   questions.forEach(q => {
     const cat = q.category || 'Sin categoría';
     if (!catBrandAcc[cat]) catBrandAcc[cat] = { total: 0, brands: {} };
     catBrandAcc[cat].total++;
 
+    // count = preguntas distintas donde aparece la marca (una pregunta puede traer
+    // varias entradas de la misma marca tras aplicar alias); así el % nunca supera 100.
+    const seenInQuestion = new Set<string>();
     (q.brandMentions || []).forEach(bm => {
       if (!bm.mentioned) return;
       const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
@@ -273,7 +258,10 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
       if (!configuredBrands.has(brandName.toLowerCase())) return;
 
       if (!catBrandAcc[cat].brands[brandName]) catBrandAcc[cat].brands[brandName] = { count: 0, sentSum: 0, sentCount: 0 };
-      catBrandAcc[cat].brands[brandName].count++;
+      if (!seenInQuestion.has(brandName)) {
+        catBrandAcc[cat].brands[brandName].count++;
+        seenInQuestion.add(brandName);
+      }
       catBrandAcc[cat].brands[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
       catBrandAcc[cat].brands[brandName].sentCount++;
     });
@@ -318,6 +306,7 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     let hSentSum = 0, hSentCount = 0;
 
     qs.forEach(q => {
+      let qOrder: number | null = null;
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned || bm.frequency <= 0) return;
         const bmName = normalizeBrandName(bm.brand, configuredBrandsList);
@@ -328,11 +317,14 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
           hSentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
           hSentCount++;
           if (bm.appearanceOrder && bm.appearanceOrder > 0) {
-            hOrderSum += bm.appearanceOrder;
-            hOrderCount++;
+            qOrder = qOrder === null ? bm.appearanceOrder : Math.min(qOrder, bm.appearanceOrder);
           }
         }
       });
+      if (qOrder !== null) {
+        hOrderSum += qOrder;
+        hOrderCount++;
+      }
     });
 
     const hTotal = Object.values(hBrand).reduce((s, b) => s + b.mentions, 0);
@@ -357,11 +349,18 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 
 // === COMPONENTS ===
 
-const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; color: string; subtitle?: string }> = ({ label, value, icon, color, subtitle }) => (
+/** Icono ⓘ con tooltip nativo para aclarar qué mide cada métrica. */
+const InfoTip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="inline-flex align-middle text-gray-400 cursor-help flex-shrink-0" title={text}>
+    <Info className="w-3.5 h-3.5" />
+  </span>
+);
+
+const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; color: string; subtitle?: string; info?: string }> = ({ label, value, icon, color, subtitle, info }) => (
   <div className={`bg-white rounded-xl shadow-sm border p-5`}>
     <div className="flex items-center gap-3 mb-2">
       <div className={`p-2 rounded-lg ${color}`}>{icon}</div>
-      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm text-gray-500 inline-flex items-center gap-1.5">{label}{info && <InfoTip text={info} />}</span>
     </div>
     <p className="text-2xl font-bold text-gray-900">{value}</p>
     {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
@@ -383,10 +382,11 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
   const mentionKpis = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const target = sorted[sorted.length - 1].configuration.brand;
-    const cur = countBrandAppearances([sorted[sorted.length - 1]] as any, target, brandDomain || '');
+    const latest = sorted[sorted.length - 1];
+    const target = latest.configuration.brand;
+    const cur = countBrandAppearances([latest] as any, target, brandDomain || '');
     const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '') : null;
-    return { cur, prev, hasDomain: !!brandDomain };
+    return { cur, prev, hasDomain: !!brandDomain, totalQuestions: latest.results?.questions?.length || 0 };
   }, [scoped, brandDomain]);
 
   // Visibilidad por modelo (Hito 6.1 — GEO)
@@ -427,7 +427,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
           total={analyses?.length}
         />
         <div className="text-center py-16 bg-white rounded-xl shadow-sm border">
-          <BarChart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-medium text-gray-700 mb-2">Sin datos de métricas</h3>
           <p className="text-gray-500">
             {analyses?.length ? 'No hay análisis en el rango de fechas seleccionado.' : 'Ejecuta al menos un análisis para ver métricas cuantitativas.'}
@@ -478,13 +478,13 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
 
   const handleExport = () => {
     const sov: any[][] = [
-      ['#', 'Marca', 'Target', 'Menciones', 'SoV (%)', 'Sentimiento'],
+      ['#', 'Marca', 'Target', 'Frecuencia (veces nombrada)', 'SoV (%)', 'Sentimiento'],
       ...cs.shareOfVoice.map((s, i) => [
         i + 1, s.brand, s.isTarget ? 'Sí' : '', s.mentions, +s.percentage.toFixed(1), +s.sentimentScore.toFixed(2),
       ]),
     ];
     const modelos: any[][] = [
-      ['Modelo', 'Respuestas', 'Menciones', 'Mention rate (%)', 'SoV (%)', 'Posición media'],
+      ['Modelo', 'Respuestas', 'Respuestas con mención', 'Mention rate (%)', 'SoV (%)', 'Posición media'],
       ...modelVis.map(m => [
         m.label, m.responses, m.mentioned, +m.mentionRate.toFixed(1), +m.sovPct.toFixed(1),
         m.avgPosition !== null ? +m.avgPosition.toFixed(2) : '',
@@ -505,8 +505,8 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     exportSheetsToExcel(
       downloadFilename('metricas', cs.targetBrand),
       [
-        { name: 'Share of Voice', aoa: sov, cols: [6, 24, 10, 12, 12, 14] },
-        { name: 'Visibilidad por modelo', aoa: modelos, cols: [18, 12, 12, 16, 12, 16] },
+        { name: 'Share of Voice', aoa: sov, cols: [6, 24, 10, 26, 12, 14] },
+        { name: 'Visibilidad por modelo', aoa: modelos, cols: [18, 12, 22, 16, 12, 16] },
         { name: 'Distribución posición', aoa: posicion, cols: [18, 14] },
         { name: 'Evolución histórica', aoa: evolucion, cols: [22, ...topBrands.map(() => 14)] },
       ]
@@ -548,21 +548,30 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
       {mentionKpis && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Menciones</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+              Respuestas con mención
+              <InfoTip text="En cuántas respuestas del último análisis aparece nombrada la marca. Cada respuesta cuenta una sola vez, aunque la marca se nombre varias veces dentro de ella. Por eso este número es menor que la frecuencia total de la tabla Share of Voice." />
+            </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.mentionedResponses}{renderDelta(mentionKpis.cur.mentionedResponses, mentionKpis.prev?.mentionedResponses)}
             </div>
-            <div className="text-xs text-gray-400">respuestas que nombran la marca</div>
+            <div className="text-xs text-gray-400">de {mentionKpis.totalQuestions} respuestas del último análisis</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al sitio</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+              Citaciones al sitio
+              <InfoTip text="Fuentes citadas por la IA (último análisis) cuya URL pertenece al dominio de la marca, excluyendo el blog. Se cuenta cada fuente citada, por lo que un mismo dominio puede sumar varias veces." />
+            </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.citacionCom}{renderDelta(mentionKpis.cur.citacionCom, mentionKpis.prev?.citacionCom)}
             </div>
             <div className="text-xs text-gray-400">{mentionKpis.hasDomain ? 'fuentes que enlazan al dominio' : 'configura el dominio de marca'}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Citaciones al blog</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+              Citaciones al blog
+              <InfoTip text="Fuentes citadas por la IA (último análisis) que enlazan a la sección /blog del dominio de la marca." />
+            </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.citacionBlog}{renderDelta(mentionKpis.cur.citacionBlog, mentionKpis.prev?.citacionBlog)}
             </div>
@@ -578,7 +587,8 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
           value={targetSov ? `${targetSov.percentage.toFixed(1)}%` : 'N/A'}
           icon={<Award className="w-5 h-5 text-blue-600" />}
           color="bg-blue-50"
-          subtitle={targetSov ? `${targetSov.mentions} menciones de ${cs.totalMentions}` : undefined}
+          subtitle={targetSov ? `frecuencia: ${targetSov.mentions} de ${cs.totalMentions} menciones totales` : undefined}
+          info="% de veces que se nombra tu marca sobre el total de veces que se nombra cualquier marca en el último análisis. Cuenta la frecuencia: si una respuesta nombra la marca 3 veces, suma 3. Por eso es un número mayor que 'Respuestas con mención'."
         />
         <KpiCard
           label="Posición Promedio"
@@ -586,6 +596,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
           icon={<ArrowUp className="w-5 h-5 text-green-600" />}
           color="bg-green-50"
           subtitle="Orden de aparición en respuestas IA"
+          info="Posición media en la que aparece tu marca dentro de cada respuesta (1 = primera marca nombrada). Solo promedia las respuestas donde la marca aparece."
         />
         <KpiCard
           label="Sentimiento Neto"
@@ -595,6 +606,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
             : <TrendingDown className="w-5 h-5 text-red-600" />}
           color={cs.netSentimentScore >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
           subtitle="Escala -2 (muy negativo) a +2 (muy positivo)"
+          info="Media del sentimiento de las menciones de tu marca en el último análisis, en escala de -2 (muy negativo) a +2 (muy positivo)."
         />
         <KpiCard
           label="Confianza IA"
@@ -602,14 +614,18 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
           icon={<CheckCircle2 className="w-5 h-5 text-purple-600" />}
           color="bg-purple-50"
           subtitle="Confianza promedio del análisis"
+          info="Confianza que declara la propia IA sobre su análisis (promedio del último análisis). No mide visibilidad de la marca."
         />
       </div>
 
       {/* Visibilidad por modelo (Hito 6.1 — GEO) */}
       {modelVis.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-semibold text-gray-800 mb-1">Visibilidad por modelo</h3>
-          <p className="text-xs text-gray-400 mb-4">Dónde es visible {cs.targetBrand} según el motor de IA (¿fuerte en uno, ausente en otro?).</p>
+          <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-1.5">
+            Visibilidad por modelo
+            <InfoTip text="A diferencia de las tarjetas de arriba (que usan solo el último análisis), esta tabla agrega TODOS los análisis del rango de fechas seleccionado. Mention rate = % de respuestas del modelo que nombran la marca. SoV = % de la frecuencia de menciones de la marca sobre todas las marcas, en ese modelo." />
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">Dónde es visible {cs.targetBrand} según el motor de IA (¿fuerte en uno, ausente en otro?). Calculado sobre todos los análisis del rango.</p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -702,19 +718,23 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
         {/* Scatter */}
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <h3 className="font-semibold text-gray-800 mb-4">Mapa de Posicionamiento</h3>
-          <p className="text-xs text-gray-400 mb-2">X = menciones, Y = sentimiento. Azul = tu marca</p>
+          <p className="text-xs text-gray-400 mb-2">X = frecuencia de menciones (veces nombrada), Y = sentimiento. Azul = tu marca</p>
           <BrandPositionChart data={scatterData} />
         </div>
 
         {/* SoV Table */}
         <div className="bg-white rounded-xl shadow-sm border p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Share of Voice — Top Marcas</h3>
+          <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-1.5">
+            Share of Voice — Top Marcas
+            <InfoTip text="Frecuencia = veces que se nombra cada marca en total en el último análisis (una misma respuesta puede nombrarla varias veces, y cada vez suma). No es el número de respuestas: para eso está la tarjeta 'Respuestas con mención'. SoV % = frecuencia de la marca / frecuencia total de todas las marcas (competidores y descubiertas incluidas)." />
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">Veces que se nombra cada marca en el último análisis (con repeticiones dentro de cada respuesta).</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
                   <th className="pb-2">Marca</th>
-                  <th className="pb-2 text-right">Menciones</th>
+                  <th className="pb-2 text-right">Frecuencia</th>
                   <th className="pb-2 text-right">SoV %</th>
                   <th className="pb-2 text-right">Sentimiento</th>
                 </tr>
@@ -748,7 +768,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
             <Users className="w-4 h-4 text-amber-500" />
             Marcas Descubiertas
           </h3>
-          <p className="text-xs text-gray-400 mb-3">Marcas no configuradas que la IA mencionó</p>
+          <p className="text-xs text-gray-400 mb-3">Marcas no configuradas que la IA mencionó (Nx = veces nombrada)</p>
           {cs.discoveredBrands.length === 0 ? (
             <p className="text-gray-400 text-sm py-4 text-center">No se descubrieron marcas adicionales</p>
           ) : (
@@ -951,7 +971,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
                 <LineChart data={ht.filter(h => h.avgAppearanceOrder !== null)}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                  <YAxis reversed domain={['dataMin - 0.5', 'dataMax + 0.5']} tick={{ fill: '#6b7280', fontSize: 11 }} />
+                  <YAxis reversed domain={['dataMin - 0.5', 'dataMax + 0.5']} tick={{ fill: '#6b7280', fontSize: 11 }} tickFormatter={(v: number) => `#${Number(v).toFixed(1)}`} />
                   <Tooltip formatter={(v: number) => [`#${v.toFixed(1)}`, 'Posición']} />
                   <Line type="monotone" dataKey="avgAppearanceOrder" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} name="Posición" />
                 </LineChart>

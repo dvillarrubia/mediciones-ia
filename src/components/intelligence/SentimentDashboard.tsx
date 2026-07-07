@@ -230,6 +230,9 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       </div>
 
       {/* KPIs rápidos */}
+      <p className="text-xs text-gray-400 -mb-3">
+        KPIs, rankings y detalle: <strong>último análisis</strong> del rango (cada mención de marca cuenta una vez). Las series temporales usan todos los análisis.
+      </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {([['very_positive', 'Muy Positivo'], ['positive', 'Positivo'], ['negative', 'Negativo'], ['very_negative', 'Muy Negativo']] as [SentimentKey, string][]).map(([k, label]) => (
           <div key={k} className="bg-white rounded-lg border p-4">
