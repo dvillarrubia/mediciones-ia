@@ -558,6 +558,53 @@ class OpenAIService {
   }
 
   /**
+   * Resuelve UN proveedor validado para la persona "chatgpt" y lo usa en las
+   * DOS llamadas (fase 1 generación con web + fase 2 análisis barato). Así ambas
+   * van SIEMPRE por el mismo proveedor: si el usuario solo tiene OpenRouter, todo
+   * pasa por OpenRouter; si tiene OpenAI directo, todo por OpenAI. Genérico: para
+   * añadir otro proveedor en el futuro basta con ampliar la preferencia aquí.
+   *
+   * - generationModel: modelo con búsqueda web para la fase 1.
+   * - analysisModel: modelo económico para la fase 2 (extracción de menciones).
+   */
+  private getPersonaProviderConfig(configuration: any): {
+    provider: 'openai' | 'openrouter';
+    client: OpenAI;
+    queue: 'openai' | 'openrouter';
+    generationModel: string;
+    analysisModel: string;
+  } {
+    // Preferir OpenAI directo si está configurado.
+    if (this.client) {
+      return {
+        provider: 'openai',
+        client: this.client,
+        queue: 'openai',
+        generationModel: this.GENERATION_MODEL, // gpt-4o-search-preview (web)
+        analysisModel: this.ANALYSIS_MODEL,     // gpt-4o-mini (barato)
+      };
+    }
+    // Si no, OpenRouter con la MISMA key para las dos llamadas.
+    if (this.openrouterClient) {
+      // Fase 1: si el usuario seleccionó un modelo OpenRouter en el proyecto, se
+      // respeta; si no, default económico con búsqueda web (sufijo ':online').
+      const selected = configuration?.selectedModel;
+      const selectedInfo = selected ? getModelById(selected) : null;
+      const generationModel = selectedInfo?.provider === 'openrouter'
+        ? selected
+        : (configuration?.openrouterGenerationModel || 'openai/gpt-4o-mini:online');
+      return {
+        provider: 'openrouter',
+        client: this.openrouterClient,
+        queue: 'openrouter',
+        generationModel,
+        analysisModel: configuration?.openrouterAnalysisModel || 'openai/gpt-4o-mini',
+      };
+    }
+    throw new Error('No hay API key válida (OpenAI u OpenRouter) para ejecutar el análisis. Configura una en Configuración > API Keys.');
+  }
+
+  /**
    * Mapea un model-id (directo u OpenRouter) a una "persona" para estilado en
    * frontend. Sirve para etiquetar de qué familia es el modelo realmente usado.
    */
@@ -2640,6 +2687,10 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
 private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; error?: string } {
   switch (modelPersona) {
     case 'chatgpt':
+      // La persona "chatgpt" puede correr por OpenAI directo o por OpenRouter.
+      if (!this.client && !this.openrouterClient) {
+        return { valid: false, error: 'No hay API key de OpenAI ni de OpenRouter configurada.' };
+      }
       return { valid: true };
 
     case 'claude':
@@ -2698,6 +2749,11 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
   let naturalResponse: string;
   let webSources: WebSearchSource[];
 
+  // Resolver el proveedor UNA sola vez para la persona "chatgpt": las dos llamadas
+  // (fase 1 y fase 2) irán por el mismo proveedor validado (OpenAI u OpenRouter).
+  // Gemini tiene su propio flujo de fase 1 (grounding de Google).
+  const providerCfg = modelPersona === 'gemini' ? null : this.getPersonaProviderConfig(configuration);
+
   console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia, país: ${countryName})...`);
 
   if (modelPersona === 'gemini') {
@@ -2706,13 +2762,20 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
     const geminiResult = await this.generateWithGoogle(cleanPrompt, geminiModel, configuration);
     naturalResponse = geminiResult.content;
     webSources = geminiResult.webSources;
+  } else if (providerCfg!.provider === 'openrouter') {
+    // Fase 1 vía OpenRouter (mismo proveedor que la fase 2). Reutiliza el helper
+    // que ya gestiona el plugin web / sufijo ':online' y la extracción de fuentes.
+    console.log(`🔀 [${modelPersona}] Fase 1 vía OpenRouter con modelo: ${providerCfg!.generationModel}`);
+    const orResult = await this.generateWithOpenRouter(cleanPrompt, providerCfg!.generationModel, configuration);
+    naturalResponse = orResult.content;
+    webSources = orResult.webSources;
   } else {
-    // Fase 1 con OpenAI (chatgpt)
+    // Fase 1 con OpenAI directo (chatgpt)
     const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
 
     const searchResponse = await providerQueues.openai.enqueue(
-      () => this.client.chat.completions.create({
-        model: this.GENERATION_MODEL,
+      () => providerCfg!.client.chat.completions.create({
+        model: providerCfg!.generationModel,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: cleanPrompt }
@@ -2773,10 +2836,15 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
 
   console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 
-  const analysis2 = this.getAnalysisClientAndModel();
+  // La persona "chatgpt" usa el MISMO proveedor que la fase 1 (providerCfg). Gemini
+  // (que genera con Google) cae al resolver genérico para el modelo barato.
+  const analysis2 = providerCfg
+    ? { client: providerCfg.client, model: providerCfg.analysisModel, queue: providerCfg.queue }
+    : this.getAnalysisClientAndModel();
+  console.log(`🧠 [${modelPersona}] Fase 2 vía ${analysis2.queue} con modelo: ${analysis2.model}`);
   const analysisResponse = await providerQueues[analysis2.queue].enqueue(
     () => analysis2.client.chat.completions.create({
-      model: analysis2.model, // gpt-4o-mini - económico (OpenAI directo u OpenRouter)
+      model: analysis2.model, // modelo económico (OpenAI directo u OpenRouter)
       messages: [{ role: 'user', content: analysisPrompt }],
       temperature: 0.1,
       max_tokens: 1500,

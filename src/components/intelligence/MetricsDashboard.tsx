@@ -930,15 +930,16 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
             <p className="text-sm text-gray-500 mb-6">{ht.length} análisis desde {ht[0].label} hasta {ht[ht.length - 1].label}</p>
           </div>
 
-          {/* SoV Area Chart */}
+          {/* SoV Area Chart — apilado al 100% (composición de la cuota de voz) */}
           <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h3 className="font-semibold text-gray-800 mb-4">Evolución del Share of Voice</h3>
+            <h3 className="font-semibold text-gray-800 mb-1">Evolución del Share of Voice</h3>
+            <p className="text-xs text-gray-400 mb-4">% de menciones de cada marca sobre el total en cada análisis</p>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={sovAreaData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} unit="%" />
-                <Tooltip />
+                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} unit="%" domain={[0, 'auto']} />
+                <Tooltip formatter={(v: number, name: string) => [`${Number(v).toFixed(1)}%`, name]} />
                 <Legend />
                 {topBrands.map((brand, i) => (
                   <Area
@@ -947,8 +948,9 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
                     dataKey={brand}
                     stackId="1"
                     stroke={COLORS[i % COLORS.length]}
+                    strokeWidth={1}
                     fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.4}
+                    fillOpacity={0.85}
                   />
                 ))}
               </AreaChart>
