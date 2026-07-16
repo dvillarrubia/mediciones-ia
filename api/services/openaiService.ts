@@ -174,6 +174,10 @@ class OpenAIService {
   private readonly CONCURRENT_REQUESTS = 5;
   private readonly MAX_RETRIES = 2; // Intentos máximos por petición
   private readonly REQUEST_TIMEOUT = 60000; // 60 segundos
+  // Timeout de la llamada real a OpenRouter (dentro del thunk, no cuenta la cola).
+  // Los modelos de razonamiento + búsqueda web (p.ej. gpt-5.5:online, sonar-reasoning)
+  // pueden pasar de 120s en preguntas complejas. Configurable por env sin rebuild.
+  private readonly OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS) || 300000; // 5 min
   private readonly ENABLE_CACHE = true; // Habilitar caché
   // Dedup intra-ejecución: dos preguntas idénticas en el mismo análisis comparten
   // una sola llamada al proveedor. El servicio se instancia por petición, así que
@@ -702,7 +706,7 @@ class OpenAIService {
       () => Promise.race([
         this.openrouterClient!.chat.completions.create(requestBody),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout: OpenRouter tardó más de 120 segundos')), 120000)
+          setTimeout(() => reject(new Error(`Timeout: OpenRouter tardó más de ${Math.round(this.OPENROUTER_TIMEOUT_MS / 1000)} segundos`)), this.OPENROUTER_TIMEOUT_MS)
         )
       ]),
       `generateWithOpenRouter:${modelId}`
