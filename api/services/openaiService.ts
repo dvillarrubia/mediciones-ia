@@ -2916,8 +2916,20 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
     credibility: this.calculateSourceCredibility(source.url)
   }));
 
+  // Modelo REAL usado en la fase 1, para que el informe muestre su modelo (Claude/
+  // Gemini/GPT vía OpenRouter) y no el genérico "chatgpt". Imprescindible cuando se
+  // comparan las mismas preguntas con modelos distintos. Mismo patrón que el otro
+  // flujo (parseGenerativeAnalysisResponse): id + nombre legible + persona inferida.
+  const usedModelId = modelPersona === 'gemini'
+    ? (configuration.selectedGeminiModel || 'gemini-2.5-flash')
+    : providerCfg!.generationModel;
+  const usedModelName = getModelById(usedModelId)?.name || usedModelId;
+  const usedModelPersona: AIModelPersona = this.inferPersonaFromModelId(usedModelId);
+
   return {
-    modelPersona,
+    modelPersona: usedModelPersona,  // persona real (claude/gemini/chatgpt) según el modelo
+    modelId: usedModelId,
+    modelName: usedModelName,
     response: naturalResponse,  // Respuesta LIMPIA sin sesgo
     brandMentions,
     sourcesCited,
