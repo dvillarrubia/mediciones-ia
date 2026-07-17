@@ -6,6 +6,12 @@ on:
       - main
   workflow_dispatch:
 
+# Serializa los despliegues: nunca dos `up` a la vez sobre el mismo stack
+# (evita la carrera de nombres en el recreate del contenedor).
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,8 +27,15 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /opt/mediciones-ia
             git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build
-            docker system prune -f
+            # build separado del up para reducir la ventana de carrera del recreate
+            docker compose -f docker-compose.prod.yml build
+            # --wait: bloquea hasta healthy y falla ruidoso (no deja 502 silencioso)
+            # --remove-orphans: limpia contenedores temporales <hash>_ del recreate
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans --wait
+            # SOLO imágenes: 'system prune -f' afecta a todos los stacks del host
+            # y colisiona con la eliminación asíncrona del contenedor recién recreado
+            docker image prune -f
             echo "Deployment completed at $(date)"
