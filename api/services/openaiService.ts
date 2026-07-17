@@ -977,7 +977,6 @@ class OpenAIService {
    * instancia para no resolver dos veces la misma redirección.
    */
   private async resolveGroundingUrls(sources: WebSearchSource[]): Promise<WebSearchSource[]> {
-    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
     const targets = sources.filter(s => s.url && /grounding-api-redirect/i.test(s.url));
     if (targets.length === 0) return sources;
 
@@ -985,18 +984,35 @@ class OpenAIService {
       const original = s.url;
       const cached = this.groundingUrlCache.get(original);
       if (cached) { s.url = cached; return; }
-      let resolved = this.cleanGroundingUrl(original, s.title); // fallback: home del medio
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(original, { redirect: 'follow', headers: { 'User-Agent': UA }, signal: ctrl.signal });
-        clearTimeout(timer);
-        if (res.url && !/vertexaisearch\.cloud\.google\.com/i.test(res.url)) resolved = res.url;
-      } catch { /* se queda el fallback */ }
+      // Resolución robusta con reintentos; si falla/caduca, home del medio.
+      const real = await this.fetchFinalUrl(original);
+      const resolved = real || this.cleanGroundingUrl(original, s.title);
       this.groundingUrlCache.set(original, resolved);
       s.url = resolved;
     }));
     return sources;
+  }
+
+  /**
+   * Sigue una redirección hasta su URL final (GET + UA navegador). Reintenta en
+   * timeout/error de red (no en caducidad: si resuelve pero sigue en vertexai, es
+   * un redirect muerto → no se reintenta). Devuelve null si no se pudo resolver.
+   */
+  private async fetchFinalUrl(url: string, retries = 2, timeoutMs = 12000): Promise<string | null> {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': UA }, signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.url && !/vertexaisearch\.cloud\.google\.com/i.test(res.url)) return res.url;
+        return null; // resolvió pero sigue en vertexai → redirect caducado, no reintentar
+      } catch {
+        clearTimeout(timer); // timeout/red → reintentar
+      }
+    }
+    return null;
   }
 
   /**

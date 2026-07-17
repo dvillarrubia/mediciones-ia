@@ -66,21 +66,26 @@ install() {
 }
 
 # Actualizar a la última versión
+# NOTA: normalmente NO hace falta ejecutar esto a mano — el push a main dispara el
+# GitHub Action (deploy.yml) que despliega solo. Lanzar este script A LA VEZ que el
+# Action provoca una carrera en el recreate del contenedor. Úsalo solo si el Action
+# falla (p.ej. timeout SSH intermitente).
+COMPOSE="docker compose -f docker-compose.prod.yml"
 update() {
     log_info "Actualizando Mediciones IA..."
     cd $APP_DIR
 
-    # Guardar cambios locales si hay
-    git stash
-
     # Descargar últimos cambios
     git pull origin main
 
-    # Reconstruir imagen
-    docker compose build --no-cache
-
-    # Reiniciar con la nueva imagen
-    docker compose up -d
+    # build separado del up (reduce la ventana de carrera del recreate)
+    $COMPOSE build
+    # --wait: bloquea hasta healthy y falla ruidoso (no deja 502 silencioso)
+    # --remove-orphans: limpia contenedores temporales <hash>_ de un recreate previo
+    $COMPOSE up -d --remove-orphans --wait
+    # SOLO imágenes: 'system prune -f' afecta a todos los stacks del host y colisiona
+    # con la eliminación asíncrona del contenedor recién recreado
+    docker image prune -f
 
     log_info "Actualización completada!"
 }
