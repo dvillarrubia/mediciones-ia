@@ -183,6 +183,9 @@ class OpenAIService {
   // una sola llamada al proveedor. El servicio se instancia por petición, así que
   // este Map vive solo durante una ejecución (no reutiliza datos de semanas previas).
   private readonly inFlightGenerations = new Map<string, Promise<{ content: string; webSources: WebSearchSource[] }>>();
+  // Cache de resolución de redirecciones de grounding (redirect → URL real), por
+  // instancia: evita resolver dos veces la misma redirección dentro de un análisis.
+  private readonly groundingUrlCache = new Map<string, string>();
 
   // Configuración de modelos (CON BÚSQUEDA WEB REAL)
   private readonly GENERATION_MODEL = "gpt-4o-search-preview"; // Modelo con búsqueda web para GENERAR respuestas
@@ -721,9 +724,11 @@ class OpenAIService {
 
     // Fuentes: annotations (plugin web, formato OpenAI) + citations top-level (Perplexity)
     const webSources = this.extractWebSources(message, response);
-    console.log(`📚 [OpenRouter] Fuentes web extraídas: ${webSources.length}`);
+    // Resolver redirects de grounding de Gemini a la URL real (mientras están vivos)
+    const resolvedSources = await this.resolveGroundingUrls(webSources);
+    console.log(`📚 [OpenRouter] Fuentes web extraídas: ${resolvedSources.length}`);
 
-    return { content, webSources };
+    return { content, webSources: resolvedSources };
   }
 
   /**
@@ -857,7 +862,7 @@ class OpenAIService {
         if (url && !seenUrls.has(url)) {
           seenUrls.add(url);
           sources.push({
-            url: this.cleanGroundingUrl(url, title),
+            url: url,
             title: title || this.extractDomainFromUrl(url),
             snippet: annotation.text || citation.text || '',
             startIndex: citation.start_index || annotation.start_index,
@@ -893,7 +898,7 @@ class OpenAIService {
           s.groundingChunkIndices?.includes(i)
         );
         sources.push({
-          url: this.cleanGroundingUrl(chunk.web.uri, chunk.web.title),
+          url: chunk.web.uri,
           title: chunk.web.title || this.extractDomainFromUrl(chunk.web.uri),
           snippet: support?.segment?.text || '',
           startIndex: support?.segment?.startIndex,
@@ -960,6 +965,38 @@ class OpenAIService {
       return 'https://' + title!.trim().toLowerCase().replace(/^www\./, '');
     }
     return url;
+  }
+
+  /**
+   * Resuelve las redirecciones de grounding de Gemini (vertexai.../grounding-api-redirect/...)
+   * a la URL REAL del artículo citado, siguiendo el 302 (GET + UA de navegador).
+   * Imprescindible para el análisis de citaciones: la URL exacta ES el dato. Como
+   * estas redirecciones CADUCAN, hay que resolverlas AHORA (durante el análisis).
+   * Si falla/caduca, cae a la home del medio (cleanGroundingUrl). Solo toca fuentes
+   * cuya URL es una redirección de grounding; el resto se deja intacto. Cachea por
+   * instancia para no resolver dos veces la misma redirección.
+   */
+  private async resolveGroundingUrls(sources: WebSearchSource[]): Promise<WebSearchSource[]> {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+    const targets = sources.filter(s => s.url && /grounding-api-redirect/i.test(s.url));
+    if (targets.length === 0) return sources;
+
+    await Promise.all(targets.map(async (s) => {
+      const original = s.url;
+      const cached = this.groundingUrlCache.get(original);
+      if (cached) { s.url = cached; return; }
+      let resolved = this.cleanGroundingUrl(original, s.title); // fallback: home del medio
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(original, { redirect: 'follow', headers: { 'User-Agent': UA }, signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.url && !/vertexaisearch\.cloud\.google\.com/i.test(res.url)) resolved = res.url;
+      } catch { /* se queda el fallback */ }
+      this.groundingUrlCache.set(original, resolved);
+      s.url = resolved;
+    }));
+    return sources;
   }
 
   /**
@@ -1038,8 +1075,10 @@ class OpenAIService {
 
     // Extraer fuentes web del grounding metadata - retorno directo, sin estado compartido
     const webSources = this.extractGeminiGroundingSources(response);
+    // Resolver redirects de grounding a la URL real del artículo (mientras están vivos)
+    const resolvedSources = await this.resolveGroundingUrls(webSources);
 
-    return { content, webSources };
+    return { content, webSources: resolvedSources };
   }
 
   /**
