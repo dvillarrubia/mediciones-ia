@@ -857,7 +857,7 @@ class OpenAIService {
         if (url && !seenUrls.has(url)) {
           seenUrls.add(url);
           sources.push({
-            url: url,
+            url: this.cleanGroundingUrl(url, title),
             title: title || this.extractDomainFromUrl(url),
             snippet: annotation.text || citation.text || '',
             startIndex: citation.start_index || annotation.start_index,
@@ -893,7 +893,7 @@ class OpenAIService {
           s.groundingChunkIndices?.includes(i)
         );
         sources.push({
-          url: chunk.web.uri,
+          url: this.cleanGroundingUrl(chunk.web.uri, chunk.web.title),
           title: chunk.web.title || this.extractDomainFromUrl(chunk.web.uri),
           snippet: support?.segment?.text || '',
           startIndex: support?.segment?.startIndex,
@@ -946,6 +946,20 @@ class OpenAIService {
       return title!.trim().toLowerCase().replace(/^www\./, '');
     }
     return this.extractDomainFromUrl(url);
+  }
+
+  /**
+   * URL "limpia" de una fuente para mostrar/enlazar. Las redirecciones de
+   * grounding de Google (vertexaisearch.../grounding-api-redirect/...) CADUCAN
+   * (~1 día → 404), así que guardarlas es inútil (al usuario le sale 404). Se
+   * sustituyen por la home del medio real (que viene en el `title`). El resto de
+   * URLs (finales, de ChatGPT/Claude/Perplexity) se dejan tal cual.
+   */
+  private cleanGroundingUrl(url: string, title?: string): string {
+    if (url && this.isGroundingRedirect(url) && this.looksLikeBareDomain(title)) {
+      return 'https://' + title!.trim().toLowerCase().replace(/^www\./, '');
+    }
+    return url;
   }
 
   /**
