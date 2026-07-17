@@ -919,6 +919,36 @@ class OpenAIService {
   }
 
   /**
+   * Detecta URLs de citación que NO son la URL final del medio, sino una
+   * redirección de Google: el grounding de Gemini devuelve
+   * `vertexaisearch.cloud.google.com/grounding-api-redirect/...` (y a veces
+   * `google.com/search?q=...`). Agrupar por el host de esas URLs colapsa TODAS
+   * las citas de Gemini en "vertexaisearch.cloud.google.com".
+   */
+  private isGroundingRedirect(url: string): boolean {
+    return /vertexaisearch\.cloud\.google\.com\/grounding-api-redirect/i.test(url) ||
+      /^https?:\/\/(www\.)?google\.com\/search/i.test(url);
+  }
+
+  /** ¿El string parece un dominio pelado (p.ej. "saltosystems.com")? */
+  private looksLikeBareDomain(s?: string): boolean {
+    return !!s && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(s.trim());
+  }
+
+  /**
+   * Dominio REAL de una fuente para agrupar/clasificar. En las citas de Gemini
+   * (grounding) la `url` es una redirección opaca de Google pero el `title` ES el
+   * dominio real del medio (p.ej. "saltosystems.com"): en ese caso usamos el
+   * title. Para el resto de proveedores (URLs finales) se usa el host de la URL.
+   */
+  private resolveSourceDomain(url: string, title?: string): string {
+    if (url && this.isGroundingRedirect(url) && this.looksLikeBareDomain(title)) {
+      return title!.trim().toLowerCase().replace(/^www\./, '');
+    }
+    return this.extractDomainFromUrl(url);
+  }
+
+  /**
    * Obtiene las últimas fuentes web extraídas
    */
   public getLastWebSources(): WebSearchSource[] {
@@ -1338,7 +1368,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
           url: source.url,
           title: source.title,
           snippet: source.snippet || `Fuente ${index + 1} de búsqueda web`,
-          domain: this.extractDomainFromUrl(source.url),
+          domain: this.resolveSourceDomain(source.url, source.title),
           isPriority: this.isSourcePriority(source.url, configuration),
           fullContent: undefined
         }));
@@ -1365,7 +1395,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
           url: source.url || '',
           title: source.name,
           snippet: source.context || '',
-          domain: source.url ? this.extractDomainFromUrl(source.url) : 'ai-analysis',
+          domain: source.url ? this.resolveSourceDomain(source.url, source.name) : 'ai-analysis',
           isPriority: source.credibility === 'high',
           fullContent: undefined
         }));
@@ -2914,7 +2944,7 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
   // Convertir webSources a SourceCited
   const sourcesCited: SourceCited[] = webSources.map(source => ({
     name: source.title,
-    type: this.classifySourceType(this.extractDomainFromUrl(source.url)) as any,
+    type: this.classifySourceType(this.resolveSourceDomain(source.url, source.title)) as any,
     url: source.url,
     context: source.snippet,
     credibility: this.calculateSourceCredibility(source.url)
@@ -3156,7 +3186,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
       // Convertir webSources a SourceCited para compatibilidad
       const sourcesCited: SourceCited[] = webSources.map(source => ({
         name: source.title,
-        type: this.classifySourceType(this.extractDomainFromUrl(source.url)) as any,
+        type: this.classifySourceType(this.resolveSourceDomain(source.url, source.title)) as any,
         url: source.url,
         context: source.snippet,
         credibility: this.calculateSourceCredibility(source.url) as any
@@ -3248,7 +3278,7 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
       url: source.url || '',
       title: source.name,
       snippet: source.context || '',
-      domain: source.url ? this.extractDomainFromUrl(source.url) : 'unknown',
+      domain: source.url ? this.resolveSourceDomain(source.url, source.name) : 'unknown',
       isPriority: source.credibility === 'high'
     }));
 
