@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
 
   // AI Models & Countries
   aiModels: `${API_BASE_URL}/api/templates/ai-models`,
+  openrouterModels: `${API_BASE_URL}/api/templates/openrouter-models`,
   countries: `${API_BASE_URL}/api/templates/countries`,
 
   // Analysis

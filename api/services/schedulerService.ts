@@ -136,8 +136,8 @@ class SchedulerService {
     }
 
     const apiKeys = await authService.getApiKeys(schedule.userId);
-    if (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.google && !apiKeys.openrouter) {
-      throw new Error('El usuario no tiene API Keys de LLM configuradas');
+    if (!apiKeys.openai && !apiKeys.openrouter) {
+      throw new Error('El usuario no tiene API Keys de LLM configuradas (OpenAI u OpenRouter)');
     }
 
     const config = await configService.getConfiguration('custom', schedule.configurationId, schedule.userId);
@@ -187,6 +187,19 @@ class SchedulerService {
         ? String(result.errors[0])
         : '';
       throw new Error(firstError || 'El análisis no generó resultados');
+    }
+
+    // Red de seguridad: si TODAS las preguntas son placeholders de error
+    // (confidenceScore 0 y sin menciones), el análisis falló aunque "terminara".
+    // Sin este check, un fallo total del proveedor se guardaba como success.
+    const allFailed = result.questions.every(
+      (q: any) => (q?.confidenceScore ?? 0) === 0 && (!q?.brandMentions || q.brandMentions.length === 0)
+    );
+    if (allFailed) {
+      const firstError = Array.isArray(result.errors) && result.errors.length > 0
+        ? String(result.errors[0])
+        : '';
+      throw new Error(firstError || 'El análisis no generó resultados: todas las preguntas fallaron. Posibles causas: créditos/cuota de API agotados o caída del proveedor.');
     }
 
     const analysisId = (result as any).analysisId || `analysis_${uuidv4()}`;
@@ -301,6 +314,7 @@ export const schedulerService = new SchedulerService();
 
 function detectProvider(msg: string): string | null {
   const m = msg.toLowerCase();
+  if (m.includes('openrouter')) return 'OpenRouter';
   if (m.includes('openai') || m.includes('gpt-')) return 'OpenAI';
   if (m.includes('anthropic') || m.includes('claude')) return 'Anthropic';
   if (m.includes('google') || m.includes('gemini')) return 'Google AI';
@@ -317,6 +331,16 @@ export function humanizeSchedulerError(raw: string, _scheduleType: 'llm' | 'aio'
   const lower = msg.toLowerCase();
   const provider = detectProvider(msg);
   const providerLabel = provider || 'el proveedor';
+
+  // Créditos de OpenRouter agotados (402 / insufficient credits)
+  if (
+    lower.includes('insufficient credits') ||
+    lower.includes('api_quota_exceeded:openrouter') ||
+    lower.includes(':402') ||
+    /\b402\b/.test(lower)
+  ) {
+    return 'Sin créditos en OpenRouter: los análisis no pueden ejecutarse. Recarga créditos en openrouter.ai → Settings → Credits y vuelve a ejecutar, o configura otra API Key en Configuración → API Keys.';
+  }
 
   // Cuota agotada (429 / insufficient_quota)
   if (

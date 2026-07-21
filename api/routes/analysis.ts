@@ -131,8 +131,8 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       }
     }
 
-    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google && !apiKeysToUse.openrouter)) {
-      return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.' });
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
+      return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
     const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
@@ -141,11 +141,8 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       if (provider === 'openai' && !apiKeysToUse.openai) {
         return res.status(400).json({ error: 'API Key de OpenAI requerida', code: 'OPENAI_KEY_REQUIRED' });
       }
-      if (provider === 'anthropic' && !apiKeysToUse.anthropic) {
-        return res.status(400).json({ error: 'API Key de Anthropic requerida', code: 'ANTHROPIC_KEY_REQUIRED' });
-      }
-      if (provider === 'google' && !apiKeysToUse.google) {
-        return res.status(400).json({ error: 'API Key de Google AI requerida', code: 'GOOGLE_KEY_REQUIRED' });
+      if (provider === 'anthropic' || provider === 'google') {
+        return res.status(400).json({ error: 'Proveedor no soportado', code: 'PROVIDER_REMOVED', message: 'Los proveedores nativos de Anthropic y Google ya no están soportados. Usa el modelo equivalente vía OpenRouter.' });
       }
       if (provider === 'openrouter' && !apiKeysToUse.openrouter) {
         return res.status(400).json({ error: 'API Key de OpenRouter requerida', code: 'OPENROUTER_KEY_REQUIRED' });
@@ -243,14 +240,16 @@ router.post('/execute-async', async (req: Request, res: Response) => {
 
         if (error?.isAuthError || error?.status === 401 || error?.code === 'invalid_api_key') {
           job.error = { error: 'API Key inválida', code: 'INVALID_API_KEY', provider: error?.provider || 'openai', message: 'La API Key es incorrecta o ha expirado.' };
-        } else if (error?.isQuotaError || error?.code === 'insufficient_quota' || error?.status === 429) {
+        } else if (error?.isQuotaError || error?.code === 'insufficient_quota' || error?.status === 429 || error?.status === 402) {
           const provider = error?.provider || 'openai';
-          const providerLabel = provider === 'anthropic' || provider === 'claude' ? 'Anthropic' : provider === 'google' || provider === 'gemini' ? 'Google AI' : 'OpenAI';
+          const providerLabel = provider === 'openrouter' ? 'OpenRouter' : provider === 'anthropic' || provider === 'claude' ? 'Anthropic' : provider === 'google' || provider === 'gemini' ? 'Google AI' : 'OpenAI';
           job.error = {
-            error: `Cuota de ${providerLabel} agotada`,
+            error: provider === 'openrouter' ? 'Sin créditos en OpenRouter' : `Cuota de ${providerLabel} agotada`,
             code: 'QUOTA_EXCEEDED',
             provider,
-            message: `Has agotado la cuota de tu API Key de ${providerLabel}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`
+            message: provider === 'openrouter'
+              ? 'Tu cuenta de OpenRouter se ha quedado sin créditos. Recarga en openrouter.ai → Settings → Credits, o configura otra API Key en Configuración > API Keys.'
+              : `Has agotado la cuota de tu API Key de ${providerLabel}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`
           };
         } else {
           job.error = { error: 'Error ejecutando análisis', message: error instanceof Error ? error.message : 'Error desconocido' };
@@ -351,10 +350,10 @@ router.post('/execute', async (req: Request, res: Response) => {
     }
 
     // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
-    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google && !apiKeysToUse.openrouter)) {
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
         error: 'API Keys requeridas',
-        message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis.',
+        message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.',
         code: 'API_KEYS_REQUIRED'
       });
     }
@@ -370,18 +369,11 @@ router.post('/execute', async (req: Request, res: Response) => {
           code: 'OPENAI_KEY_REQUIRED'
         });
       }
-      if (provider === 'anthropic' && !apiKeysToUse.anthropic) {
+      if (provider === 'anthropic' || provider === 'google') {
         return res.status(400).json({
-          error: 'API Key de Anthropic requerida',
-          message: 'Para usar modelos Claude, configura tu API Key de Anthropic en Configuración > API Keys.',
-          code: 'ANTHROPIC_KEY_REQUIRED'
-        });
-      }
-      if (provider === 'google' && !apiKeysToUse.google) {
-        return res.status(400).json({
-          error: 'API Key de Google AI requerida',
-          message: 'Para usar modelos Gemini, configura tu API Key de Google AI en Configuración > API Keys.',
-          code: 'GOOGLE_KEY_REQUIRED'
+          error: 'Proveedor no soportado',
+          message: 'Los proveedores nativos de Anthropic y Google ya no están soportados. Usa el modelo equivalente vía OpenRouter.',
+          code: 'PROVIDER_REMOVED'
         });
       }
       if (provider === 'openrouter' && !apiKeysToUse.openrouter) {
@@ -494,7 +486,8 @@ router.post('/execute', async (req: Request, res: Response) => {
       claude: 'Anthropic',
       anthropic: 'Anthropic',
       gemini: 'Google AI',
-      google: 'Google AI'
+      google: 'Google AI',
+      openrouter: 'OpenRouter'
     };
 
     // Detectar errores de API key inválida
@@ -510,12 +503,14 @@ router.post('/execute', async (req: Request, res: Response) => {
     }
 
     // Detectar errores de cuota agotada
-    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429) {
+    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429 || error?.status === 402) {
       const provider = error?.provider || 'openai';
       const providerName = providerNames[provider] || 'OpenAI';
       return res.status(402).json({
-        error: `Cuota de ${providerName} agotada`,
-        message: `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
+        error: provider === 'openrouter' ? 'Sin créditos en OpenRouter' : `Cuota de ${providerName} agotada`,
+        message: provider === 'openrouter'
+          ? 'Tu cuenta de OpenRouter se ha quedado sin créditos. Recarga en openrouter.ai → Settings → Credits, o configura otra API Key en Configuración > API Keys.'
+          : `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
         code: 'QUOTA_EXCEEDED',
         provider: provider
       });
@@ -549,40 +544,14 @@ router.post('/multi-model', async (req: Request, res: Response) => {
       }
     }
 
-    // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
-    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.anthropic && !apiKeysToUse.google)) {
+    // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas.
+    // La persona "chatgpt" corre por OpenAI directo o por OpenRouter; las
+    // personas claude/gemini (nativas) ya no existen y se excluyen en el servicio.
+    if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
         error: 'API Keys requeridas',
-        message: 'Debes configurar tus API Keys en Configuración > API Keys antes de ejecutar análisis multi-modelo.',
+        message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis multi-modelo.',
         code: 'API_KEYS_REQUIRED'
-      });
-    }
-
-    // Validar API keys según los modelos configurados en el análisis multi-modelo
-    const aiModels = configuration?.aiModels || ['chatgpt', 'claude', 'gemini'];
-    const needsOpenAI = aiModels.some((m: string) => m === 'chatgpt' || m.includes('gpt'));
-    const needsAnthropic = aiModels.some((m: string) => m === 'claude');
-    const needsGoogle = aiModels.some((m: string) => m === 'gemini');
-
-    if (needsOpenAI && !apiKeysToUse.openai) {
-      return res.status(400).json({
-        error: 'API Key de OpenAI requerida',
-        message: 'Para usar modelos ChatGPT en análisis multi-modelo, configura tu API Key de OpenAI en Configuración > API Keys.',
-        code: 'OPENAI_KEY_REQUIRED'
-      });
-    }
-    if (needsAnthropic && !apiKeysToUse.anthropic) {
-      return res.status(400).json({
-        error: 'API Key de Anthropic requerida',
-        message: 'Para usar modelos Claude en análisis multi-modelo, configura tu API Key de Anthropic en Configuración > API Keys.',
-        code: 'ANTHROPIC_KEY_REQUIRED'
-      });
-    }
-    if (needsGoogle && !apiKeysToUse.google) {
-      return res.status(400).json({
-        error: 'API Key de Google AI requerida',
-        message: 'Para usar modelos Gemini en análisis multi-modelo, configura tu API Key de Google AI en Configuración > API Keys.',
-        code: 'GOOGLE_KEY_REQUIRED'
       });
     }
 
@@ -659,7 +628,8 @@ router.post('/multi-model', async (req: Request, res: Response) => {
     const providerNames: Record<string, string> = {
       chatgpt: 'OpenAI', openai: 'OpenAI',
       claude: 'Anthropic', anthropic: 'Anthropic',
-      gemini: 'Google AI', google: 'Google AI'
+      gemini: 'Google AI', google: 'Google AI',
+      openrouter: 'OpenRouter'
     };
 
     if (error?.isAuthError || error?.message?.startsWith('API_KEY_INVALID:') || error?.status === 401 || error?.code === 'invalid_api_key') {
@@ -673,12 +643,14 @@ router.post('/multi-model', async (req: Request, res: Response) => {
       });
     }
 
-    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429) {
+    if (error?.isQuotaError || error?.message?.startsWith('API_QUOTA_EXCEEDED:') || error?.code === 'insufficient_quota' || error?.status === 429 || error?.status === 402) {
       const provider = error?.provider || 'openai';
       const providerName = providerNames[provider] || 'OpenAI';
       return res.status(402).json({
-        error: `Cuota de ${providerName} agotada`,
-        message: `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
+        error: provider === 'openrouter' ? 'Sin créditos en OpenRouter' : `Cuota de ${providerName} agotada`,
+        message: provider === 'openrouter'
+          ? 'Tu cuenta de OpenRouter se ha quedado sin créditos. Recarga en openrouter.ai → Settings → Credits, o configura otra API Key en Configuración > API Keys.'
+          : `Has agotado la cuota de tu API Key de ${providerName}. Revisa tu plan y facturación en el panel del proveedor, o configura otra API Key en Configuración > API Keys.`,
         code: 'QUOTA_EXCEEDED',
         provider
       });

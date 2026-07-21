@@ -86,6 +86,74 @@ router.get('/ai-models', async (req: Request, res: Response) => {
   }
 });
 
+// Catálogo vivo de OpenRouter cacheado en memoria: su lista de modelos cambia
+// cada semana y mantenerla hardcodeada en constants.ts se queda obsoleta.
+// El endpoint público no requiere API key.
+let openrouterCatalogCache: { fetchedAt: number; models: any[] } | null = null;
+const OPENROUTER_CATALOG_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+/**
+ * GET /api/templates/openrouter-models
+ * Catálogo completo de modelos de OpenRouter (para el buscador del frontend).
+ * Cualquier modelo admite búsqueda web añadiendo el sufijo ':online'.
+ */
+router.get('/openrouter-models', async (_req: Request, res: Response) => {
+  try {
+    const stale = !openrouterCatalogCache ||
+      Date.now() - openrouterCatalogCache.fetchedAt > OPENROUTER_CATALOG_TTL_MS;
+
+    if (stale) {
+      const resp = await fetch('https://openrouter.ai/api/v1/models');
+      if (!resp.ok) {
+        throw new Error(`OpenRouter respondió ${resp.status}`);
+      }
+      const body: any = await resp.json();
+      const models = (body.data || [])
+        .map((m: any) => ({
+          id: m.id,
+          name: m.name || m.id,
+          description: (m.description || '').slice(0, 200),
+          contextLength: m.context_length ?? null,
+          // Precios en USD por token; el frontend los muestra por millón
+          pricing: {
+            prompt: m.pricing?.prompt ?? null,
+            completion: m.pricing?.completion ?? null,
+          },
+          created: m.created ?? null,
+        }))
+        // Más recientes primero: lo habitual es buscar el último modelo salido
+        .sort((a: any, b: any) => (b.created || 0) - (a.created || 0));
+      openrouterCatalogCache = { fetchedAt: Date.now(), models };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        models: openrouterCatalogCache!.models,
+        cachedAt: openrouterCatalogCache!.fetchedAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error obteniendo catálogo de OpenRouter:', error);
+    // Si hay caché viejo, mejor servirlo que fallar
+    if (openrouterCatalogCache) {
+      return res.json({
+        success: true,
+        data: {
+          models: openrouterCatalogCache.models,
+          cachedAt: openrouterCatalogCache.fetchedAt,
+          stale: true,
+        },
+      });
+    }
+    res.status(502).json({
+      success: false,
+      error: 'No se pudo obtener el catálogo de modelos de OpenRouter',
+      message: error?.message || 'Error desconocido',
+    });
+  }
+});
+
 /**
  * GET /api/templates/ai-models/:id
  * Obtener información de un modelo específico

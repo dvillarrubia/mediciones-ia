@@ -74,6 +74,17 @@ const ScheduleHealthBanner = () => {
               )}
             </div>
             <p className="text-sm text-red-700 mt-1 line-clamp-2">{msg}</p>
+            {/sin créditos en openrouter/i.test(msg) && (
+              <a
+                href="https://openrouter.ai/settings/credits"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-red-800 underline hover:text-red-900 mt-1"
+              >
+                Recargar créditos en OpenRouter
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
           <Link
             to="/intelligence?tab=schedules"

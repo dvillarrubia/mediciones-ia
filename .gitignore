@@ -73,3 +73,6 @@ pipeline/venv/
 pipeline/service-account.json
 pipeline/test_bq_connection.py
 conexion_bq/*.json
+
+# Documento de infraestructura/accesos (sensible)
+docs/INFRAESTRUCTURA_VPS.md

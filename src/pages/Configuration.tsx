@@ -91,18 +91,14 @@ const Configuration: React.FC = () => {
     aiModels: ['chatgpt'] as string[]
   });
 
-  // API Keys state
+  // API Keys state (Anthropic y Google nativos eliminados: Claude/Gemini van vía OpenRouter)
   const [apiKeys, setApiKeys] = useState({
     openai: '',
-    anthropic: '',
-    google: '',
     openrouter: '',
     dataforseo: ''
   });
   const [showApiKeys, setShowApiKeys] = useState({
     openai: false,
-    anthropic: false,
-    google: false,
     openrouter: false,
     dataforseo: false
   });
@@ -145,8 +141,6 @@ const Configuration: React.FC = () => {
       // Trim whitespace from all keys before saving
       const trimmedKeys = {
         openai: apiKeys.openai.trim(),
-        anthropic: apiKeys.anthropic.trim(),
-        google: apiKeys.google.trim(),
         openrouter: apiKeys.openrouter.trim(),
         dataforseo: apiKeys.dataforseo.trim()
       };
@@ -155,7 +149,9 @@ const Configuration: React.FC = () => {
 
       // Persistir también en el servidor (cifradas). Necesario para
       // automatizaciones programadas que corren sin sesión activa.
-      const providers = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'] as const;
+      // Nota: anthropic/google ya no se gestionan aquí; las keys antiguas
+      // guardadas en servidor se dejan intactas (sin uso).
+      const providers = ['openai', 'openrouter', 'dataforseo'] as const;
       const serverErrors: string[] = [];
       for (const provider of providers) {
         const apiKey = trimmedKeys[provider];
@@ -193,11 +189,11 @@ const Configuration: React.FC = () => {
 
   const clearApiKeys = async () => {
     if (window.confirm('¿Eliminar todas las API Keys?')) {
-      setApiKeys({ openai: '', anthropic: '', google: '', openrouter: '', dataforseo: '' });
+      setApiKeys({ openai: '', openrouter: '', dataforseo: '' });
       localStorage.removeItem('userApiKeys');
 
       // También en el servidor
-      const providers = ['openai', 'anthropic', 'google', 'openrouter', 'dataforseo'];
+      const providers = ['openai', 'openrouter', 'dataforseo'];
       await Promise.all(
         providers.map(p =>
           apiFetch(`${API_BASE_URL}/api/auth/api-keys/${p}`, { method: 'DELETE' }).catch(() => null)
@@ -794,11 +790,10 @@ const Configuration: React.FC = () => {
                   Modelos de IA para el análisis *
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Solo queda el slot ChatGPT: el modelo real (GPT, Claude, Gemini…)
+                      se elige en Análisis/Automatizaciones vía OpenAI u OpenRouter */}
                   {[
-                    { id: 'chatgpt', name: 'ChatGPT', color: 'green' },
-                    { id: 'claude', name: 'Claude', color: 'orange' },
-                    { id: 'gemini', name: 'Gemini', color: 'blue' },
-                    { id: 'perplexity', name: 'Perplexity', color: 'purple' }
+                    { id: 'chatgpt', name: 'ChatGPT', color: 'green' }
                   ].map(model => (
                     <button
                       key={model.id}
@@ -1114,71 +1109,7 @@ const Configuration: React.FC = () => {
                 </div>
               </div>
 
-              {/* Anthropic */}
-              <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-100 rounded-lg">
-                      <Key className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">Anthropic (Claude)</h3>
-                      <p className="text-sm text-gray-500">Para usar Claude en análisis</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.anthropic ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {apiKeys.anthropic ? 'Configurada' : 'No configurada'}
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showApiKeys.anthropic ? 'text' : 'password'}
-                    value={apiKeys.anthropic}
-                    onChange={(e) => setApiKeys(prev => ({ ...prev, anthropic: e.target.value }))}
-                    placeholder="sk-ant-..."
-                    className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                  <button
-                    onClick={() => setShowApiKeys(prev => ({ ...prev, anthropic: !prev.anthropic }))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showApiKeys.anthropic ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Google */}
-              <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Key className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">Google AI (Gemini)</h3>
-                      <p className="text-sm text-gray-500">Para usar Gemini en análisis</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.google ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {apiKeys.google ? 'Configurada' : 'No configurada'}
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showApiKeys.google ? 'text' : 'password'}
-                    value={apiKeys.google}
-                    onChange={(e) => setApiKeys(prev => ({ ...prev, google: e.target.value }))}
-                    placeholder="AIza..."
-                    className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                  <button
-                    onClick={() => setShowApiKeys(prev => ({ ...prev, google: !prev.google }))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showApiKeys.google ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
+              {/* Anthropic y Google nativos eliminados: Claude y Gemini van vía OpenRouter */}
 
               {/* OpenRouter */}
               <div className="border border-gray-200 rounded-lg p-5">

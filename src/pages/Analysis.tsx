@@ -5,6 +5,7 @@ import { API_ENDPOINTS, apiFetch } from '../config/api';
 import NotificationSystem from '../components/NotificationSystem';
 import { useNotifications } from '../hooks/useNotifications';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
+import OpenRouterModelPicker from '../components/OpenRouterModelPicker';
 import { useProjectStore } from '../store/projectStore';
 
 interface AnalysisQuestion {
@@ -132,7 +133,7 @@ const Analysis = () => {
   const [analysisProgress, setAnalysisProgress] = useState<{ completed: number; total: number; percent: number } | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [apiKeyError, setApiKeyError] = useState<{ code: string; message: string } | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<{ code: string; message: string; provider?: string } | null>(null);
 
   // Nuevos estados para modelo y país
   const [aiModels, setAiModels] = useState<AIModelInfo[]>([]);
@@ -159,7 +160,7 @@ const Analysis = () => {
       targetBrand: 'Coca-Cola',
       competitorBrands: ['Pepsi', 'Sprite', 'Fanta'],
       prioritySources: ['Google News', 'Twitter', 'Reddit'],
-      aiModels: ['chatgpt', 'claude', 'gemini'],
+      aiModels: ['chatgpt'],
       questions: [
         {
           id: 'q1',
@@ -316,7 +317,7 @@ const Analysis = () => {
       if (!enqueueRes.ok) {
         const errData = await enqueueRes.json().catch(() => null);
         if (errData?.code === 'API_KEYS_REQUIRED' || errData?.code === 'OPENAI_KEY_REQUIRED' ||
-            errData?.code === 'ANTHROPIC_KEY_REQUIRED' || errData?.code === 'GOOGLE_KEY_REQUIRED') {
+            errData?.code === 'OPENROUTER_KEY_REQUIRED' || errData?.code === 'PROVIDER_REMOVED') {
           setApiKeyError({ code: errData.code, message: errData.message || errData.error });
           notifyError(errData.error || 'Error de API Key', errData.message, { duration: 10000 });
           setIsAnalyzing(false);
@@ -357,10 +358,10 @@ const Analysis = () => {
                 clearInterval(interval);
                 const err = job.error;
                 if (err?.code === 'INVALID_API_KEY') {
-                  setApiKeyError({ code: err.code, message: err.message });
+                  setApiKeyError({ code: err.code, message: err.message, provider: err.provider });
                   notifyError('API Key inválida', err.message, { duration: 10000 });
                 } else if (err?.code === 'QUOTA_EXCEEDED') {
-                  setApiKeyError({ code: err.code, message: err.message });
+                  setApiKeyError({ code: err.code, message: err.message, provider: err.provider });
                   notifyError(err.error || 'Cuota agotada', err.message, { duration: 12000 });
                 } else {
                   setError(err?.message || 'Error en el análisis');
@@ -575,14 +576,25 @@ const Analysis = () => {
               <h3 className="text-lg font-semibold text-amber-800">
                 {apiKeyError.code === 'API_KEYS_REQUIRED' ? 'API Keys No Configuradas' :
                  apiKeyError.code === 'OPENAI_KEY_REQUIRED' ? 'API Key de OpenAI Requerida' :
-                 apiKeyError.code === 'ANTHROPIC_KEY_REQUIRED' ? 'API Key de Anthropic Requerida' :
-                 apiKeyError.code === 'GOOGLE_KEY_REQUIRED' ? 'API Key de Google AI Requerida' :
+                 apiKeyError.code === 'OPENROUTER_KEY_REQUIRED' ? 'API Key de OpenRouter Requerida' :
+                 apiKeyError.code === 'PROVIDER_REMOVED' ? 'Proveedor No Soportado' :
+                 apiKeyError.code === 'QUOTA_EXCEEDED' && apiKeyError.provider === 'openrouter' ? 'Sin créditos en OpenRouter' :
                  apiKeyError.code === 'QUOTA_EXCEEDED' ? 'Cuota de API Agotada' :
                  apiKeyError.code === 'INVALID_API_KEY' ? 'API Key Inválida' :
                  'Configuración de API Keys'}
               </h3>
               <p className="mt-1 text-amber-700">{apiKeyError.message}</p>
               <div className="mt-4 flex space-x-3">
+                {apiKeyError.code === 'QUOTA_EXCEEDED' && apiKeyError.provider === 'openrouter' && (
+                  <a
+                    href="https://openrouter.ai/settings/credits"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                  >
+                    Recargar créditos en OpenRouter
+                  </a>
+                )}
                 <button
                   onClick={() => navigate('/configuration')}
                   className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
@@ -736,45 +748,28 @@ const Analysis = () => {
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="Anthropic (Claude)">
-                {aiModels.filter(m => m.provider === 'anthropic').map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} {model.recommended ? '⭐' : ''} - {model.pricing}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Google (Gemini)">
-                {aiModels.filter(m => m.provider === 'google').map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} {model.recommended ? '⭐' : ''} - {model.pricing}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="OpenRouter (una key, con búsqueda)">
+              <optgroup label="OpenRouter (una key, cualquier modelo con búsqueda)">
                 {aiModels.filter(m => m.provider === 'openrouter').map(model => (
                   <option key={model.id} value={model.id}>
                     {model.name} {model.recommended ? '⭐' : ''}
                   </option>
                 ))}
-                <option value={CUSTOM_OPENROUTER_OPTION}>✏️ Avanzado: pegar model-id de OpenRouter…</option>
+                <option value={CUSTOM_OPENROUTER_OPTION}>🔎 Buscar cualquier modelo de OpenRouter…</option>
               </optgroup>
             </select>
 
-            {/* Modo avanzado: input para pegar cualquier model-id de OpenRouter */}
+            {/* Modo avanzado: buscador contra el catálogo vivo de OpenRouter */}
             {useCustomModel && (
               <div className="mt-3">
-                <input
-                  type="text"
+                <OpenRouterModelPicker
                   value={customModelId}
-                  onChange={(e) => {
-                    setCustomModelId(e.target.value);
-                    setSelectedModel(e.target.value.trim());
+                  onChange={(modelId) => {
+                    setCustomModelId(modelId);
+                    setSelectedModel(modelId);
                   }}
-                  placeholder="p.ej. anthropic/claude-sonnet-4.6:online  o  meta-llama/llama-3.1-405b-instruct"
-                  className="w-full p-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Slug exacto de openrouter.ai/models. Añade <code className="px-1 bg-gray-100 rounded">:online</code> para activar búsqueda web. Requiere API Key de OpenRouter.
+                  Catálogo completo de openrouter.ai/models, siempre actualizado. Requiere API Key de OpenRouter.
                 </p>
               </div>
             )}

@@ -41,6 +41,8 @@ const isFatalProviderError = (err: any): boolean => {
   if (!err) return false;
   if (err.isAuthError || err.isQuotaError) return true;
   if (err.status === 401) return true;
+  // 402: OpenRouter sin créditos prepagados — fatal, no tiene sentido reintentar
+  if (err.status === 402) return true;
   const code = err.code || err.error?.code;
   if (code === 'invalid_api_key' || code === 'insufficient_quota') return true;
   return false;

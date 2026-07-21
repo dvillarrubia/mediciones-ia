@@ -51,74 +51,8 @@ export const AI_MODELS: AIModelInfo[] = [
     requiresApiKey: 'OPENAI_API_KEY'
   },
 
-  // =====================================================
-  // ANTHROPIC & GOOGLE - Para implementar después
-  // =====================================================
-  // Anthropic Claude Models
-  {
-    id: 'claude-sonnet-4-5-20250929',
-    name: 'Claude Sonnet 4.5',
-    provider: 'anthropic',
-    description: 'El modelo más capaz de Anthropic para coding y agentes. Excelente razonamiento.',
-    strengths: ['Mejor para código', 'Razonamiento profundo', 'Respuestas estructuradas', 'Contexto 1M'],
-    contextWindow: '200K tokens (1M con beta)',
-    pricing: '$3 / $15 por 1M tokens',
-    recommended: true,
-    requiresApiKey: 'ANTHROPIC_API_KEY'
-  },
-  {
-    id: 'claude-opus-4-1-20250805',
-    name: 'Claude Opus 4.1',
-    provider: 'anthropic',
-    description: 'Modelo flagship de Anthropic. Máxima calidad para tareas complejas.',
-    strengths: ['Máxima calidad', 'Tareas complejas', 'Análisis profundo'],
-    contextWindow: '200K tokens',
-    pricing: '$15 / $75 por 1M tokens',
-    requiresApiKey: 'ANTHROPIC_API_KEY'
-  },
-  {
-    id: 'claude-haiku-4-5-20251015',
-    name: 'Claude Haiku 4.5',
-    provider: 'anthropic',
-    description: 'Modelo rápido y económico de Claude. Ideal para respuestas rápidas.',
-    strengths: ['Muy rápido', 'Económico', 'Baja latencia'],
-    contextWindow: '200K tokens',
-    pricing: '$1 / $5 por 1M tokens',
-    requiresApiKey: 'ANTHROPIC_API_KEY'
-  },
-
-  // Google Gemini Models
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    provider: 'google',
-    description: 'Modelo más potente de Google con razonamiento adaptivo y "Deep Think".',
-    strengths: ['Razonamiento adaptivo', 'Excelente en matemáticas', 'Multimodal'],
-    contextWindow: '1M tokens',
-    pricing: 'Competitivo',
-    recommended: true,
-    requiresApiKey: 'GOOGLE_AI_API_KEY'
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    provider: 'google',
-    description: 'Modelo rápido y estable de Google. Buen balance velocidad/calidad.',
-    strengths: ['Rápido', 'Estable', 'Multimodal'],
-    contextWindow: '1M tokens',
-    pricing: 'Económico',
-    requiresApiKey: 'GOOGLE_AI_API_KEY'
-  },
-  {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    provider: 'google',
-    description: 'Modelo con herramientas nativas y contexto extenso.',
-    strengths: ['Herramientas nativas', 'Contexto 1M', 'Velocidad'],
-    contextWindow: '1M tokens',
-    pricing: 'Económico',
-    requiresApiKey: 'GOOGLE_AI_API_KEY'
-  }
+  // Anthropic y Google nativos eliminados (jul 2026): Claude y Gemini se usan
+  // vía OpenRouter (ver OPENROUTER_MODELS y el buscador de modelos).
 ] as const;
 
 // ==========================================
@@ -321,26 +255,59 @@ export const COUNTRIES: CountryInfo[] = [
 // =====================================================
 export const OPENROUTER_MODELS: AIModelInfo[] = [
   {
-    id: 'openai/gpt-5.5:online',
-    name: 'ChatGPT (GPT-5.5) + Search',
+    id: 'openai/gpt-5-mini:online',
+    name: 'ChatGPT (GPT-5 Mini) + Search 💰',
     provider: 'openrouter',
-    description: 'Último GPT de OpenAI vía OpenRouter con búsqueda web (plugin :online).',
-    strengths: ['🌐 Búsqueda web', '🧠 Último GPT', '📚 Citaciones', '✅ URLs reales'],
+    description: 'GPT económico de OpenAI con búsqueda web. ~20× más barato que GPT-5.5: ideal para monitorizaciones recurrentes.',
+    strengths: ['🌐 Búsqueda web', '💰 Económico', '📚 Citaciones', '✅ URLs reales'],
     contextWindow: '400K tokens',
-    pricing: 'Según OpenRouter',
+    pricing: '$0.25/M in · $2/M out',
     recommended: true,
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
   {
-    id: 'anthropic/claude-sonnet-4.6:online',
-    name: 'Claude Sonnet 4.6 + Search',
+    id: 'anthropic/claude-haiku-4.5:online',
+    name: 'Claude Haiku 4.5 + Search 💰',
     provider: 'openrouter',
-    description: 'Claude Sonnet con búsqueda web vía OpenRouter (la integración directa de Claude no tiene search).',
-    strengths: ['🌐 Búsqueda web', '🧠 Razonamiento', '📚 Citaciones'],
+    description: 'Claude económico con búsqueda web. 3× más barato que Sonnet: ideal para monitorizaciones recurrentes.',
+    strengths: ['🌐 Búsqueda web', '💰 Económico', '📚 Citaciones'],
     contextWindow: '200K tokens',
-    pricing: 'Según OpenRouter',
+    pricing: '$1/M in · $5/M out',
     recommended: true,
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'google/gemini-2.5-flash:online',
+    name: 'Gemini 2.5 Flash + Search 💰',
+    provider: 'openrouter',
+    description: 'Gemini económico con búsqueda web. 5× más barato que Gemini 3.5 Flash.',
+    strengths: ['🌐 Búsqueda web', '💰 Económico', '⚡ Rápido'],
+    contextWindow: '1M tokens',
+    pricing: '$0.30/M in · $2.50/M out',
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'openai/gpt-5.5:online',
+    name: 'ChatGPT (GPT-5.5) + Search ⚠️ caro',
+    provider: 'openrouter',
+    description: 'Último GPT de OpenAI con búsqueda web. CARO para uso recurrente: quema tokens de razonamiento a $30/M. Para monitorizaciones usa GPT-5 Mini.',
+    strengths: ['🌐 Búsqueda web', '🧠 Último GPT', '📚 Citaciones', '⚠️ Caro'],
+    contextWindow: '400K tokens',
+    pricing: '$5/M in · $30/M out',
+    requiresApiKey: 'OPENROUTER_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'anthropic/claude-sonnet-4.6:online',
+    name: 'Claude Sonnet 4.6 + Search ⚠️ caro',
+    provider: 'openrouter',
+    description: 'Claude Sonnet con búsqueda web. Para monitorizaciones recurrentes usa Claude Haiku (3× más barato).',
+    strengths: ['🌐 Búsqueda web', '🧠 Razonamiento', '📚 Citaciones', '⚠️ Caro'],
+    contextWindow: '1M tokens',
+    pricing: '$3/M in · $15/M out',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -348,11 +315,10 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     id: 'google/gemini-3.5-flash:online',
     name: 'Gemini 3.5 Flash + Search',
     provider: 'openrouter',
-    description: 'Gemini de Google vía OpenRouter con búsqueda web. (Para Gemini Pro usa el modo avanzado con el slug exacto de openrouter.ai/models.)',
+    description: 'Gemini de Google vía OpenRouter con búsqueda web. (Para Gemini Pro usa el buscador de modelos.)',
     strengths: ['🌐 Búsqueda web', '🧠 Multimodal', '📚 Citaciones', '⚡ Rápido'],
     contextWindow: '1M tokens',
-    pricing: 'Según OpenRouter',
-    recommended: true,
+    pricing: '$1.50/M in · $9/M out',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },

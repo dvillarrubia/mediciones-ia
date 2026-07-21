@@ -1,9 +1,9 @@
 /**
- * Servicio para integración con múltiples proveedores de IA (OpenAI, Anthropic, Google)
+ * Servicio para integración con proveedores de IA: OpenAI directo y OpenRouter
+ * (una key, cualquier modelo del catálogo — incluidos Claude y Gemini).
+ * Las integraciones nativas de Anthropic y Google se eliminaron (jul 2026).
  */
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenAI } from '@google/genai';
 import { TARGET_BRANDS, COMPETITOR_BRANDS, PRIORITY_SOURCES, ANALYSIS_QUESTIONS, getModelById, type QuestionCategory, type SentimentType } from '../config/constants.js';
 import { cacheService } from './cacheService.js';
 import { providerQueues } from './providerQueue.js';
@@ -158,12 +158,21 @@ export interface AnalysisResult {
   errors?: string[];
 }
 
+// OpenRouter responde 402 cuando la cuenta se queda sin créditos prepagados
+// (distinto del 429/insufficient_quota de OpenAI). Sin esta detección el error
+// cae al caso genérico y el análisis "termina" con placeholders de error en
+// todas las preguntas en vez de abortar.
+const isInsufficientCreditsError = (error: any): boolean => {
+  if (!error) return false;
+  if (error.status === 402 || error.error?.code === 402) return true;
+  const msg = String(error.message || error.error?.message || '').toLowerCase();
+  return msg.includes('insufficient credits');
+};
+
 class OpenAIService {
   private client: OpenAI;
   private userApiKeys?: {
     openai?: string;
-    anthropic?: string;
-    google?: string;
     openrouter?: string;
   };
 
@@ -192,9 +201,6 @@ class OpenAIService {
   private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Modelo económico para ANALIZAR menciones (no necesita web)
   private readonly DEFAULT_MODEL = "gpt-4o-search-preview"; // Modelo con búsqueda web por defecto
 
-  // Clientes para múltiples proveedores
-  private anthropicClient: Anthropic | null = null;
-  private googleClient: GoogleGenAI | null = null;
   // OpenRouter usa el SDK de OpenAI apuntando a su baseURL (API-compatible)
   private openrouterClient: OpenAI | null = null;
 
@@ -213,23 +219,9 @@ class OpenAIService {
       this.client = null as any; // Se validará antes de usar
     }
 
-    // Anthropic - SOLO usar key del usuario (SIN fallback a process.env)
-    const anthropicKey = userApiKeys?.anthropic;
-    if (anthropicKey) {
-      this.anthropicClient = new Anthropic({ apiKey: anthropicKey });
-      console.log('✅ Anthropic client initialized con key del usuario');
-    } else {
-      console.log('ℹ️ No hay API key de Anthropic del usuario');
-    }
-
-    // Google - SOLO usar key del usuario (SIN fallback a process.env)
-    const googleKey = userApiKeys?.google;
-    if (googleKey) {
-      this.googleClient = new GoogleGenAI({ apiKey: googleKey });
-      console.log('✅ Google AI client initialized con key del usuario');
-    } else {
-      console.log('ℹ️ No hay API key de Google del usuario');
-    }
+    // Anthropic y Google nativos eliminados: Claude y Gemini van vía OpenRouter.
+    // El constructor sigue aceptando esas keys en el tipo por compatibilidad con
+    // llamantes antiguos, pero se ignoran.
 
     // OpenRouter - SDK de OpenAI apuntando a su baseURL (una key, todos los modelos)
     const openrouterKey = userApiKeys?.openrouter;
@@ -313,8 +305,8 @@ class OpenAIService {
       } catch (error: any) {
         lastError = error as Error;
 
-        // Errores fatales (auth/cuota): no reintentar
-        if (error?.isAuthError || error?.isQuotaError || error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' || error?.status === 429) {
+        // Errores fatales (auth/cuota/créditos): no reintentar
+        if (error?.isAuthError || error?.isQuotaError || error?.status === 401 || error?.code === 'invalid_api_key' || error?.code === 'insufficient_quota' || error?.status === 429 || isInsufficientCreditsError(error)) {
           throw error;
         }
 
@@ -649,13 +641,10 @@ class OpenAIService {
       case 'openai':
         return await this.generateWithOpenAI(question, modelId, configuration);
 
-      case 'anthropic': {
-        const content = await this.generateWithAnthropic(question, modelId);
-        return { content, webSources: [] };
-      }
-
+      case 'anthropic':
       case 'google':
-        return await this.generateWithGoogle(question, modelId, configuration);
+        // Integraciones nativas eliminadas: Claude y Gemini se usan vía OpenRouter
+        throw new Error(`El proveedor nativo "${provider}" ya no está soportado. Usa el modelo equivalente vía OpenRouter (p.ej. anthropic/claude-haiku-4.5:online o google/gemini-2.5-flash:online).`);
 
       case 'openrouter':
         return await this.generateWithOpenRouter(question, modelId, configuration);
@@ -877,41 +866,6 @@ class OpenAIService {
   }
 
   /**
-   * Extrae fuentes web del grounding metadata de Gemini
-   */
-  private extractGeminiGroundingSources(response: any): WebSearchSource[] {
-    const sources: WebSearchSource[] = [];
-    const metadata = response.candidates?.[0]?.groundingMetadata;
-
-    if (!metadata?.groundingChunks) {
-      console.log('⚠️ [Gemini] No se encontraron groundingChunks en respuesta');
-      return sources;
-    }
-
-    const supports = metadata.groundingSupports || [];
-
-    for (let i = 0; i < metadata.groundingChunks.length; i++) {
-      const chunk = metadata.groundingChunks[i];
-      if (chunk.web) {
-        // Buscar el snippet correspondiente en groundingSupports
-        const support = supports.find((s: any) =>
-          s.groundingChunkIndices?.includes(i)
-        );
-        sources.push({
-          url: chunk.web.uri,
-          title: chunk.web.title || this.extractDomainFromUrl(chunk.web.uri),
-          snippet: support?.segment?.text || '',
-          startIndex: support?.segment?.startIndex,
-          endIndex: support?.segment?.endIndex,
-        });
-      }
-    }
-
-    console.log(`📚 [Gemini] Fuentes web extraídas: ${sources.length}`);
-    return sources;
-  }
-
-  /**
    * Extrae el dominio de una URL
    */
   private extractDomainFromUrl(url: string): string {
@@ -1020,81 +974,6 @@ class OpenAIService {
    */
   public getLastWebSources(): WebSearchSource[] {
     return [];
-  }
-
-  /**
-   * Genera contenido con Anthropic (Claude)
-   */
-  private async generateWithAnthropic(question: string, modelId: string): Promise<string> {
-    if (!this.anthropicClient) {
-      throw new Error('No hay API key de Anthropic configurada. Por favor, añade tu API key de Anthropic para usar modelos Claude.');
-    }
-
-    const response = await Promise.race([
-      providerQueues.anthropic.enqueue(
-        () => this.anthropicClient!.messages.create({
-          model: modelId,
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: question }],
-        }),
-        `generateWithAnthropic:${modelId}`
-      ),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: Anthropic tardó más de 60 segundos')), 60000)
-      )
-    ]) as any;
-
-    const content = response.content[0]?.text;
-    if (!content) {
-      throw new Error('Anthropic devolvió una respuesta vacía');
-    }
-    return content;
-  }
-
-  /**
-   * Genera contenido con Google (Gemini) usando Google Search Grounding
-   * Devuelve contenido Y fuentes web (thread-safe para ejecución paralela)
-   */
-  private async generateWithGoogle(question: string, modelId: string, configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
-    if (!this.googleClient) {
-      throw new Error('No hay API key de Google AI configurada. Por favor, añade tu API key de Google para usar modelos Gemini.');
-    }
-
-    const countryName = configuration?.countryName || 'España';
-    const now = new Date();
-    const systemPrompt = `País: ${countryName}. Fecha y hora actual: ${now.toLocaleString('es-ES', {
-      timeZone: configuration?.timezone || 'Europe/Madrid',
-      dateStyle: 'full',
-      timeStyle: 'short'
-    })}.`;
-
-    const response = await Promise.race([
-      providerQueues.google.enqueue(
-        () => this.googleClient!.models.generateContent({
-          model: modelId,
-          contents: `${systemPrompt}\n\n${question}`,
-          config: {
-            tools: [{ googleSearch: {} }],
-          },
-        }),
-        `generateWithGoogle:${modelId}`
-      ),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: Google AI tardó más de 90 segundos')), 90000)
-      )
-    ]) as any;
-
-    const content = response.text;
-    if (!content) {
-      throw new Error('Google AI devolvió una respuesta vacía');
-    }
-
-    // Extraer fuentes web del grounding metadata - retorno directo, sin estado compartido
-    const webSources = this.extractGeminiGroundingSources(response);
-    // Resolver redirects de grounding a la URL real del artículo (mientras están vivos)
-    const resolvedSources = await this.resolveGroundingUrls(webSources);
-
-    return { content, webSources: resolvedSources };
   }
 
   /**
@@ -1257,6 +1136,12 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         } else if (error.message?.includes('timeout') || error.message?.includes('Timeout')) {
           console.error(`⏰ [${questionId}] Timeout en request, reintentando...`);
           throw new Error(`Timeout: ${error.message}`);
+        } else if (isInsufficientCreditsError(error)) {
+          console.error(`💳 [${questionId}] Créditos de OpenRouter agotados - abortando análisis`);
+          const creditsError = new Error(`API_QUOTA_EXCEEDED:openrouter:${error.message || 'Créditos agotados'}`);
+          (creditsError as any).isQuotaError = true;
+          (creditsError as any).provider = 'openrouter';
+          throw creditsError;
         } else if (error?.code === 'insufficient_quota' || error?.status === 429 || error.message?.includes('insufficient_quota')) {
           console.error(`💳 [${questionId}] Cuota insuficiente en OpenAI - abortando análisis`);
           const quotaError = new Error(`API_QUOTA_EXCEEDED:openai:${error.message || 'Cuota agotada'}`);
@@ -2757,6 +2642,14 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
         (authError as any).provider = modelPersona;
         throw authError;
       }
+      // Si es error de créditos agotados en OpenRouter (402), abortar todo el análisis
+      if (isInsufficientCreditsError(error)) {
+        console.error(`🔴 [${questionId}] Créditos de OpenRouter agotados (${modelPersona}) - abortando análisis`);
+        const creditsError = new Error(`API_QUOTA_EXCEEDED:openrouter:${error.message || 'Créditos agotados'}`);
+        (creditsError as any).isQuotaError = true;
+        (creditsError as any).provider = 'openrouter';
+        throw creditsError;
+      }
       // Si es error de cuota agotada, abortar todo el análisis
       if (error?.code === 'insufficient_quota' || error?.status === 429) {
         console.error(`🔴 [${questionId}] Cuota agotada para ${modelPersona} - abortando análisis`);
@@ -2797,16 +2690,12 @@ private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; 
       return { valid: true };
 
     case 'claude':
-      if (!this.anthropicClient) {
-        return { valid: false, error: 'No hay API key de Anthropic configurada.' };
-      }
-      return { valid: true };
-
     case 'gemini':
-      if (!this.googleClient) {
-        return { valid: false, error: 'No hay API key de Google AI configurada.' };
-      }
-      return { valid: true };
+      // Integraciones nativas eliminadas: Claude y Gemini van vía OpenRouter
+      // (schedules con selectedModel anthropic/... o google/...). Excluir la
+      // persona aquí hace que las configuraciones antiguas que aún las pidan
+      // se ignoren sin romper el análisis.
+      return { valid: false, error: `El proveedor nativo de ${modelPersona} ya no está soportado; usa el modelo equivalente vía OpenRouter.` };
 
     case 'perplexity':
       // Perplexity NO está implementado todavía - siempre excluir
@@ -2831,8 +2720,8 @@ private async analyzeWithAIPersona(questionData: any, modelPersona: AIModelPerso
     throw new Error(apiValidation.error);
   }
 
-  if (modelPersona !== 'chatgpt' && modelPersona !== 'gemini') {
-    throw new Error(`API de ${modelPersona} no está activada. Solo ChatGPT y Gemini están disponibles.`);
+  if (modelPersona !== 'chatgpt') {
+    throw new Error(`API de ${modelPersona} no está activada. Solo la persona ChatGPT (OpenAI/OpenRouter) está disponible; para Claude o Gemini usa el modelo vía OpenRouter.`);
   }
 
   const targetBrand = configuration.targetBrand || (configuration.targetBrands?.[0]) || 'Coca-Cola';
@@ -2854,18 +2743,11 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
 
   // Resolver el proveedor UNA sola vez para la persona "chatgpt": las dos llamadas
   // (fase 1 y fase 2) irán por el mismo proveedor validado (OpenAI u OpenRouter).
-  // Gemini tiene su propio flujo de fase 1 (grounding de Google).
-  const providerCfg = modelPersona === 'gemini' ? null : this.getPersonaProviderConfig(configuration);
+  const providerCfg = this.getPersonaProviderConfig(configuration);
 
   console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia, país: ${countryName})...`);
 
-  if (modelPersona === 'gemini') {
-    // Fase 1 con Gemini + Google Search Grounding
-    const geminiModel = configuration.selectedGeminiModel || 'gemini-2.5-flash';
-    const geminiResult = await this.generateWithGoogle(cleanPrompt, geminiModel, configuration);
-    naturalResponse = geminiResult.content;
-    webSources = geminiResult.webSources;
-  } else if (providerCfg!.provider === 'openrouter') {
+  if (providerCfg!.provider === 'openrouter') {
     // Fase 1 vía OpenRouter (mismo proveedor que la fase 2). Reutiliza el helper
     // que ya gestiona el plugin web / sufijo ':online' y la extracción de fuentes.
     console.log(`🔀 [${modelPersona}] Fase 1 vía OpenRouter con modelo: ${providerCfg!.generationModel}`);
@@ -2939,11 +2821,8 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
 
   console.log(`🧠 [${modelPersona}] Llamada 2: Análisis con modelo barato...`);
 
-  // La persona "chatgpt" usa el MISMO proveedor que la fase 1 (providerCfg). Gemini
-  // (que genera con Google) cae al resolver genérico para el modelo barato.
-  const analysis2 = providerCfg
-    ? { client: providerCfg.client, model: providerCfg.analysisModel, queue: providerCfg.queue }
-    : this.getAnalysisClientAndModel();
+  // La fase 2 usa el MISMO proveedor que la fase 1 (providerCfg).
+  const analysis2 = { client: providerCfg.client, model: providerCfg.analysisModel, queue: providerCfg.queue };
   console.log(`🧠 [${modelPersona}] Fase 2 vía ${analysis2.queue} con modelo: ${analysis2.model}`);
   const analysisResponse = await providerQueues[analysis2.queue].enqueue(
     () => analysis2.client.chat.completions.create({
@@ -3023,9 +2902,7 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
   // Gemini/GPT vía OpenRouter) y no el genérico "chatgpt". Imprescindible cuando se
   // comparan las mismas preguntas con modelos distintos. Mismo patrón que el otro
   // flujo (parseGenerativeAnalysisResponse): id + nombre legible + persona inferida.
-  const usedModelId = modelPersona === 'gemini'
-    ? (configuration.selectedGeminiModel || 'gemini-2.5-flash')
-    : providerCfg!.generationModel;
+  const usedModelId = providerCfg!.generationModel;
   const usedModelName = getModelById(usedModelId)?.name || usedModelId;
   const usedModelPersona: AIModelPersona = this.inferPersonaFromModelId(usedModelId);
 

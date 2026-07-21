@@ -4,6 +4,10 @@ import {
   Clock, CheckCircle2, AlertCircle, Loader2, X, AlertTriangle,
 } from 'lucide-react';
 import { API_ENDPOINTS, apiFetch } from '../../config/api';
+import OpenRouterModelPicker from '../OpenRouterModelPicker';
+
+// Valor centinela en el <select> de modelo para abrir el buscador de OpenRouter
+const OPENROUTER_SEARCH_OPTION = '__openrouter_search__';
 
 // ==================== TYPES ====================
 
@@ -466,6 +470,7 @@ const ScheduleModal: React.FC<ModalProps> = ({ projectId, editing, configuration
   const [type, setType] = useState<ScheduleType>(editing?.type || 'llm');
   const [configurationId, setConfigurationId] = useState<string>(editing?.configurationId || '');
   const [selectedModel, setSelectedModel] = useState<string>(editing?.payload?.selectedModel || '');
+  const [useOpenRouterSearch, setUseOpenRouterSearch] = useState(false);
   const [countryCode, setCountryCode] = useState<string>(editing?.payload?.countryCode || 'ES');
 
   // AIO-specific
@@ -627,15 +632,32 @@ const ScheduleModal: React.FC<ModalProps> = ({ projectId, editing, configuration
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Modelo (opcional)</label>
                   <select
-                    value={selectedModel}
-                    onChange={e => setSelectedModel(e.target.value)}
+                    value={useOpenRouterSearch ? OPENROUTER_SEARCH_OPTION : selectedModel}
+                    onChange={e => {
+                      if (e.target.value === OPENROUTER_SEARCH_OPTION) {
+                        setUseOpenRouterSearch(true);
+                      } else {
+                        setUseOpenRouterSearch(false);
+                        setSelectedModel(e.target.value);
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Por defecto</option>
                     {aiModels.map(m => (
                       <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
+                    {/* Modelo guardado que no está en la lista curada (ej. elegido con el buscador) */}
+                    {!useOpenRouterSearch && selectedModel && !aiModels.some(m => m.id === selectedModel) && (
+                      <option value={selectedModel}>{selectedModel}</option>
+                    )}
+                    <option value={OPENROUTER_SEARCH_OPTION}>🔎 Buscar cualquier modelo de OpenRouter…</option>
                   </select>
+                  {useOpenRouterSearch && (
+                    <div className="mt-2">
+                      <OpenRouterModelPicker value={selectedModel} onChange={setSelectedModel} />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">País</label>

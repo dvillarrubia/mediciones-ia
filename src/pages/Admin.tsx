@@ -930,12 +930,11 @@ export default function Admin() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor *</label>
                   <select
                     value={newModel.provider}
-                    onChange={(e) => setNewModel({ ...newModel, provider: e.target.value as any, requiresApiKey: e.target.value === 'openai' ? 'OPENAI_API_KEY' : e.target.value === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GOOGLE_AI_API_KEY' })}
+                    onChange={(e) => setNewModel({ ...newModel, provider: e.target.value as any, requiresApiKey: 'OPENAI_API_KEY' })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
+                    {/* Anthropic/Google nativos eliminados: Claude y Gemini van vía OpenRouter */}
                     <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google</option>
                   </select>
                 </div>
                 <div className="md:col-span-2">
