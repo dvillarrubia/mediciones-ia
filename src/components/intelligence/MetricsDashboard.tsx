@@ -350,6 +350,56 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
 
 // === COMPONENTS ===
 
+// Colores por ángulo áureo: distinguibles entre sí para cualquier nº de series.
+const goldenColor = (i: number) => `hsl(${Math.round((i * 137.508) % 360)}, 62%, 42%)`;
+
+// Tooltip con las series ordenadas por valor descendente (el orden visual de las líneas).
+const SortedPctTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const items = [...payload].sort((a: any, b: any) => (b.value ?? 0) - (a.value ?? 0));
+  const fmt = (v: any) => (Number(v) % 1 === 0 ? `${v}%` : `${Number(v).toFixed(1)}%`);
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[220px]">
+      <p className="font-semibold text-gray-900 text-sm mb-2">{label}</p>
+      {items.map((e: any, i: number) => (
+        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-2 text-xs text-gray-700">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: e.stroke || e.color }} />
+            {e.name}
+          </span>
+          <span className="text-xs font-semibold text-gray-900">{fmt(e.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Leyenda propia de chips clicables (mostrar/ocultar serie), fuera del área de dibujo.
+const ChipLegend: React.FC<{
+  items: string[];
+  colorOf: Record<string, string>;
+  hidden: string[];
+  onToggle: (item: string) => void;
+  bold?: (item: string) => boolean;
+}> = ({ items, colorOf, hidden, onToggle, bold }) => (
+  <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 pt-3 border-t border-gray-100">
+    {items.map(item => {
+      const off = hidden.includes(item);
+      return (
+        <button
+          key={item}
+          onClick={() => onToggle(item)}
+          className={`inline-flex items-center gap-1.5 text-xs transition-colors ${off ? 'text-gray-300 line-through' : 'text-gray-700 hover:text-gray-900'} ${bold?.(item) && !off ? 'font-semibold' : ''}`}
+          title={off ? 'Mostrar' : 'Ocultar'}
+        >
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: off ? '#d1d5db' : colorOf[item] }} />
+          {item}
+        </button>
+      );
+    })}
+  </div>
+);
+
 const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; color: string; subtitle?: string; info?: string }> = ({ label, value, icon, color, subtitle, info }) => (
   <div className={`bg-white rounded-xl shadow-sm border p-5`}>
     <div className="flex items-center gap-3 mb-2">
@@ -364,6 +414,9 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
 const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [trendBrand, setTrendBrand] = useState('');
+  const [hiddenCats, setHiddenCats] = useState<string[]>([]);
+  const [hiddenSovBrands, setHiddenSovBrands] = useState<string[]>([]);
 
   const scoped = useMemo(
     () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
@@ -371,6 +424,46 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
   );
 
   const metrics = useMemo(() => calculateMetrics(scoped), [scoped]);
+
+  // Evolución de menciones por categoría (topics): % de preguntas de cada categoría
+  // donde la marca seleccionada es mencionada, un punto por análisis.
+  const categoryTrend = useMemo(() => {
+    if (!scoped || scoped.length < 2) return null;
+    const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const latest = sorted[sorted.length - 1];
+    const brandOptions = [latest.configuration.brand, ...latest.configuration.competitors];
+    const brand = brandOptions.includes(trendBrand) ? trendBrand : latest.configuration.brand;
+    // Solo las categorías del análisis más reciente: si la taxonomía de topics cambió
+    // con el tiempo, las categorías retiradas ensuciarían la gráfica con líneas muertas.
+    const latestCatCount: Record<string, number> = {};
+    (latest.results?.questions || []).forEach(q => {
+      const cat = q.category || 'Sin categoría';
+      latestCatCount[cat] = (latestCatCount[cat] || 0) + 1;
+    });
+    const categories = Object.entries(latestCatCount).sort((a, b) => b[1] - a[1]).map(([c]) => c);
+    const catSet = new Set(categories);
+    const points = sorted.map(a => {
+      const acc: Record<string, { total: number; hit: number }> = {};
+      (a.results?.questions || []).forEach(q => {
+        const cat = q.category || 'Sin categoría';
+        if (!catSet.has(cat)) return;
+        if (!acc[cat]) acc[cat] = { total: 0, hit: 0 };
+        acc[cat].total++;
+        const mentioned = (q.brandMentions || []).some(bm =>
+          bm.mentioned && normalizeBrandName(bm.brand, brandOptions).toLowerCase() === brand.toLowerCase()
+        );
+        if (mentioned) acc[cat].hit++;
+      });
+      const row: Record<string, any> = {
+        label: new Date(a.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+      };
+      Object.entries(acc).forEach(([cat, d]) => {
+        row[cat] = d.total > 0 ? Math.round((d.hit / d.total) * 100) : 0;
+      });
+      return row;
+    });
+    return { points, categories, brand, brandOptions };
+  }, [scoped, trendBrand]);
 
   // KPIs de menciones/citaciones con delta vs análisis anterior (Hito 2)
   const mentionKpis = useMemo(() => {
@@ -922,6 +1015,57 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
         );
       })()}
 
+      {/* Evolución de menciones por categoría (topics) */}
+      {categoryTrend && (() => {
+        const colorOf = Object.fromEntries(categoryTrend.categories.map((c, i) => [c, goldenColor(i)]));
+        return (
+          <div className="bg-white rounded-xl shadow-sm border p-5">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+              <h3 className="font-semibold text-gray-800 inline-flex items-center gap-1.5">
+                Evolución de Menciones por Categoría
+                <InfoTip text="Por cada análisis, % de preguntas de cada categoría temática donde la marca seleccionada es mencionada (misma métrica que 'Menciones por Categoría y Marca', vista en el tiempo). Se muestran las categorías del análisis más reciente. Haz clic en una categoría de la leyenda para ocultarla o mostrarla." />
+              </h3>
+              <select
+                value={categoryTrend.brand}
+                onChange={(e) => setTrendBrand(e.target.value)}
+                className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
+              >
+                {categoryTrend.brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">% de preguntas de cada categoría donde {categoryTrend.brand} es mencionada, por análisis</p>
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={categoryTrend.points} margin={{ left: 0, right: 16, top: 12, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 12 }} padding={{ left: 28, right: 28 }} tickMargin={8} />
+                <YAxis domain={[0, 100]} unit="%" tick={{ fill: '#6b7280', fontSize: 12 }} tickCount={6} width={45} />
+                <Tooltip content={<SortedPctTooltip />} />
+                {categoryTrend.categories.map(cat => (
+                  <Line
+                    key={cat}
+                    type="monotone"
+                    dataKey={cat}
+                    name={cat}
+                    stroke={colorOf[cat]}
+                    strokeWidth={2}
+                    dot={{ r: 3, strokeWidth: 2, fill: '#fff' }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                    hide={hiddenCats.includes(cat)}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+            <ChipLegend
+              items={categoryTrend.categories}
+              colorOf={colorOf}
+              hidden={hiddenCats}
+              onToggle={cat => setHiddenCats(h => h.includes(cat) ? h.filter(c => c !== cat) : [...h, cat])}
+            />
+          </div>
+        );
+      })()}
+
       {/* === HISTORICAL TRENDS === */}
       {ht.length >= 2 ? (
         <>
@@ -930,32 +1074,46 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
             <p className="text-sm text-gray-500 mb-6">{ht.length} análisis desde {ht[0].label} hasta {ht[ht.length - 1].label}</p>
           </div>
 
-          {/* SoV Area Chart — apilado al 100% (composición de la cuota de voz) */}
-          <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h3 className="font-semibold text-gray-800 mb-1">Evolución del Share of Voice</h3>
-            <p className="text-xs text-gray-400 mb-4">% de menciones de cada marca sobre el total en cada análisis</p>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={sovAreaData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} unit="%" domain={[0, 'auto']} />
-                <Tooltip formatter={(v: number, name: string) => [`${Number(v).toFixed(1)}%`, name]} />
-                <Legend />
-                {topBrands.map((brand, i) => (
-                  <Area
-                    key={brand}
-                    type="monotone"
-                    dataKey={brand}
-                    stackId="1"
-                    stroke={COLORS[i % COLORS.length]}
-                    strokeWidth={1}
-                    fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.85}
-                  />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {/* SoV: líneas (el valor de cada marca se lee directamente sobre el eje) */}
+          {(() => {
+            const sovColorOf = Object.fromEntries(topBrands.map((b, i) => [b, goldenColor(i)]));
+            const isTargetBrand = (b: string) => b.toLowerCase() === cs.targetBrand.toLowerCase();
+            return (
+              <div className="bg-white rounded-xl shadow-sm border p-5">
+                <h3 className="font-semibold text-gray-800 mb-1">Evolución del Share of Voice</h3>
+                <p className="text-xs text-gray-400 mb-4">% de menciones de cada marca sobre el total en cada análisis</p>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={sovAreaData} margin={{ left: 0, right: 16, top: 12, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 12 }} padding={{ left: 28, right: 28 }} tickMargin={8} />
+                    <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} unit="%" domain={[0, 'auto']} width={45} />
+                    <Tooltip content={<SortedPctTooltip />} />
+                    {topBrands.map(brand => (
+                      <Line
+                        key={brand}
+                        type="monotone"
+                        dataKey={brand}
+                        name={brand}
+                        stroke={sovColorOf[brand]}
+                        strokeWidth={isTargetBrand(brand) ? 3 : 2}
+                        dot={{ r: 3, strokeWidth: 2, fill: '#fff' }}
+                        activeDot={{ r: 5 }}
+                        connectNulls
+                        hide={hiddenSovBrands.includes(brand)}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+                <ChipLegend
+                  items={topBrands}
+                  colorOf={sovColorOf}
+                  hidden={hiddenSovBrands}
+                  onToggle={b => setHiddenSovBrands(h => h.includes(b) ? h.filter(x => x !== b) : [...h, b])}
+                  bold={isTargetBrand}
+                />
+              </div>
+            );
+          })()}
 
           {/* Position + Sentiment */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Crosshair, Info, CalendarDays, Users, Download } from 'lucide-react';
+import { Crosshair, Info, CalendarDays, Users, Download, ChevronRight, ChevronDown, Link as LinkIcon, Quote } from 'lucide-react';
 import InfoTip from './InfoTip';
 import {
   AnalysisDetail, sortByDate, buildGapsMatrix, buildCompetitiveView,
-  APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType
+  APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType, BrandAlias, brandNameVariants
 } from './sharedMetrics';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -12,6 +12,7 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandAliases?: BrandAlias[];
 }
 
 const LEGEND: AppearanceType[] = ['no_aparece', 'mencion', 'citacion_com', 'citacion_blog'];
@@ -19,7 +20,7 @@ const TYPE_SHORT: Record<AppearanceType, string> = {
   no_aparece: 'No aparece', mencion: 'Mención', citacion_com: 'sitio', citacion_blog: 'blog',
 };
 
-const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
+const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases }) => {
   const [view, setView] = useState<'temporal' | 'competencia'>('temporal');
 
   // --- temporal ---
@@ -36,6 +37,10 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // --- desglose por prompt (fila expandida en cada vista) ---
+  const [expandedTemporal, setExpandedTemporal] = useState<string | null>(null);
+  const [expandedComp, setExpandedComp] = useState<string | null>(null);
+
   const scoped = useMemo(
     () => filterAnalysesByDateRange(analyses || [], dateFrom, dateTo),
     [analyses, dateFrom, dateTo]
@@ -43,6 +48,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
 
   const sorted = useMemo(() => sortByDate(scoped), [scoped]);
   const targetBrand = sorted.slice(-1)[0]?.configuration.brand || '';
+  const brandNames = useMemo(() => brandNameVariants(targetBrand, brandAliases), [targetBrand, brandAliases]);
 
   useEffect(() => {
     if (sorted.length === 0) return;
@@ -53,14 +59,14 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
   }, [sorted, selectedAnalysisId]);
 
   const matrix = useMemo(
-    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '') : null),
-    [sorted, targetBrand, brandDomain]
+    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '', brandNames) : null),
+    [sorted, targetBrand, brandDomain, brandNames]
   );
 
   const selectedAnalysis = sorted.find(a => a.id === selectedAnalysisId) || sorted[sorted.length - 1] || null;
   const competitive = useMemo(
-    () => buildCompetitiveView(selectedAnalysis, targetBrand, brandDomain || ''),
-    [selectedAnalysis, targetBrand, brandDomain]
+    () => buildCompetitiveView(selectedAnalysis, targetBrand, brandDomain || '', brandNames),
+    [selectedAnalysis, targetBrand, brandDomain, brandNames]
   );
 
   if (loading) {
@@ -107,6 +113,27 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
       <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white whitespace-nowrap" style={{ backgroundColor: APPEARANCE_COLORS[type] }}>
         {label}
       </span>
+    );
+  };
+
+  // URLs citadas del dominio de marca + frases donde la IA menciona la marca.
+  const AppearanceDetail = ({ urls, evidence }: { urls?: string[]; evidence?: string[] }) => {
+    if ((!urls || urls.length === 0) && (!evidence || evidence.length === 0)) return null;
+    return (
+      <div className="space-y-1 min-w-0">
+        {(urls || []).map((u, i) => (
+          <div key={`u${i}`} className="flex items-start gap-1.5 text-xs">
+            <LinkIcon className="w-3 h-3 mt-0.5 shrink-0 text-emerald-600" />
+            <a href={u} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">{u}</a>
+          </div>
+        ))}
+        {(evidence || []).map((e, i) => (
+          <div key={`e${i}`} className="flex items-start gap-1.5 text-xs text-gray-600">
+            <Quote className="w-3 h-3 mt-0.5 shrink-0 text-amber-500" />
+            <span className="italic">“{e}”</span>
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -211,31 +238,74 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {temporalRows.slice(0, 200).map(row => (
-                  <tr key={row.promptKey} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 sticky left-0 bg-white z-10 max-w-sm">
-                      <div className="truncate text-gray-800" title={row.prompt}>{row.prompt}</div>
-                      {row.category && <div className="text-xs text-gray-400">{row.category}</div>}
-                    </td>
-                    {matrix.columns.map(c => {
-                      const cell = row.cells[c.id];
-                      const type = cell?.type || 'no_aparece';
-                      const title = `${APPEARANCE_LABELS[type]}${cell?.position ? ` · pos #${cell.position}` : ''}`;
-                      return (
-                        <td key={c.id} className="px-3 py-2 text-center" title={title}>
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-white mx-auto" style={{ backgroundColor: APPEARANCE_COLORS[type] }}>
-                            {type !== 'no_aparece' && cell?.position ? cell.position : ''}
-                          </span>
+                {temporalRows.slice(0, 200).map(row => {
+                  const isOpen = expandedTemporal === row.promptKey;
+                  return (
+                    <React.Fragment key={row.promptKey}>
+                      <tr
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => setExpandedTemporal(isOpen ? null : row.promptKey)}
+                      >
+                        <td className="px-4 py-2 sticky left-0 bg-white z-10 max-w-sm">
+                          <div className="flex items-center gap-1.5">
+                            {isOpen
+                              ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
+                              : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
+                            <div className="min-w-0">
+                              <div className="truncate text-gray-800" title={row.prompt}>{row.prompt}</div>
+                              {row.category && <div className="text-xs text-gray-400">{row.category}</div>}
+                            </div>
+                          </div>
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        {matrix.columns.map(c => {
+                          const cell = row.cells[c.id];
+                          const type = cell?.type || 'no_aparece';
+                          const title = `${APPEARANCE_LABELS[type]}${cell?.position ? ` · pos #${cell.position}` : ''}`;
+                          return (
+                            <td key={c.id} className="px-3 py-2 text-center" title={title}>
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold text-white mx-auto" style={{ backgroundColor: APPEARANCE_COLORS[type] }}>
+                                {type !== 'no_aparece' && cell?.position ? cell.position : ''}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {isOpen && (
+                        <tr className="bg-gray-50/70">
+                          <td colSpan={matrix.columns.length + 1} className="px-4 py-3">
+                            <div className="space-y-3 max-w-3xl">
+                              <div>
+                                <div className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5">Prompt completo</div>
+                                <p className="text-sm text-gray-800 whitespace-pre-wrap">{row.prompt}</p>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Evolución por análisis</div>
+                                <div className="space-y-2">
+                                  {matrix.columns.map(c => {
+                                    const cell = row.cells[c.id];
+                                    if (!cell) return null;
+                                    return (
+                                      <div key={c.id} className="flex items-start gap-3">
+                                        <span className="text-xs text-gray-500 w-20 shrink-0 pt-0.5">{c.label}</span>
+                                        <div className="shrink-0">{posBadge(cell.type, cell.position)}</div>
+                                        <AppearanceDetail urls={cell.urls} evidence={cell.evidence} />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Ordenado por severidad (más ausencias primero). El número dentro del punto es la posición de la marca.{temporalRows.length > 200 ? ` Mostrando 200 de ${temporalRows.length}.` : ''}
+            <Info className="w-3 h-3" /> Ordenado por severidad (más ausencias primero). El número dentro del punto es la posición de la marca. Haz clic en una fila para ver el prompt completo, las URLs citadas y las menciones.{temporalRows.length > 200 ? ` Mostrando 200 de ${temporalRows.length}.` : ''}
           </p>
         </>
       )}
@@ -282,25 +352,58 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {compRows.slice(0, 200).map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 max-w-sm">
-                      <div className="truncate text-gray-800" title={r.prompt}>{r.prompt}</div>
-                      {r.category && <div className="text-xs text-gray-400">{r.category}</div>}
-                    </td>
-                    <td className="px-4 py-2">{posBadge(r.type, r.position)}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {r.competitors.length === 0 && <span className="text-gray-300">—</span>}
-                        {r.competitors.map((c, j) => (
-                          <span key={j} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
-                            {c.position ? <span className="font-semibold text-gray-500">#{c.position}</span> : null} {c.brand}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {compRows.slice(0, 200).map((r, i) => {
+                  const isOpen = expandedComp === r.prompt;
+                  return (
+                    <React.Fragment key={i}>
+                      <tr
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => setExpandedComp(isOpen ? null : r.prompt)}
+                      >
+                        <td className="px-4 py-2 max-w-sm">
+                          <div className="flex items-center gap-1.5">
+                            {isOpen
+                              ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
+                              : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
+                            <div className="min-w-0">
+                              <div className="truncate text-gray-800" title={r.prompt}>{r.prompt}</div>
+                              {r.category && <div className="text-xs text-gray-400">{r.category}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">{posBadge(r.type, r.position)}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {r.competitors.length === 0 && <span className="text-gray-300">—</span>}
+                            {r.competitors.map((c, j) => (
+                              <span key={j} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                                {c.position ? <span className="font-semibold text-gray-500">#{c.position}</span> : null} {c.brand}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="bg-gray-50/70">
+                          <td colSpan={3} className="px-4 py-3">
+                            <div className="space-y-3 max-w-3xl">
+                              <div>
+                                <div className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5">Prompt completo</div>
+                                <p className="text-sm text-gray-800 whitespace-pre-wrap">{r.prompt}</p>
+                              </div>
+                              {r.type !== 'no_aparece' && (
+                                <div>
+                                  <div className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Aparición de {targetBrand}</div>
+                                  <AppearanceDetail urls={r.urls} evidence={r.evidence} />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 {compRows.length === 0 && (
                   <tr><td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">No hay prompts que cumplan el filtro.</td></tr>
                 )}
@@ -308,7 +411,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
             </table>
           </div>
           <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> Se muestran todos los prompts del análisis. Usa los filtros para ver solo gaps (no nº1 / no aparece). Ordenado peores primero.{compRows.length > 200 ? ` Mostrando 200 de ${compRows.length}.` : ''}
+            <Info className="w-3 h-3" /> Se muestran todos los prompts del análisis. Usa los filtros para ver solo gaps (no nº1 / no aparece). Ordenado peores primero. Haz clic en una fila para ver el prompt completo, las URLs citadas y las menciones.{compRows.length > 200 ? ` Mostrando 200 de ${compRows.length}.` : ''}
           </p>
         </>
       )}

@@ -169,6 +169,22 @@ export function resolveBrandName(name: string, aliasMap: Map<string, string>): s
   return aliasMap.get(aliasKey(name)) || name;
 }
 
+/**
+ * Nombres con los que puede aparecer la marca objetivo en un texto: el canónico más las
+ * variantes de su entrada en el glosario (submarcas tipo "i-DE", "Curenergía"…).
+ * Se descartan variantes de menos de 3 caracteres para evitar falsos positivos.
+ */
+export function brandNameVariants(targetBrand: string, aliases?: BrandAlias[]): string[] {
+  const names = new Set<string>();
+  if (targetBrand) names.add(targetBrand);
+  (aliases || []).forEach(a => {
+    if (!a.canonical || aliasKey(a.canonical) !== aliasKey(targetBrand)) return;
+    names.add(a.canonical);
+    (a.variants || []).forEach(v => { if (v && v.trim().length >= 3) names.add(v.trim()); });
+  });
+  return Array.from(names);
+}
+
 /** Canonicaliza los nombres de marca de un conjunto de análisis aplicando el glosario, una sola vez. */
 export function applyAliasesToAnalyses(analyses: AnalysisDetail[], aliases: BrandAlias[] | undefined): AnalysisDetail[] {
   if (!aliases || aliases.length === 0) return analyses;
@@ -468,7 +484,8 @@ export interface BrandAppearanceRow {
 export function getBrandAppearanceRows(
   analyses: AnalysisDetail[],
   targetBrand: string,
-  brandDomain: string
+  brandDomain: string,
+  brandNames?: string[]
 ): BrandAppearanceRow[] {
   const targetKey = aliasKey(targetBrand);
   const rows: BrandAppearanceRow[] = [];
@@ -489,7 +506,7 @@ export function getBrandAppearanceRows(
         prompt: q.question,
         type,
         url,
-        phrase: target?.evidence?.[0],
+        phrase: verifiedEvidence(q, target, brandNames || [targetBrand])[0],
         model: modelLabel(q.multiModelAnalysis?.[0]),
       });
     });
@@ -497,12 +514,64 @@ export function getBrandAppearanceRows(
   return rows;
 }
 
+/** Limpia una frase de evidencia para mostrarla: quita enlaces markdown "([dominio](url))" y espacios repetidos. */
+export function cleanEvidencePhrase(e: string): string {
+  return (e || '').replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, '').replace(/\s+/g, ' ').trim();
+}
+
+const normEvidenceText = (s: string) =>
+  (s || '').toLowerCase().replace(/[‘’“”"']/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Evidencias de la mención verificadas contra la respuesta de la pregunta.
+ * Algunos análisis históricos guardaron en cada pregunta las evidencias de TODO el
+ * análisis (repetidas por modelo), así que una frase solo se acepta si (a) aparece
+ * literalmente en las respuestas de esta pregunta y (b) nombra a la marca. Si ninguna
+ * evidencia guardada cumple ambas, se extraen de la propia respuesta las frases que
+ * nombran la marca (la respuesta conserva el contexto, p.ej. "**Marca**: …", que la
+ * evidencia guardada a veces pierde). `brandNames` admite las variantes del glosario
+ * (submarcas) además del nombre canónico.
+ */
+export function verifiedEvidence(q: QuestionAnalysis, target: BrandMention | undefined, brandNames: string[]): string[] {
+  if (!target) return [];
+  const names = Array.from(new Set([target.brand, ...brandNames].filter(Boolean).map(n => n.toLowerCase())));
+  const namesBrand = (s: string) => { const l = s.toLowerCase(); return names.some(n => l.includes(n)); };
+
+  const responseRaw = (q.multiModelAnalysis || []).map(m => m.response || '').join('\n');
+  const responseText = normEvidenceText(responseRaw);
+
+  // La marca se busca en la frase ORIGINAL (un enlace "([marca.es](…))" también la nombra);
+  // la versión limpia es solo para mostrar y para cotejar contra la respuesta.
+  const seen = new Set<string>();
+  const pairs: { raw: string; clean: string }[] = [];
+  (target.evidence || []).forEach(raw => {
+    const c = cleanEvidencePhrase(raw);
+    if (c.length > 10 && !seen.has(c)) { seen.add(c); pairs.push({ raw, clean: c }); }
+  });
+  const verified = pairs
+    .filter(p => namesBrand(p.raw) && (!responseText || responseText.includes(normEvidenceText(p.clean).slice(0, 80))))
+    .map(p => p.clean);
+  if (verified.length > 0) return verified;
+
+  // Fallback: frases de la respuesta que nombran la marca (sin URLs ni markdown, que ensucian el corte).
+  if (responseRaw) {
+    const stripped = responseRaw
+      .replace(/\(\[[^\]]*\]\([^)]*\)\)/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\*\*/g, '');
+    const sentences = (stripped.match(/[^.!?\n]+[.!?]?/g) || []).map(s => s.trim()).filter(s => s.length > 10);
+    return Array.from(new Set(sentences.filter(namesBrand))).slice(0, 3);
+  }
+  return [];
+}
+
 /** Clasifica la aparición de la marca objetivo en una pregunta (incluye 'no_aparece'). */
 export function classifyQuestionForBrand(
   q: QuestionAnalysis,
   targetBrand: string,
-  brandDomain: string
-): { type: AppearanceType; position: number | null } {
+  brandDomain: string,
+  brandNames?: string[]
+): { type: AppearanceType; position: number | null; urls: string[]; evidence: string[] } {
   const targetKey = aliasKey(targetBrand);
   const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
   const brandSources = (q.sources || []).filter(s => sourceBelongsToBrand(s, brandDomain));
@@ -511,12 +580,20 @@ export function classifyQuestionForBrand(
   if (blogSource) type = 'citacion_blog';
   else if (brandSources.length > 0) type = 'citacion_com';
   else if (target) type = 'mencion';
-  return { type, position: target?.appearanceOrder || null };
+  // Blog primero para que la URL más relevante encabece el desglose.
+  const ordered = blogSource ? [blogSource, ...brandSources.filter(s => s !== blogSource)] : brandSources;
+  const urls = Array.from(new Set(ordered.map(s => s.url).filter(Boolean)));
+  return { type, position: target?.appearanceOrder || null, urls, evidence: verifiedEvidence(q, target, brandNames || [targetBrand]) };
 }
 
 // === Matriz de GAPS (prompt × fecha) ===
 
-export interface GapCell { type: AppearanceType; position: number | null; }
+export interface GapCell {
+  type: AppearanceType;
+  position: number | null;
+  urls?: string[];      // URLs del dominio de marca citadas como fuente
+  evidence?: string[];  // frases donde la IA menciona la marca
+}
 export interface GapRow {
   promptKey: string;
   prompt: string;
@@ -533,7 +610,7 @@ export interface GapsMatrix {
 }
 
 /** Empareja prompts por texto normalizado y construye la matriz prompt × análisis. */
-export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string): GapsMatrix {
+export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[]): GapsMatrix {
   const sorted = sortByDate(analyses);
   const columns = sorted.map(a => ({ id: a.id, label: dateLabel(a.timestamp), date: a.timestamp }));
   const targetKey = aliasKey(targetBrand);
@@ -549,8 +626,8 @@ export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string,
         order.push(key);
       }
       const row = rowMap.get(key)!;
-      const cls = classifyQuestionForBrand(q, targetBrand, brandDomain);
-      row.cells[a.id] = { type: cls.type, position: cls.position };
+      const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames);
+      row.cells[a.id] = { type: cls.type, position: cls.position, urls: cls.urls, evidence: cls.evidence };
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned || aliasKey(bm.brand) === targetKey) return;
         if (!row.competitors.includes(bm.brand)) row.competitors.push(bm.brand);
@@ -581,25 +658,31 @@ export interface CompetitiveRow {
   position: number | null;     // posición de la marca
   isFirst: boolean;            // la marca ocupa el nº1
   competitors: CompetitorPos[]; // competidores presentes, ordenados por posición
+  urls: string[];              // URLs del dominio de marca citadas como fuente
+  evidence: string[];          // frases donde la IA menciona la marca
 }
 
 /** Sobre un análisis concreto: posición de la marca y competidores por prompt. */
 export function buildCompetitiveView(
   analysis: AnalysisDetail | null | undefined,
   targetBrand: string,
-  brandDomain: string
+  brandDomain: string,
+  brandNames?: string[]
 ): { rows: CompetitiveRow[]; competitors: string[] } {
   if (!analysis) return { rows: [], competitors: [] };
   const targetKey = aliasKey(targetBrand);
   const allComp = new Set<string>();
   const rows: CompetitiveRow[] = (analysis.results?.questions || []).map(q => {
-    const cls = classifyQuestionForBrand(q, targetBrand, brandDomain);
+    const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames);
     const competitors = (q.brandMentions || [])
       .filter(bm => bm.mentioned && aliasKey(bm.brand) !== targetKey)
       .map(bm => ({ brand: bm.brand, position: bm.appearanceOrder || null }))
       .sort((a, b) => (a.position || 999) - (b.position || 999));
     competitors.forEach(c => allComp.add(c.brand));
-    return { prompt: q.question, category: q.category, type: cls.type, position: cls.position, isFirst: cls.position === 1, competitors };
+    return {
+      prompt: q.question, category: q.category, type: cls.type, position: cls.position,
+      isFirst: cls.position === 1, competitors, urls: cls.urls, evidence: cls.evidence,
+    };
   });
   // Peores primero: no aparece, luego peor posición
   const worseness = (r: CompetitiveRow) => (r.type === 'no_aparece' ? 9999 : (r.position || 999));

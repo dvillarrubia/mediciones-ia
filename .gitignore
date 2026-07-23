@@ -72,7 +72,13 @@ api/data/configurations/config_*.json
 pipeline/venv/
 pipeline/service-account.json
 pipeline/test_bq_connection.py
-conexion_bq/*.json
+conexion_bq/
+
+# Datos locales de runtime (BD, exports, configs de usuario)
+data/
+
+# Claude Code runtime
+.claude/scheduled_tasks.lock
 
 # Documento de infraestructura/accesos (sensible)
 docs/INFRAESTRUCTURA_VPS.md

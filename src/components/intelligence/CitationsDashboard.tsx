@@ -9,7 +9,7 @@ import {
   AnalysisDetail, COLORS, PERSONA_LABELS, PERSONA_COLORS,
   personasInQuestion, isRealDomain, isWebUrl, dateLabel, sortByDate,
   getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType,
-  buildCitationGaps
+  buildCitationGaps, BrandAlias, brandNameVariants
 } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -20,12 +20,13 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandAliases?: BrandAlias[];
 }
 
 interface UrlRank { url: string; domain: string; count: number; }
 interface DomainRank { domain: string; count: number; percentage: number; }
 
-const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
+const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AppearanceType>('all');
   const [page, setPage] = useState(1);
@@ -41,8 +42,8 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain })
   const brandRows = useMemo(() => {
     if (!scoped || scoped.length === 0) return [];
     const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
-    return getBrandAppearanceRows(scoped, target, brandDomain || '');
-  }, [scoped, brandDomain]);
+    return getBrandAppearanceRows(scoped, target, brandDomain || '', brandNameVariants(target, brandAliases));
+  }, [scoped, brandDomain, brandAliases]);
 
   const brandCounts = useMemo(() => {
     const c: Record<AppearanceType, number> = { no_aparece: 0, mencion: 0, citacion_com: 0, citacion_blog: 0 };

@@ -1365,12 +1365,12 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
-            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
           )}
 
           {/* TAB: GAPS */}
           {activeTab === 'gaps' && (
-            <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+            <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
           )}
 
           {/* TAB 6: AI OVERVIEWS */}
