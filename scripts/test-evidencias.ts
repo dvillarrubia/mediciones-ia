@@ -12,7 +12,10 @@
 import OpenAIService from '../api/services/openaiService.js';
 
 /** verifyEvidence es privado: se accede por índice, que en TS es solo compile-time. */
-type ConVerify = { verifyEvidence(raw: unknown, responseText: string): string[] };
+type ConVerify = {
+  verifyEvidence(raw: unknown, responseText: string): string[];
+  buildEvidence(raw: unknown, responseText: string, brandName: string): string[];
+};
 const svc = new OpenAIService({ openrouter: 'no-se-usa' }) as unknown as ConVerify;
 
 const RESPUESTA = `Para aerotermia en un piso pequeño, **Saunier Duval** destaca con su gama
@@ -54,5 +57,36 @@ for (const c of casos) {
   console.log(`${bien ? '  ok ' : 'FALLO'}  ${c.nombre.padEnd(52)} -> ${r.length} (esperado ${c.esperado})`);
   if (!bien) console.log('        devolvió:', JSON.stringify(r));
 }
+// === buildEvidence: la red de seguridad ===
+// Escenario real: el modelo parafrasea SIEMPRE y no devuelve ni una cita
+// literal. Sin red nos quedaríamos sin evidencia; con ella, la frase se extrae
+// del propio texto y es literal por construcción.
+console.log('\n--- buildEvidence (con extracción determinista de respaldo) ---');
+
+const casosBuild: Array<{ nombre: string; entrada: unknown; marca: string; min: number; debeContener?: string }> = [
+  { nombre: 'el modelo parafrasea TODO -> se extrae del texto',
+    entrada: ['Daikin es vista como la marca mas fiable segun el analisis.'], marca: 'Daikin', min: 1, debeContener: 'Daikin' },
+  { nombre: 'el modelo no devuelve nada -> se extrae del texto',
+    entrada: [], marca: 'Vaillant', min: 1, debeContener: 'Vaillant' },
+  { nombre: 'cita literal válida -> se prefiere la del modelo',
+    entrada: ['Daikin es la referencia del mercado por fiabilidad y red de servicio técnico.'],
+    marca: 'Daikin', min: 1, debeContener: 'referencia del mercado' },
+  { nombre: 'marca con tilde/mayúsculas distintas -> igual la encuentra',
+    entrada: [], marca: 'SAUNIER DUVAL', min: 1, debeContener: 'Saunier Duval' },
+  { nombre: 'marca que NO está en el texto -> vacío, sin inventar',
+    entrada: ['Ferroli es una gran opción según el texto.'], marca: 'Ferroli', min: 0 },
+];
+
+for (const c of casosBuild) {
+  const r: string[] = svc.buildEvidence(c.entrada, RESPUESTA, c.marca);
+  const bienNum = c.min === 0 ? r.length === 0 : r.length >= c.min;
+  const bienCont = !c.debeContener || (r[0] || '').includes(c.debeContener);
+  const bien = bienNum && bienCont;
+  if (bien) ok++; else fail++;
+  console.log(`${bien ? '  ok ' : 'FALLO'}  ${c.nombre.padEnd(52)} -> ${r.length}`);
+  if (r[0]) console.log(`        "${r[0].slice(0, 74)}"`);
+  if (!bien) console.log('        devolvió:', JSON.stringify(r));
+}
+
 console.log(`\n${ok} correctos, ${fail} fallos`);
 process.exit(fail ? 1 : 0);

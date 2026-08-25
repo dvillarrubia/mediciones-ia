@@ -76,25 +76,36 @@ Commit `fix(evidence)`, 25/08/2026.
    markdown ni URLs), porque el modelo recorta las frases por sitios distintos.
 
 Validado con `npm run test:evidencias`, que ejercita el código real sin llamar a
-ninguna API: 10 casos, 10 correctos. Acepta citas literales (incluso cuando el
-original lleva markdown), y **rechaza paráfrasis, invenciones y fragmentos
-demasiado cortos**; deduplica y corta en 3 por marca.
+ninguna API: **15 casos, 15 correctos**. Acepta citas literales (incluso cuando el
+original lleva markdown), **rechaza paráfrasis, invenciones y fragmentos
+demasiado cortos**, deduplica, corta en 3 por marca, y cubre el escenario en que
+el modelo parafrasea TODO: ahí entra la red y la evidencia sale igualmente.
 
 **Efecto colateral útil:** el detalle del dashboard de sentimiento usa
 `bm.evidence?.[0]` como respaldo del motivo (ficha 01, punto 2.a), así que esa
 columna deja de estar vacía por el mismo cambio.
 
-### Pendiente de confirmar en producción
+3. **Red de seguridad determinista.** Si la cita del modelo no verifica, se
+   extrae del propio texto la frase que nombra la marca
+   (`extractSentencesWithBrand`). Es literal por construcción: no depende de que
+   el modelo copie bien.
 
-El verificador está probado; lo que **no** se ha podido comprobar es con qué
-frecuencia el modelo devuelve una cita verdaderamente literal, porque hacía falta
-una llamada real y la API key se rotó. Si el modelo parafrasea a menudo, el
-verificador hará su trabajo —rechazarlas— y seguiremos con evidencias vacías,
-solo que sin inventos.
+   Esto responde a una objeción con fundamento: un LLM tiende a parafrasear
+   aunque se le pida lo contrario, así que un verificador estricto sin red se
+   quedaría rechazando todo y seguiríamos con evidencias vacías. El orden es
+   `cita del modelo verificada` → `extracción determinista` → `vacío`, de modo
+   que nunca se guarda una invención y rara vez no se guarda nada.
 
-**Cómo medirlo tras el despliegue:** contar menciones con `evidence` no vacío
-sobre el total. Si sube claramente del 4,6% actual (34 de 740), el prompt
-funciona. Si no, hay que ajustar la instrucción, no el verificador.
+### Qué queda por medir en producción
+
+Ya no es "si habrá evidencias" —la red lo garantiza siempre que la marca aparezca
+en el texto— sino **cuántas vienen del modelo y cuántas del respaldo**. La del
+modelo suele ser la frase más informativa; la extraída es la primera que nombra
+la marca, que a veces es un ítem de lista.
+
+Métrica tras el despliegue: menciones con `evidence` no vacío sobre el total.
+Hoy es el 4,6% (34 de 740); debería acercarse al porcentaje de menciones cuya
+marca aparece literalmente en el texto.
 
 ### Análisis antiguos
 

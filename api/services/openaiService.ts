@@ -2824,7 +2824,7 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
       frequency: analysisJson.targetBrand.mentioned ? 1 : 0,
       context: this.mapSentimentToContext(analysisJson.targetBrand.sentiment),
       // Solo las frases que existen en la respuesta: ver verifyEvidence().
-      evidence: this.verifyEvidence(analysisJson.targetBrand.evidence, naturalResponse),
+      evidence: this.buildEvidence(analysisJson.targetBrand.evidence, naturalResponse, analysisJson.targetBrand.name || targetBrand),
       appearanceOrder: analysisJson.targetBrand.position || 0,
       isDiscovered: false,
       detailedSentiment: analysisJson.targetBrand.sentiment || 'neutral'
@@ -2842,7 +2842,7 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
         mentioned: brand.mentioned || true,
         frequency: 1,
         context: this.mapSentimentToContext(brand.sentiment),
-        evidence: this.verifyEvidence(brand.evidence, naturalResponse),
+        evidence: this.buildEvidence(brand.evidence, naturalResponse, brand.name),
         appearanceOrder: brand.position || 0,
         isDiscovered: !isConfiguredCompetitor,
         detailedSentiment: brand.sentiment || 'neutral'
@@ -3404,6 +3404,58 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
       if (out.length >= 3) break;
     }
     return out;
+  }
+
+  /**
+   * Extrae del texto las frases que nombran la marca. Determinista: no depende
+   * de que el modelo copie bien.
+   *
+   * Es la red de seguridad de buildEvidence(). Un LLM no siempre devuelve una
+   * cita literal —tiende a parafrasear aunque se le pida lo contrario— y si el
+   * verificador rechaza su cita nos quedaríamos sin evidencia. Esta frase sale
+   * del propio texto, así que es literal por construcción.
+   */
+  private extractSentencesWithBrand(responseText: string, brandName: string): string[] {
+    const marca = (brandName || '').trim();
+    if (!responseText || marca.length < 2) return [];
+
+    const limpio = responseText
+      .replace(/\(\[[^\]]*\]\([^)]*\)\)/g, ' ')  // enlaces markdown entre paréntesis
+      .replace(/https?:\/\/\S+/g, ' ')
+      .replace(/\*\*/g, '');
+
+    const sinTildes = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const marcaNorm = sinTildes(marca);
+
+    const frases = (limpio.match(/[^.!?\n]+[.!?]?/g) || [])
+      .map(f => f.replace(/\s+/g, ' ').trim())
+      .filter(f => f.length >= 15 && f.length <= 400);
+
+    const vistas = new Set<string>();
+    const out: string[] = [];
+    for (const f of frases) {
+      if (!sinTildes(f).includes(marcaNorm)) continue;
+      const clave = sinTildes(f);
+      if (vistas.has(clave)) continue;
+      vistas.add(clave);
+      out.push(f);
+      if (out.length >= 2) break;
+    }
+    return out;
+  }
+
+  /**
+   * Evidencia final que se guarda para una marca.
+   *
+   * Prefiere la cita que eligió el modelo —suele ser la frase más informativa—
+   * pero solo si es literal de verdad (verifyEvidence). Si no lo es, cae a la
+   * extracción determinista. El orden importa: nunca se guarda algo que el
+   * modelo se haya inventado, y rara vez se guarda nada.
+   */
+  private buildEvidence(raw: unknown, responseText: string, brandName: string): string[] {
+    const verificadas = this.verifyEvidence(raw, responseText);
+    if (verificadas.length > 0) return verificadas;
+    return this.extractSentencesWithBrand(responseText, brandName);
   }
 
   private cleanJSONResponse(response: string): string {
