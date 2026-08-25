@@ -1,257 +1,209 @@
 # Configuración de Modelos de IA
 
-## Resumen
+> Runbook para cambiar un modelo cuando el proveedor lo deprecia, sube el precio
+> o sale uno mejor. Última revisión: agosto 2026.
 
-El sistema ahora está optimizado para funcionar perfectamente **solo con ChatGPT (OpenAI)** sin requerir APIs de Claude o Gemini.
+## Definición de hecho
 
-## 🎯 Optimización de Costos - Estrategia de Dos Modelos
-
-El sistema utiliza una **estrategia inteligente de dos modelos** para balancear **calidad y costo**:
-
-### Modelo de Generación (Calidad)
-- **Modelo:** `gpt-4o` (GPT-4 Optimized)
-- **Uso:** Generar las respuestas simuladas de IA
-- **Por qué:** Necesitamos respuestas de alta calidad que simulen cómo respondería cada modelo de IA
-
-### Modelo de Análisis (Económico)
-- **Modelo:** `gpt-4o-mini` (GPT-4 Mini)
-- **Uso:** Analizar las menciones de marca en las respuestas generadas
-- **Por qué:** El análisis de menciones es más mecánico y no requiere el modelo más potente
-
-### Ahorro de Costos
-```
-Análisis de 10 preguntas con análisis multi-modelo (3 modelos: ChatGPT, Claude, Gemini):
-
-ANTES (todo con gpt-4o):
-- Generación: 10 preguntas × 3 modelos × gpt-4o = 30 llamadas costosas
-- Análisis: 10 preguntas × 3 modelos × gpt-4o = 30 llamadas costosas
-- TOTAL: 60 llamadas con gpt-4o 💰💰💰
-
-AHORA (estrategia mixta):
-- Generación: 10 preguntas × 3 modelos × gpt-4o = 30 llamadas costosas
-- Análisis: 10 preguntas × 3 modelos × gpt-4o-mini = 30 llamadas baratas
-- TOTAL: 30 llamadas con gpt-4o + 30 con gpt-4o-mini 💰💰 (50% ahorro en análisis)
-```
-
-## Comportamiento Actualizado
-
-### ✅ Análisis Estándar (Recomendado)
-
-**Cuando usar:** La mayoría de casos
-
-**Configuración necesaria:**
-- Solo API Key de OpenAI
-
-**Comportamiento:**
-- Usa únicamente ChatGPT para generar respuestas
-- Analiza menciones de marca
-- Genera informes completos
-- **No requiere configuración adicional**
-
-**Ejemplo de configuración:**
-```json
-{
-  "questions": [...],
-  "targetBrand": "Mi Marca",
-  "competitorBrands": [...]
-  // No especificar aiModels - usará ChatGPT por defecto
-}
-```
-
-### 🔄 Análisis Multi-Modelo (Opcional)
-
-**Cuando usar:** Solo si quieres comparar cómo responden diferentes modelos de IA
-
-**Configuración necesaria:**
-- API Keys de los modelos que quieras usar
-
-**Comportamiento actualizado:**
-- Si NO especificas `aiModels`: Usa solo ChatGPT ✅
-- Si especificas `aiModels: ['chatgpt']`: Usa solo ChatGPT ✅
-- Si especificas `aiModels: ['chatgpt', 'claude', 'gemini']`: Intenta usar todos ⚠️
-
-**Ejemplo de configuración:**
-```json
-{
-  "questions": [...],
-  "targetBrand": "Mi Marca",
-  "competitorBrands": [...],
-  "aiModels": ["chatgpt", "claude", "gemini"]  // Solo si tienes las 3 APIs
-}
-```
-
-## Manejo Robusto de Errores
-
-### ¿Qué pasa si un modelo no está configurado?
-
-**ANTES (Problemático):**
-```
-aiModels: ['chatgpt', 'claude', 'gemini']
-→ Intenta usar Claude sin API → ERROR ❌
-→ Intenta usar Gemini sin API → ERROR ❌
-→ Análisis completo falla ❌
-```
-
-**AHORA (Robusto):**
-```
-aiModels: ['chatgpt', 'claude', 'gemini']
-→ ✅ ChatGPT: Éxito
-→ ⚠️ Claude: Falla pero continúa
-→ ⚠️ Gemini: Falla pero continúa
-→ ✅ Usa resultado de ChatGPT
-→ ✅ Análisis completo exitoso con 1 modelo
-```
-
-### Logs Informativos
-
-El sistema ahora muestra logs claros:
-```
-🤖 [pregunta_1] Analizando con modelos: chatgpt, claude, gemini
-🔄 [pregunta_1] Intentando análisis con chatgpt...
-✅ [pregunta_1] Análisis completado con chatgpt
-🔄 [pregunta_1] Intentando análisis con claude...
-🔴 [pregunta_1] Error con modelo claude: API not configured
-⚠️ [pregunta_1] Modelo claude omitido, continuando con otros modelos...
-🔄 [pregunta_1] Intentando análisis con gemini...
-🔴 [pregunta_1] Error con modelo gemini: API not configured
-⚠️ [pregunta_1] Modelo gemini omitido, continuando con otros modelos...
-✅ [pregunta_1] 1 de 3 modelos completados exitosamente
-⚠️ [pregunta_1] Modelos que fallaron: claude, gemini
-```
-
-## Cambios Implementados
-
-### 1. Default Solo ChatGPT
-```typescript
-// ANTES
-const aiModels = configuration.aiModels || ['chatgpt', 'claude', 'gemini'];
-
-// AHORA
-const aiModels = configuration.aiModels || ['chatgpt'];
-```
-
-### 2. Manejo Graceful de Errores
-```typescript
-for (const modelPersona of aiModels) {
-  try {
-    const modelAnalysis = await this.analyzeWithAIPersona(...);
-    multiModelResults.push(modelAnalysis);
-    console.log(`✅ Análisis completado con ${modelPersona}`);
-  } catch (error) {
-    // NO falla todo el análisis
-    console.error(`🔴 Error con modelo ${modelPersona}:`, error);
-    failedModels.push(modelPersona);
-    console.log(`⚠️ Modelo ${modelPersona} omitido, continuando...`);
-  }
-}
-```
-
-### 3. Validación de Resultados
-```typescript
-if (multiModelResults.length === 0) {
-  console.warn(`⚠️ No se pudo completar el análisis con ningún modelo`);
-  return this.createErrorAnalysis(questionData);
-}
-
-console.log(`📊 Consolidando resultados de ${multiModelResults.length} modelo(s)`);
-```
-
-## Recomendaciones
-
-### Para Uso Normal
-1. **No especificar `aiModels`** en tu configuración
-2. Solo proporcionar API Key de OpenAI
-3. El sistema usará ChatGPT automáticamente
-4. Obtendrás todos los informes completos
-
-### Para Análisis Multi-Modelo
-1. Solo configurar si tienes múltiples APIs
-2. Solo incluir en `aiModels` los que tengas configurados
-3. El sistema omitirá los que fallen
-4. Mínimo 1 modelo debe funcionar
-
-## Configuración de API Keys
-
-### Solo OpenAI (Recomendado para empezar)
-```typescript
-// En tu configuración local o .env
-OPENAI_API_KEY=sk-...
-```
-
-### Múltiples Modelos (Opcional)
-```typescript
-// Si quieres usar más modelos en el futuro
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...  // Para Claude
-GOOGLE_API_KEY=...             // Para Gemini
-```
-
-## Flujo de Decisión del Sistema
-
-```
-Usuario ejecuta análisis
-    ↓
-¿Tiene aiModels configurado?
-    ↓ NO
-    → Usa ChatGPT → ✅ Éxito
-    ↓ SÍ
-    ¿aiModels.length > 1?
-        ↓ NO
-        → Análisis estándar → ✅ Éxito
-        ↓ SÍ
-        → Análisis multi-modelo
-            → Intenta cada modelo
-            → Omite los que fallan
-            → ¿Al menos 1 exitoso?
-                ↓ SÍ
-                → ✅ Usa resultado(s) disponible(s)
-                ↓ NO
-                → ❌ Retorna análisis de error
-```
-
-## Preguntas Frecuentes
-
-### ¿Necesito configurar Claude y Gemini?
-**No.** El sistema funciona perfectamente solo con ChatGPT.
-
-### ¿Qué pasa si intento usar Claude sin API?
-El sistema lo omite gracefully y continúa con los modelos disponibles.
-
-### ¿Puedo agregar más modelos después?
-Sí, solo configura las API keys y agrégalos a `aiModels`.
-
-### ¿Cómo sé qué modelos se usaron?
-Los logs de consola y los metadatos del análisis lo indican claramente.
-
-## Logs del Sistema
-
-Al ejecutar un análisis, verás logs claros que indican qué modelo se usa en cada paso:
-
-```
-✅ OpenAI client initialized successfully
-⚙️ Configuración: Concurrencia=15, Cache=true
-🤖 Modelos configurados:
-   - Generación de respuestas: gpt-4o (calidad)
-   - Análisis de menciones: gpt-4o-mini (económico)
-
-🚀 [q1] Paso 1: Generando respuesta con gpt-4o...
-📨 [q1] Respuesta generativa recibida en 2345ms (1523 caracteres)
-🔍 [q1] Paso 2: Analizando menciones con gpt-4o-mini...
-📊 [q1] Análisis de menciones completado (856 caracteres)
-✅ [q1] Análisis de respuesta generativa completado exitosamente
-```
-
-## Personalización Avanzada (Futuro)
-
-Si en el futuro quisieras personalizar los modelos, podrías modificar las constantes en `openaiService.ts`:
-
-```typescript
-// En api/services/openaiService.ts
-private readonly GENERATION_MODEL = "gpt-4o"; // Cambiar a gpt-4-turbo, gpt-4, etc.
-private readonly ANALYSIS_MODEL = "gpt-4o-mini"; // Cambiar a gpt-3.5-turbo, etc.
-```
+Has terminado cuando `npm run modelos:check` pasa en verde, `npm run check` no
+da errores y un análisis real devuelve respuestas con fuentes.
 
 ---
 
-**Última actualización:** 2025-01-26
-**Versión:** 2.1 - Estrategia de dos modelos para optimización de costos
+## 1. Regla de oro: un solo proveedor
+
+**Todo pasa por OpenRouter.** No hay integraciones directas con OpenAI,
+Anthropic ni Google. Una sola API key da acceso a GPT, Claude, Gemini y
+Perplexity.
+
+Esto no es una preferencia estética, es la lección de un incidente: en agosto de
+2026 OpenAI deprecó `gpt-4o-search-preview` y `gpt-4o-mini-search-preview`, los
+únicos modelos que soportaban `web_search_options` en `chat/completions`. Todos
+los análisis empezaron a devolver 404. No se pudo arreglar cambiando el id
+porque el parámetro en sí desapareció: OpenAI movió la búsqueda web a la
+Responses API. Mantener una integración por proveedor significa heredar la
+política de deprecación de cada uno.
+
+**Si añades un proveedor directo, asumes su calendario de deprecaciones.** No lo
+hagas salvo que OpenRouter no sirva lo que necesitas.
+
+---
+
+## 2. Arquitectura: dos fases, dos modelos
+
+Cada pregunta analizada consume **dos** llamadas:
+
+| Fase | Qué hace | Necesita web | Constante | Modelo actual |
+|------|----------|--------------|-----------|---------------|
+| 1 · Generación | Pregunta al asistente como lo haría un usuario | **Sí** | `GENERATION_MODEL` | `openai/gpt-5-mini:online` |
+| 2 · Extracción | Saca menciones de marca de esa respuesta (JSON) | No | `ANALYSIS_MODEL` | `openai/gpt-4o-mini` |
+
+La fase 1 es la que mide: su modelo **es** el dato del informe. La fase 2 es
+mecánica y solo necesita ser barata y fiable extrayendo JSON.
+
+Ambas van **siempre por el mismo proveedor** (`getPersonaProviderConfig`), para
+que un análisis no mezcle proveedores a mitad.
+
+### Cómo se activa la búsqueda web
+
+Dos mecanismos, y la diferencia importa para el coste:
+
+- **Sufijo `:online`** (`openai/gpt-5-mini:online`) — OpenRouter añade búsqueda a
+  un modelo que no la trae. Se factura aparte.
+- **Búsqueda nativa** (`perplexity/sonar`) — el modelo busca por sí mismo. No
+  lleva sufijo.
+
+`buildAdHocOpenRouterModel` asume que hay búsqueda si el id acaba en `:online` o
+es un Perplexity Sonar. **Si añades un modelo con búsqueda nativa que no sea
+Sonar, marca `supportsWebSearch: true` a mano** o el sistema creerá que no busca.
+
+---
+
+## 3. El coste lo domina la búsqueda, no los tokens
+
+Este es el error de intuición más caro. Con ~400 tokens de entrada y ~700 de
+salida por pregunta:
+
+| Modelo | Tokens | Búsqueda | Total/pregunta | 1.000 preguntas |
+|---|---|---|---|---|
+| `gpt-4o-search-preview` *(muerto)* | $0.0080 | **$0.030** | $0.0380 | $38.00 |
+| `perplexity/sonar` | $0.0011 | $0.005 | **$0.0061** | $6.10 |
+| `openai/gpt-5-mini:online` | $0.0015 | $0.010 | $0.0115 | $11.50 |
+| `anthropic/claude-haiku-4.5:online` | $0.0039 | $0.010 | $0.0139 | $13.90 |
+| `google/gemini-3.1-flash-lite:online` | $0.0012 | $0.014 | $0.0152 | $15.20 |
+
+La búsqueda es entre el 65% y el 90% del coste. **Comparar solo $/M de tokens te
+llevará a elegir mal.**
+
+---
+
+## 4. Procedimiento: cambiar un modelo
+
+### Paso 1 — Comprobar qué está roto
+
+```bash
+npm run modelos:check
+```
+
+Verifica contra la API en vivo de OpenRouter que cada modelo configurado existe,
+que no tiene fecha de expiración anunciada y que el precio que mostramos es el
+real. Sale con código 1 si algo rompe los análisis.
+
+### Paso 2 — Elegir el sustituto
+
+Consulta el catálogo real, nunca de memoria:
+
+```bash
+curl -s https://openrouter.ai/api/v1/models | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+for m in sorted(d, key=lambda x: float(x['pricing']['prompt'])):
+    if m['id'].startswith('openai/'):
+        p=m['pricing']
+        w=p.get('web_search','-')
+        print(f\"{m['id']:<38} in \${float(p['prompt'])*1e6:<8g} out \${float(p['completion'])*1e6:<8g} busq {w}\")
+"
+```
+
+**Criterio de sustitución, en este orden:**
+
+1. **Misma familia.** Si medías ChatGPT, sustituye por otro `openai/*`. Cambiar a
+   Perplexity porque es más barato cambia *qué* mide el informe: pasarías a medir
+   visibilidad en Perplexity y el cliente seguiría leyendo "ChatGPT". Si aun así
+   lo cambias, dilo en el informe.
+2. **Con búsqueda.** Sufijo `:online` o búsqueda nativa. Sin eso, el modelo se
+   inventa las fuentes.
+3. **Coste total**, incluyendo búsqueda (ver tabla arriba).
+
+### Paso 3 — Editar
+
+Un cambio de modelo toca **dos sitios como mucho**:
+
+| Qué cambias | Fichero | Línea |
+|---|---|---|
+| Modelo por defecto | `api/config/constants.ts` | `DEFAULT_MODEL` |
+| Modelo de generación | `api/services/openaiService.ts` | `GENERATION_MODEL` |
+| Modelo de extracción | `api/services/openaiService.ts` | `ANALYSIS_MODEL` |
+| Lista del desplegable | `api/config/constants.ts` | `OPENROUTER_MODELS` |
+
+Si añades a `OPENROUTER_MODELS`, incluye el coste de búsqueda en `pricing`
+(formato `'$0.25/M in · $2/M out · $0.01/búsqueda'`): es lo que domina la
+factura y el verificador comprueba los tres números.
+
+> **Nunca cablees un id de modelo fuera de estos sitios.** El incidente de
+> agosto de 2026 se agravó porque `gpt-4o-search-preview` estaba repetido en 15
+> puntos como *fallback*, así que fallaba pasara lo que pasara en la UI. Usa
+> `DEFAULT_MODEL` importado desde `constants.ts`.
+
+### Paso 4 — Retirar el viejo
+
+Si el modelo viejo está **deprecado** (no solo desfasado), añádelo a
+`DEPRECATED_MODEL_IDS` en `api/services/adminService.ts`.
+
+Esto importa: la tabla `ai_models` **persiste entre despliegues**. Sin ese
+registro, una instalación existente seguiría ofreciendo el modelo muerto en el
+desplegable aunque lo hayas quitado del código. La purga corre en cada arranque
+del servidor (`api/server.ts` → `adminService.fullModelSync()`).
+
+### Paso 5 — Verificar
+
+```bash
+npm run modelos:check   # el modelo existe y el precio es correcto
+npm run check           # TypeScript compila
+npm run dev             # y en el log: "Limpieza de modelos: N eliminados"
+```
+
+Y lanza **un análisis real de una pregunta**. Es la única prueba de que el
+modelo responde y devuelve fuentes: los pasos anteriores solo demuestran que el
+id existe en un catálogo.
+
+---
+
+## 5. Qué hacer cuando un análisis falla
+
+| Síntoma | Causa | Acción |
+|---|---|---|
+| `404 The model X has been deprecated` | El proveedor retiró el modelo | Paso 1 en adelante |
+| `402` sin créditos | Saldo de OpenRouter agotado | Recargar en openrouter.ai/credits |
+| `No hay API key de OpenRouter configurada` | Falta la key del usuario | Configuración > API Keys |
+| Respuestas sin fuentes | Modelo sin búsqueda web | Usar sufijo `:online` o Sonar |
+| `El modelo X usa la integración directa de OpenAI` | Proyecto guardado con un modelo antiguo | Cambiar el modelo del proyecto |
+
+El último caso es deliberado: cuando un proyecto guardado apunta a un modelo
+directo ya retirado, el sistema **avisa y usa el defecto**, en vez de sustituirlo
+en silencio. Un cambio callado de modelo falsearía el informe, que dice medir un
+asistente concreto.
+
+---
+
+## 6. Estado actual (agosto 2026)
+
+Verificado con `npm run modelos:check` contra la API de OpenRouter:
+
+- **10 modelos curados**, todos vivos, sin fecha de expiración anunciada.
+- **Defecto:** `openai/gpt-5-mini:online` ($0.0115/pregunta).
+- **Extracción:** `openai/gpt-4o-mini` — **no está deprecado**, sigue servido por
+  OpenRouter. Es el más antiguo del stack (julio 2024). Alternativa más barata:
+  `openai/gpt-5-nano` ($0.05/$0.40 frente a $0.15/$0.60), pero **cambiarlo altera
+  la precisión de la detección de marcas**: mide antes de cambiarlo, comparando
+  las menciones extraídas sobre un mismo conjunto de respuestas.
+- **Sin integraciones directas.** `AI_MODELS` está vacío a propósito.
+
+---
+
+## 7. Mantenimiento preventivo
+
+Ejecuta `npm run modelos:check` **antes de cada release** y cuando un cliente
+reporte análisis raros. Tarda 5 segundos y detecta el problema antes que el
+cliente.
+
+Para automatizarlo en CI, usa `--json` y el código de salida:
+
+```yaml
+- name: Verificar modelos
+  run: npm run modelos:check -- --json
+```
+
+Los proveedores anuncian deprecaciones con meses de antelación, pero el aviso
+llega por email a la cuenta que creó la key, no al equipo. Este chequeo no
+depende de que alguien lea ese correo.

@@ -13,7 +13,8 @@
     "check": "tsc --noEmit",
     "server:dev": "nodemon",
     "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
-    "release": "bash tools/release.sh"
+    "release": "bash tools/release.sh",
+    "modelos:check": "node scripts/verificar-modelos.mjs"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",

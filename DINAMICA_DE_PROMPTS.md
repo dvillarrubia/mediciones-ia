@@ -1,5 +1,12 @@
 # Dinamica de Prompts - Mediciones IA
 
+> **Actualizado ago 2026.** Los modelos directos de OpenAI se retiraron: todo
+> pasa por OpenRouter. La búsqueda web ya no usa `web_search_options` (parámetro
+> exclusivo de los modelos `*-search-preview`, deprecados por OpenAI), sino el
+> sufijo `:online` de OpenRouter. Para cambiar de modelo, ver
+> [CONFIGURACION_MODELOS_IA.md](CONFIGURACION_MODELOS_IA.md).
+
+
 Documentacion tecnica sobre todos los prompts del sistema, donde se encuentran y como modificarlos.
 
 **Archivo principal:** `api/services/openaiService.ts`
@@ -10,7 +17,7 @@ Documentacion tecnica sobre todos los prompts del sistema, donde se encuentran y
 
 | # | Nombre | Lineas | Metodo | Modelo |
 |---|--------|--------|--------|--------|
-| 1 | Busqueda web (multi-modelo) | ~2306-2310 | `analyzeWithAIPersona()` | gpt-4o-search-preview |
+| 1 | Busqueda web (multi-modelo) | ~2306-2310 | `analyzeWithAIPersona()` | openai/gpt-5-mini:online |
 | 2 | Analisis de marcas (multi-modelo) | ~2335-2367 | `analyzeWithAIPersona()` | gpt-4o-mini |
 | 3 | Busqueda web (estandar) | ~537-553 | `generateWithOpenAI()` | Dinamico (search) |
 | 4 | Analisis generativo de marcas | ~899-953 | `buildGenerativeAnalysisPrompt()` | gpt-4o-mini |
@@ -22,7 +29,7 @@ Documentacion tecnica sobre todos los prompts del sistema, donde se encuentran y
 ## Prompt 1: Busqueda web (multi-modelo)
 
 **Ubicacion:** `api/services/openaiService.ts` → metodo `analyzeWithAIPersona()` (~linea 2306)
-**Modelo:** `gpt-4o-search-preview` (con `web_search_options`)
+**Modelo:** `openai/gpt-5-mini:online` (búsqueda vía OpenRouter, sufijo `:online`)
 **Cuando se usa:** Analisis multi-modelo (flujo principal cuando el usuario lanza un analisis)
 
 ### System prompt
@@ -51,7 +58,7 @@ Responde de forma completa y útil, enfocándote en ${countryName}.
 
 ```typescript
 {
-  model: "gpt-4o-search-preview",
+  model: "openai/gpt-5-mini:online",
   messages: [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: cleanPrompt }
@@ -154,7 +161,7 @@ ${question}
 
 ```typescript
 {
-  model: modelId,  // ej: "gpt-4o-search-preview"
+  model: modelId,  // ej: "openai/gpt-5-mini:online"
   messages: [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: question }
@@ -301,7 +308,7 @@ openaiService.executeMultiModelAnalysis()
   analyzeQuestionWithMultipleModels()
     ↓
   analyzeWithAIPersona()
-    ├── PROMPT 1: Busqueda web (gpt-4o-search-preview)
+    ├── PROMPT 1: Busqueda web (openai/gpt-5-mini:online)
     │   → Obtiene texto natural + fuentes web
     ↓
     └── PROMPT 2: Analisis de marcas (gpt-4o-mini)
@@ -371,7 +378,7 @@ Frontend (Analysis.tsx)
 ## Modelos configurados
 
 ```typescript
-GENERATION_MODEL = "gpt-4o-search-preview"  // Busqueda web (Prompt 1 y 3)
+GENERATION_MODEL = "openai/gpt-5-mini:online"  // Busqueda web (Prompt 1 y 3)
 ANALYSIS_MODEL = "gpt-4o-mini"              // Analisis de marcas (Prompt 2 y 4)
 ```
 

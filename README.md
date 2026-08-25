@@ -59,7 +59,7 @@ Plataforma de analisis de marca con inteligencia artificial que permite realizar
 
 - Node.js 20+
 - npm 9+
-- API Key de OpenAI (obligatorio)
+- API Key de OpenRouter (obligatorio) — una sola key da acceso a GPT, Claude, Gemini y Perplexity
 
 ### Instalacion
 
@@ -86,8 +86,9 @@ La aplicacion estara disponible en:
 ### Configuracion del archivo .env
 
 ```env
-# API Key de OpenAI (OBLIGATORIO)
-OPENAI_API_KEY=sk-tu-api-key-aqui
+# API Key de OpenRouter (OBLIGATORIO)
+# Obtenla en https://openrouter.ai/keys
+OPENROUTER_API_KEY=
 
 # Puerto del servidor
 PORT=3003
@@ -241,7 +242,7 @@ npm run check        # Verifica tipos TypeScript
 | Variable | Obligatoria | Descripcion | Default |
 |----------|-------------|-------------|---------|
 | `PORT` | No | Puerto del servidor | 3003 |
-| `OPENAI_API_KEY` | Si | API Key de OpenAI | - |
+| `OPENROUTER_API_KEY` | Si | API Key de OpenRouter (unica para todos los modelos) | - |
 | `ANTHROPIC_API_KEY` | No | API Key de Anthropic | - |
 | `GOOGLE_AI_API_KEY` | No | API Key de Google AI | - |
 | `JWT_SECRET` | Prod | Secreto para JWT | - |
