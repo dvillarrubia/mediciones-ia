@@ -106,9 +106,45 @@ Para fijar el esfuerzo, añade al cuerpo de la petición:
 { "reasoning": { "effort": "minimal" } }
 ```
 
-> **Pendiente:** `effort: minimal` está medido sobre **una sola pregunta**. Antes
-> de aplicarlo por defecto conviene comprobarlo sobre un lote representativo:
-> mide número de fuentes y marcas detectadas, no solo el coste.
+### Resultado del A/B de `reasoning.effort` (25/08/2026)
+
+Medido sobre **12 preguntas × 2 configuraciones × 2 pasadas = 48 análisis
+completos** (fase 1 + fase 2), con la segunda pasada como control para separar
+el efecto real del ruido de la búsqueda web.
+
+| Métrica | `medium` (defecto) | `minimal` | |
+|---|---|---|---|
+| Coste / 1.000 preguntas | $29.60 | **$9.20** | **−69%** |
+| Marcas detectadas (media) | 6.4 | 6.2 | igual |
+| Fuentes por respuesta (media) | 4.8 | **5.0** | igual o mejor |
+| Longitud de respuesta | 2.367 | 2.443 | igual |
+| ¿Marca objetivo mencionada? · estabilidad entre repeticiones | 0/12 fallos | 0/12 fallos | igual |
+| Reproducibilidad de la lista de marcas | 35.8% | **58.1%** | minimal es más estable |
+
+`minimal` sale igual o mejor en todo lo medido y cuesta un tercio. La única
+discrepancia observada en la métrica de cabecera (BBVA en hipotecas) resultó ser
+varianza: al repetir la pregunta, `medium` también mencionaba BBVA.
+
+### El hallazgo incómodo: la lista de competidores es inestable
+
+El control reveló algo que no depende del `effort` y afecta al producto:
+
+> **Dos ejecuciones idénticas de la misma configuración coinciden solo en un
+> 36% (`medium`) o un 58% (`minimal`) de las marcas detectadas.**
+
+Cada llamada lanza su propia búsqueda web, recibe resultados distintos y produce
+una respuesta distinta. Consecuencias:
+
+- **La métrica de cabecera es fiable.** "¿Aparece mi marca?" fue estable en las
+  12 preguntas y en las dos configuraciones: 0 discrepancias entre repeticiones.
+- **La lista de competidores NO es fiable en una sola ejecución.** Una marca
+  puede aparecer o no según la búsqueda que toque. Un informe que diga "estos
+  son tus competidores en respuestas de IA" a partir de una pasada está
+  reportando en parte el azar.
+
+Si se necesita una lista de competidores estable, hay que repetir cada pregunta
+N veces y quedarse con la frecuencia de aparición, no con el resultado de una
+pasada. No está implementado.
 
 ## 4. Procedimiento: cambiar un modelo
 
