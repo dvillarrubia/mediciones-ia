@@ -1060,20 +1060,32 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
         const analysisPrompt = this.buildGenerativeAnalysisPrompt(questionData.question, generatedContent, configuration);
 
         const analysis2 = this.getAnalysisClientAndModel();
-        const analysisResponse = await Promise.race([
-          providerQueues[analysis2.queue].enqueue(
-            () => analysis2.client.chat.completions.create({
-              model: analysis2.model, // Modelo ECONÓMICO para analizar menciones (OpenAI directo u OpenRouter)
+        // El timeout va DENTRO del thunk encolado: así los 60s miden solo la
+        // llamada real al proveedor, no la espera en cola.
+        //
+        // Antes el Promise.race envolvía al propio enqueue(), de modo que el
+        // cronómetro arrancaba al ENCOLAR. Con varios análisis simultáneos
+        // (la cola admite 5 en vuelo) una pregunta podía esperar minutos y
+        // caducar sin que la petición llegara a salir: en producción se vieron
+        // fallos de "timeout de 60 segundos" tras 390.000 ms de espera. Además
+        // el reintento volvía a encolar, realimentando la congestión.
+        const analysisResponse = await providerQueues[analysis2.queue].enqueue(
+          () => Promise.race([
+            analysis2.client.chat.completions.create({
+              model: analysis2.model, // Modelo ECONÓMICO para analizar menciones (vía OpenRouter)
               messages: [{ role: 'user', content: analysisPrompt }],
               temperature: 0.1, // Baja temperatura para análisis más preciso
               max_tokens: 2500,
             }),
-            `analyzeMentions:${questionId}`
-          ),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout: Analysis request took longer than 60 seconds')), 60000)
-          )
-        ]) as any;
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error(`Timeout: la llamada de análisis superó ${Math.round(this.REQUEST_TIMEOUT / 1000)} segundos`)),
+                this.REQUEST_TIMEOUT
+              )
+            )
+          ]),
+          `analyzeMentions:${questionId}`
+        ) as any;
 
         const analysisResult = analysisResponse.choices[0]?.message?.content || '';
         console.log(`📊 [${questionId}] Análisis de menciones completado (${analysisResult.length} caracteres)`);
