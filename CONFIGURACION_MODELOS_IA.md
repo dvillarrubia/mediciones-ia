@@ -36,7 +36,7 @@ Cada pregunta analizada consume **dos** llamadas:
 | Fase | Qué hace | Necesita web | Constante | Modelo actual |
 |------|----------|--------------|-----------|---------------|
 | 1 · Generación | Pregunta al asistente como lo haría un usuario | **Sí** | `GENERATION_MODEL` | `openai/gpt-5-mini:online` |
-| 2 · Extracción | Saca menciones de marca de esa respuesta (JSON) | No | `ANALYSIS_MODEL` | `openai/gpt-4.1-nano` |
+| 2 · Extracción | Saca menciones de marca de esa respuesta (JSON) | No | `ANALYSIS_MODEL` | `openai/gpt-4o-mini` |
 
 La fase 1 es la que mide: su modelo **es** el dato del informe. La fase 2 es
 mecánica y solo necesita ser barata y fiable extrayendo JSON.
@@ -65,14 +65,14 @@ print(m['reasoning'])
 
 | Modelo fase 2 | $/1.000 preguntas | vs. `gpt-4.1-nano` |
 |---|---|---|
-| `openai/gpt-4.1-nano` *(actual, sin razonamiento)* | $0.24 | — |
-| `openai/gpt-4o-mini` *(anterior, sin razonamiento)* | $0.36 | +50% |
-| `openai/gpt-5-nano` con effort `medium` (su defecto) | $0.50 | **+108%** |
-| `openai/gpt-5-nano` con effort `minimal` | $0.22 | −8% |
+| `openai/gpt-4.1-nano` *(candidato, sin medir)* | $0.24 | −33% |
+| `openai/gpt-4o-mini` **(en uso, probado)** | $0.36 | — |
+| `openai/gpt-5-nano` con effort `medium` (su defecto) | $0.50 | **+39%** |
+| `openai/gpt-5-nano` con effort `minimal` | $0.22 | −39% |
 
-`gpt-5-nano` tiene un precio nominal más bajo que `gpt-4o-mini` ($0.05 frente a
-$0.15 de entrada) y aun así **sale más del doble de caro** con su configuración
-por defecto. El precio por millón de tokens no dice cuántos tokens va a gastar.
+`gpt-5-nano` tiene un precio nominal tres veces más bajo que `gpt-4o-mini`
+($0.05 frente a $0.15 de entrada) y aun así **sale un 39% más caro** con su
+configuración por defecto. El precio por millón de tokens no dice cuántos tokens va a gastar.
 
 Y ojo con el nombre: **"nano" indica tamaño, no calidad.** Es el escalón más
 pequeño de su familia (nano < mini < estándar), optimizado para coste y
@@ -216,14 +216,19 @@ Verificado con `npm run modelos:check` contra la API de OpenRouter:
 
 - **10 modelos curados**, todos vivos, sin fecha de expiración anunciada.
 - **Defecto:** `openai/gpt-5-mini:online` ($0.0115/pregunta).
-- **Extracción:** `openai/gpt-4.1-nano` ($0.10/$0.40, 1M de contexto, sin
-  razonamiento). Sustituye a `openai/gpt-4o-mini`, que **no estaba deprecado**
-  pero era un 50% más caro y el más antiguo del stack (julio 2024).
-  **Pendiente de validar:** el cambio abarata un 33%, pero nadie ha medido aún
-  si extrae las menciones con la misma precisión. Antes de fiarte de los
-  informes, pasa ambos modelos sobre el mismo conjunto de respuestas y compara
-  las menciones detectadas. Revertir es una línea: `ANALYSIS_MODEL` en
-  `api/services/openaiService.ts`.
+- **Extracción:** `openai/gpt-4o-mini` — **no está deprecado**, sigue servido
+  por OpenRouter y sin fecha de expiración. Es el más antiguo del stack (julio
+  2024) y no el más barato, pero es el modelo con el que esta fase está probada.
+
+  Se mantiene a propósito: esta llamada decide si una marca cuenta como
+  mencionada, así que cambiarla mueve los números de todos los informes. El
+  ahorro de `gpt-4.1-nano` (~$0.12 por cada 1.000 preguntas) no compensa
+  arriesgar menciones mal contadas mientras nadie lo haya medido.
+
+  **Para promover `gpt-4.1-nano` a modelo de fase 2:** coge un conjunto de
+  respuestas ya analizadas, pásalo por ambos modelos y compara las menciones
+  detectadas marca por marca. Si coinciden, cambia `ANALYSIS_MODEL` en
+  `api/services/openaiService.ts` y actualiza este documento.
 - **Sin integraciones directas.** `AI_MODELS` está vacío a propósito.
 
 ---

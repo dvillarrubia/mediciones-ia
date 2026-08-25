@@ -200,12 +200,20 @@ class OpenAIService {
   // deprecados por OpenAI (404) y no tienen reemplazo en chat/completions.
   private readonly GENERATION_MODEL = "openai/gpt-5-mini:online"; // Fase 1: búsqueda web
   // Fase 2: extracción de menciones (barato, sin web, sin razonamiento).
-  // NO usar un modelo con razonamiento obligatorio aquí (p.ej. openai/gpt-5-nano,
-  // que trae reasoning.mandatory=true con effort 'medium' por defecto): los tokens
-  // de razonamiento se facturan como salida, y en una tarea mecánica de extraer
-  // JSON multiplican el coste sin mejorar el resultado. gpt-5-nano por defecto
-  // sale ~39% MÁS caro que este modelo pese a tener un precio nominal menor.
-  private readonly ANALYSIS_MODEL = "openai/gpt-4.1-nano";
+  //
+  // Se mantiene gpt-4o-mini porque es el modelo con el que esta fase está
+  // probada en producción. Esta llamada decide si una marca cuenta como
+  // mencionada, así que un cambio aquí mueve los números de TODOS los informes:
+  // no se cambia sin medir antes ambos modelos sobre el mismo conjunto de
+  // respuestas. openai/gpt-4.1-nano es el candidato (un 33% más barato, sin
+  // razonamiento, 1M de contexto) pero está pendiente de esa comparación.
+  //
+  // NO usar aquí un modelo con razonamiento obligatorio (p.ej. openai/gpt-5-nano,
+  // reasoning.mandatory=true con effort 'medium' por defecto): los tokens de
+  // razonamiento se facturan como salida y en una extracción de JSON disparan el
+  // coste sin mejorar nada — sale ~39% MÁS caro que gpt-4o-mini pese a tener un
+  // precio nominal tres veces menor.
+  private readonly ANALYSIS_MODEL = "openai/gpt-4o-mini";
   private readonly DEFAULT_MODEL = "openai/gpt-5-mini:online"; // Modelo con búsqueda web por defecto
 
   // OpenRouter usa el SDK de OpenAI apuntando a su baseURL (API-compatible)
