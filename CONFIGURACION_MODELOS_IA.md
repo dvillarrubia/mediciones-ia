@@ -47,69 +47,68 @@ que un análisis no mezcle proveedores a mitad.
 ### No pongas un modelo con razonamiento en la fase 2
 
 Los tokens de razonamiento **se facturan como salida** aunque no los veas. En una
-tarea mecánica como extraer JSON no aportan nada y multiplican el coste.
+tarea mecánica como extraer JSON no aportan nada y multiplican el coste:
+`openai/gpt-5-nano`, con su `effort` por defecto, sale un 39% MÁS caro que
+`gpt-4o-mini` pese a tener un precio nominal tres veces menor.
 
-Comprueba el campo `reasoning` del catálogo antes de elegir:
-
-```bash
-curl -s https://openrouter.ai/api/v1/models | python3 -c "
-import json,sys
-m={x['id']:x for x in json.load(sys.stdin)['data']}['openai/gpt-5-nano']
-print(m['reasoning'])
-"
-# {'mandatory': True, 'supported_efforts': [...], 'default_effort': 'medium'}
-```
-
-`mandatory: True` significa que no puedes desactivarlo, solo bajarlo a
-`minimal`. Ejemplo real, con ~1.200 tokens de entrada y ~300 de salida visible:
-
-| Modelo fase 2 | $/1.000 preguntas | vs. `gpt-4.1-nano` |
-|---|---|---|
-| `openai/gpt-4.1-nano` *(candidato, sin medir)* | $0.24 | −33% |
-| `openai/gpt-4o-mini` **(en uso, probado)** | $0.36 | — |
-| `openai/gpt-5-nano` con effort `medium` (su defecto) | $0.50 | **+39%** |
-| `openai/gpt-5-nano` con effort `minimal` | $0.22 | −39% |
-
-`gpt-5-nano` tiene un precio nominal tres veces más bajo que `gpt-4o-mini`
-($0.05 frente a $0.15 de entrada) y aun así **sale un 39% más caro** con su
-configuración por defecto. El precio por millón de tokens no dice cuántos tokens va a gastar.
+Ver la sección 3 para el detalle y el comando que consulta el campo `reasoning`.
 
 Y ojo con el nombre: **"nano" indica tamaño, no calidad.** Es el escalón más
 pequeño de su familia (nano < mini < estándar), optimizado para coste y
 velocidad. Un modelo más reciente no es automáticamente más capaz.
 
-### Cómo se activa la búsqueda web
-
-Dos mecanismos, y la diferencia importa para el coste:
-
-- **Sufijo `:online`** (`openai/gpt-5-mini:online`) — OpenRouter añade búsqueda a
-  un modelo que no la trae. Se factura aparte.
-- **Búsqueda nativa** (`perplexity/sonar`) — el modelo busca por sí mismo. No
-  lleva sufijo.
-
-`buildAdHocOpenRouterModel` asume que hay búsqueda si el id acaba en `:online` o
-es un Perplexity Sonar. **Si añades un modelo con búsqueda nativa que no sea
-Sonar, marca `supportsWebSearch: true` a mano** o el sistema creerá que no busca.
-
 ---
 
-## 3. El coste lo domina la búsqueda, no los tokens
+## 3. Costes reales (medidos, no estimados)
 
-Este es el error de intuición más caro. Con ~400 tokens de entrada y ~700 de
-salida por pregunta:
+Medido el 25/08/2026 con llamadas reales a OpenRouter, misma pregunta
+("mejores agencias SEO en Bilbao") y el prompt de sistema que usa la app:
 
-| Modelo | Tokens | Búsqueda | Total/pregunta | 1.000 preguntas |
-|---|---|---|---|---|
-| `gpt-4o-search-preview` *(muerto)* | $0.0080 | **$0.030** | $0.0380 | $38.00 |
-| `perplexity/sonar` | $0.0011 | $0.005 | **$0.0061** | $6.10 |
-| `openai/gpt-5-mini:online` | $0.0015 | $0.010 | $0.0115 | $11.50 |
-| `anthropic/claude-haiku-4.5:online` | $0.0039 | $0.010 | $0.0139 | $13.90 |
-| `google/gemini-3.1-flash-lite:online` | $0.0012 | $0.014 | $0.0152 | $15.20 |
+| Configuración fase 1 | Coste/pregunta | 1.000 preg. | tok. in | razonam. | fuentes |
+|---|---|---|---|---|---|
+| `perplexity/sonar` | $0.0057 | $5.66 | 62 | 0 | 9 |
+| `openai/gpt-5-mini:online` **+ effort `minimal`** | $0.0087 | $8.68 | 2.352 | 0 | 5 |
+| `anthropic/claude-haiku-4.5:online` | $0.0136 | $13.62 | 3.274 | 0 | 5 |
+| `openai/gpt-5-mini:online` *(defecto, effort `medium`)* | $0.0262 | $26.17 | 13.530 | 1.280 | 4 |
 
-La búsqueda es entre el 65% y el 90% del coste. **Comparar solo $/M de tokens te
-llevará a elegir mal.**
+La fase 2 (`openai/gpt-4o-mini`) añade **$0.0002** por pregunta: es ruido frente
+a la fase 1. Optimizar ahí no merece la pena; optimizar la fase 1 sí.
 
----
+### Dos trampas que invalidan cualquier estimación sobre el papel
+
+**1. La búsqueda infla el prompt.** Los resultados se inyectan en el contexto:
+13.530 tokens de entrada en el caso de arriba, no los ~400 de la pregunta. No
+puedes estimar el coste a partir de la longitud de tu prompt.
+
+**2. El razonamiento se factura como salida.** `openai/gpt-5-mini` tiene
+`reasoning.mandatory=true` con `default_effort: 'medium'`: gastó 1.280 tokens de
+razonamiento invisible. Bajarlo a `minimal` recorta el coste **3 veces** y en la
+prueba devolvió *más* fuentes (5 frente a 4) y una respuesta más larga.
+
+Comprueba siempre el campo `reasoning` antes de elegir modelo:
+
+```bash
+curl -s https://openrouter.ai/api/v1/models | python3 -c "
+import json,sys
+m={x['id']:x for x in json.load(sys.stdin)['data']}['openai/gpt-5-mini']
+print(m['reasoning'])
+"
+# {'mandatory': True, 'supported_efforts': [...], 'default_effort': 'medium'}
+```
+
+Modelos curados con razonamiento **obligatorio** (revisar antes de usarlos):
+`openai/gpt-5-mini`, `google/gemini-3.5-flash`. Sin razonamiento:
+`perplexity/sonar` y `perplexity/sonar-pro`.
+
+Para fijar el esfuerzo, añade al cuerpo de la petición:
+
+```json
+{ "reasoning": { "effort": "minimal" } }
+```
+
+> **Pendiente:** `effort: minimal` está medido sobre **una sola pregunta**. Antes
+> de aplicarlo por defecto conviene comprobarlo sobre un lote representativo:
+> mide número de fuentes y marcas detectadas, no solo el coste.
 
 ## 4. Procedimiento: cambiar un modelo
 
@@ -212,26 +211,26 @@ asistente concreto.
 
 ## 6. Estado actual (agosto 2026)
 
-Verificado con `npm run modelos:check` contra la API de OpenRouter:
+Verificado con `npm run modelos:check` **y con llamadas reales** a OpenRouter el
+25/08/2026:
 
 - **10 modelos curados**, todos vivos, sin fecha de expiración anunciada.
-- **Defecto:** `openai/gpt-5-mini:online` ($0.0115/pregunta).
-- **Extracción:** `openai/gpt-4o-mini` — **no está deprecado**, sigue servido
-  por OpenRouter y sin fecha de expiración. Es el más antiguo del stack (julio
-  2024) y no el más barato, pero es el modelo con el que esta fase está probada.
+- **Fase 1 (generación):** `openai/gpt-5-mini:online`. Probado de extremo a
+  extremo: devuelve respuesta y fuentes reales verificables. Coste medido
+  **$0.0262/pregunta** con la configuración actual — ver sección 3: bajar
+  `reasoning.effort` a `minimal` lo dejaría en $0.0087, pendiente de validar
+  sobre un lote.
+- **Fase 2 (extracción):** `openai/gpt-4o-mini`. Probado: devuelve JSON válido,
+  detecta correctamente las marcas presentes y la ausencia de la marca objetivo.
+  Coste medido **$0.0002/pregunta**. **No está deprecado.**
 
-  Se mantiene a propósito: esta llamada decide si una marca cuenta como
-  mencionada, así que cambiarla mueve los números de todos los informes. El
-  ahorro de `gpt-4.1-nano` (~$0.12 por cada 1.000 preguntas) no compensa
-  arriesgar menciones mal contadas mientras nadie lo haya medido.
-
-  **Para promover `gpt-4.1-nano` a modelo de fase 2:** coge un conjunto de
-  respuestas ya analizadas, pásalo por ambos modelos y compara las menciones
-  detectadas marca por marca. Si coinciden, cambia `ANALYSIS_MODEL` en
-  `api/services/openaiService.ts` y actualiza este documento.
+  Se mantiene a propósito frente a `openai/gpt-4.1-nano` (un 33% más barato):
+  esta llamada decide si una marca cuenta como mencionada, así que cambiarla
+  mueve los números de todos los informes, y el ahorro (~$0.12 por cada 1.000
+  preguntas) es ruido frente al coste de la fase 1. Para promoverlo: pasar un
+  conjunto de respuestas ya analizadas por ambos modelos y comparar las
+  menciones marca por marca.
 - **Sin integraciones directas.** `AI_MODELS` está vacío a propósito.
-
----
 
 ## 7. Mantenimiento preventivo
 
