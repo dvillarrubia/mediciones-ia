@@ -67,7 +67,7 @@ Medido el 25/08/2026 con llamadas reales a OpenRouter, misma pregunta
 | Configuración fase 1 | Coste/pregunta | 1.000 preg. | tok. in | razonam. | fuentes |
 |---|---|---|---|---|---|
 | `perplexity/sonar` | $0.0057 | $5.66 | 62 | 0 | 9 |
-| `openai/gpt-5-mini:online` **+ effort `minimal`** | $0.0087 | $8.68 | 2.352 | 0 | 5 |
+| `openai/gpt-5-mini:online` **+ effort `minimal`** ← en uso | $0.0087 | $8.68 | 2.352 | 0 | 5 |
 | `anthropic/claude-haiku-4.5:online` | $0.0136 | $13.62 | 3.274 | 0 | 5 |
 | `openai/gpt-5-mini:online` *(defecto, effort `medium`)* | $0.0262 | $26.17 | 13.530 | 1.280 | 4 |
 
@@ -120,6 +120,12 @@ el efecto real del ruido de la búsqueda web.
 | Longitud de respuesta | 2.367 | 2.443 | igual |
 | ¿Marca objetivo mencionada? · estabilidad entre repeticiones | 0/12 fallos | 0/12 fallos | igual |
 | Reproducibilidad de la lista de marcas | 35.8% | **58.1%** | minimal es más estable |
+
+**APLICADO** (ago 2026): `generateWithOpenRouter` envía
+`reasoning: { effort: 'minimal' }` en todas las peticiones. Se puede subir por
+proyecto con `configuration.reasoningEffort`. Los modelos sin razonamiento
+ignoran el parámetro — verificado en Perplexity Sonar, Sonar Pro, Claude Haiku
+y Gemini Flash: ninguno falla al recibirlo.
 
 `minimal` sale igual o mejor en todo lo medido y cuesta un tercio. La única
 discrepancia observada en la métrica de cabecera (BBVA en hipotecas) resultó ser
@@ -251,11 +257,11 @@ Verificado con `npm run modelos:check` **y con llamadas reales** a OpenRouter el
 25/08/2026:
 
 - **10 modelos curados**, todos vivos, sin fecha de expiración anunciada.
-- **Fase 1 (generación):** `openai/gpt-5-mini:online`. Probado de extremo a
-  extremo: devuelve respuesta y fuentes reales verificables. Coste medido
-  **$0.0262/pregunta** con la configuración actual — ver sección 3: bajar
-  `reasoning.effort` a `minimal` lo dejaría en $0.0087, pendiente de validar
-  sobre un lote.
+- **Fase 1 (generación):** `openai/gpt-5-mini:online` con
+  `reasoning.effort: 'minimal'`. Probado de extremo a extremo por la app real
+  (registro → key cifrada → análisis → informe). Coste medido
+  **$0.0092/pregunta** ($9.20 por cada 1.000), frente a $0.0296 con el esfuerzo
+  por defecto.
 - **Fase 2 (extracción):** `openai/gpt-4o-mini`. Probado: devuelve JSON válido,
   detecta correctamente las marcas presentes y la ausencia de la marca objetivo.
   Coste medido **$0.0002/pregunta**. **No está deprecado.**

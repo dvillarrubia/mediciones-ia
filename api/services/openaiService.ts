@@ -683,6 +683,17 @@ class OpenAIService {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: question }
       ],
+      // Esfuerzo de razonamiento al mínimo. Varios modelos (openai/gpt-5-mini,
+      // google/gemini-3.5-flash) traen reasoning.mandatory=true con effort
+      // 'medium' por defecto y facturan esos tokens ocultos como salida: en el
+      // A/B de 48 análisis con control de ruido, 'medium' costaba $29.60 por
+      // cada 1.000 preguntas frente a $9.20 con 'minimal', sin perder calidad
+      // (5.0 fuentes de media frente a 4.8, misma detección de marca objetivo y
+      // MÁS reproducibilidad: 58% de solape entre ejecuciones frente al 36%).
+      // Ver CONFIGURACION_MODELOS_IA.md sección 3.
+      // Los modelos sin razonamiento ignoran el parámetro (verificado en
+      // Perplexity Sonar, Claude Haiku y Gemini Flash: ninguno falla).
+      reasoning: { effort: configuration?.reasoningEffort || 'minimal' },
     };
     if (needsWebPlugin) {
       requestBody.plugins = [{ id: 'web' }];
