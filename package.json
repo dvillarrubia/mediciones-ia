@@ -15,7 +15,8 @@
     "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
     "release": "bash tools/release.sh",
     "modelos:check": "node scripts/verificar-modelos.mjs",
-    "test:evidencias": "tsx scripts/test-evidencias.ts"
+    "test:evidencias": "tsx scripts/test-evidencias.ts",
+    "keys:compartidas": "tsx scripts/detectar-keys-compartidas.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",

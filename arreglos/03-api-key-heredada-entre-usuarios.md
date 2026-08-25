@@ -159,10 +159,68 @@ Probado en local con dos usuarios reales, en las dos direcciones:
 El segundo caso devuelve un 401 del proveedor porque la clave está rotada, y eso
 mismo confirma que se leyó de la base y se usó.
 
+## Limpieza de las claves ya contaminadas · PENDIENTE
+
+El arreglo corta la propagación, pero **no puede saber qué claves ya guardadas
+son legítimas y cuáles heredadas**. Sí se pueden detectar: si dos cuentas tienen
+exactamente la misma clave, una de las dos la heredó.
+
+### Herramienta
+
+```bash
+npm run keys:compartidas
+```
+
+`scripts/detectar-keys-compartidas.ts` recorre todas las cuentas, descifra sus
+claves en memoria y agrupa por huella SHA-256. **Nunca imprime una clave**: solo
+un prefijo de la huella, que no permite reconstruir el secreto. Sale con código
+1 si encuentra claves compartidas.
+
+En producción hay que apuntarlo al código compilado (`dist-api`, no `api`) y
+ejecutarlo dentro del contenedor, que es donde vive `API_KEY_ENCRYPTION_SECRET`:
+
+```bash
+docker exec mediciones-ia-api sh -lc "cd /app && npx tsx scripts/detectar-keys-compartidas.ts"
+```
+
+### Resultado de la primera pasada (25/08/2026)
+
+**7 claves compartidas entre 23 cuentas.** Reparto por proveedor:
+
+| Proveedor | Claves compartidas | Mayor grupo |
+|---|---|---|
+| DataForSEO | 3 | una clave en **7 cuentas** |
+| OpenAI | 3 | una clave en 4 cuentas |
+| OpenRouter | 2 | 2 cuentas cada una |
+
+**No todo es contaminación.** Hay dos patrones muy distintos y conviene no
+confundirlos:
+
+- **Dentro de la agencia** (cuentas `@lin3s.com` / `@seobide.com`): compartir una
+  única suscripción de DataForSEO entre gestores puede ser deliberado. Merece
+  confirmarse, pero no es alarmante.
+- **Entre clientes distintos**: es el caso preocupante. Hay claves compartidas
+  entre cuentas de clientes que no tienen relación entre sí. Ahí no hay
+  explicación legítima: o alguien heredó la clave de otro, o se está facturando
+  el consumo de un cliente a otro.
+
+El detalle cuenta por cuenta no se guarda en el repositorio a propósito —cruza
+correos de clientes con qué credenciales comparten—; se revisa ejecutando la
+herramienta.
+
+### Procedimiento
+
+1. Ejecutar `keys:compartidas` y separar los grupos internos de los que cruzan
+   clientes.
+2. Para cada grupo que cruce clientes, confirmar con los implicados de quién es
+   la clave.
+3. Quien la haya heredado: borrarla y guardar la suya desde
+   Configuración > API Keys.
+4. Volver a ejecutar la herramienta hasta que solo queden grupos justificados.
+
+> Hacerlo **después** de desplegar el arreglo. Si se limpia antes, el formulario
+> precargado puede volver a contaminar en la siguiente sesión compartida.
+
 ## Estado
 
-Arreglado. Pendiente: los usuarios cuyo servidor tenga guardada una clave
-contaminada de otro usuario (por haber pulsado "Guardar" con el formulario
-precargado) **siguen con esa clave en su cuenta**. El código ya no la propaga,
-pero no puede saber cuál es legítima y cuál heredada. Si sospechas de algún
-caso, revisar con el usuario y volver a guardar la suya.
+Código arreglado. Limpieza de datos pendiente (ver arriba).

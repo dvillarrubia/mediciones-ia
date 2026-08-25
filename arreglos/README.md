@@ -9,7 +9,7 @@ Cada ficha dice qué falla, por qué, dónde está el código y qué haría falt
 |---|-------|--------|-----------|--------|
 | 01 | [Peticiones de Salto](01-peticiones-salto.md) | Usuarios · 18/08/2026 | ver ficha | pendiente |
 | 02 | [Hallazgos de auditoría](02-hallazgos-auditoria.md) | Auditoría técnica · 25/08/2026 | ver ficha | pendiente |
-| 03 | [API key heredada entre usuarios](03-api-key-heredada-entre-usuarios.md) | Usuario · 25/08/2026 | Alta | ✅ arreglado |
+| 03 | [API key heredada entre usuarios](03-api-key-heredada-entre-usuarios.md) | Usuario · 25/08/2026 | Alta | ✅ código · ⏳ limpieza de datos |
 
 ## Cómo leer las severidades
 
