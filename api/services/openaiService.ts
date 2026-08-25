@@ -199,7 +199,13 @@ class OpenAIService {
   // Los antiguos gpt-4o-search-preview / gpt-4o-mini-search-preview fueron
   // deprecados por OpenAI (404) y no tienen reemplazo en chat/completions.
   private readonly GENERATION_MODEL = "openai/gpt-5-mini:online"; // Fase 1: búsqueda web
-  private readonly ANALYSIS_MODEL = "openai/gpt-4o-mini"; // Fase 2: extracción de menciones (barato, sin web)
+  // Fase 2: extracción de menciones (barato, sin web, sin razonamiento).
+  // NO usar un modelo con razonamiento obligatorio aquí (p.ej. openai/gpt-5-nano,
+  // que trae reasoning.mandatory=true con effort 'medium' por defecto): los tokens
+  // de razonamiento se facturan como salida, y en una tarea mecánica de extraer
+  // JSON multiplican el coste sin mejorar el resultado. gpt-5-nano por defecto
+  // sale ~39% MÁS caro que este modelo pese a tener un precio nominal menor.
+  private readonly ANALYSIS_MODEL = "openai/gpt-4.1-nano";
   private readonly DEFAULT_MODEL = "openai/gpt-5-mini:online"; // Modelo con búsqueda web por defecto
 
   // OpenRouter usa el SDK de OpenAI apuntando a su baseURL (API-compatible)
