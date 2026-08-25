@@ -190,7 +190,7 @@ desaparece, pero conviene no dejar el agregado como opción por defecto.
 
 ---
 
-## 1. Descargas y exportación · SEVERIDAD MEDIA
+## 1. Descargas y exportación · ✅ PARCIAL (25/08/2026)
 
 > *Tablas descargables, pestaña de Descargas con selector y filtro por periodo,
 > y descarga múltiple de listas de prompts.*
@@ -202,15 +202,33 @@ Merece la pena por el motivo que da el propio usuario: *"poder redactar el
 informe con Claude a partir de ese Excel"*. Es decir, hoy hay trabajo manual de
 copiar y pegar que se puede eliminar.
 
-**Alcance sugerido, por orden de valor:**
+### Hecho
 
-1. Descargar las dos tablas de URLs/Citas — es lo más pequeño y desbloquea ya.
-2. Pestaña de Descargas con selector de pestañas y filtro por periodo.
-3. Descarga múltiple de listas de prompts con pregunta + respuesta.
+**1. Las dos tablas de URLs/Citas.** "Menciones y citaciones de la marca" ya
+estaba en el Excel de esa pestaña; faltaba **"Gap de citaciones"**, que se ha
+añadido como hoja propia separando competidores configurados de marcas
+descubiertas, igual que en pantalla.
 
-> **Antes de exportar el gap de citaciones, arreglar el punto 4.** Exportar a
-> Excel un listado con 1.106 competidores falsos multiplica el problema en vez
-> de resolverlo: el error pasa del dashboard a un fichero que circula por correo.
+> Se hizo **después** de arreglar el punto 4, a propósito: exportar el gap con
+> 1.106 competidores falsos habría llevado el error del dashboard a un fichero
+> que circula por correo.
+
+**2. Pestaña "Descargas"** en el Centro de Inteligencia
+(`components/intelligence/DownloadsDashboard.tsx`): un solo Excel con las
+pestañas que elijas —Métricas, Sentimiento, Topics, URLs/Citas, GAPS— y filtro
+de fechas común a todas. Es lo que pedía el motivo original: *"poder redactar el
+informe con Claude a partir de ese Excel"*.
+
+Para que el Excel no pueda decir algo distinto de la pantalla, los cálculos que
+vivían sueltos dentro de los dashboards (Topics y Sentimiento) se movieron a
+`sharedMetrics.ts`; el dashboard y la descarga usan ahora la misma función. Los
+demás bloques ya tiraban de funciones compartidas.
+
+### Pendiente
+
+**3. Descarga múltiple de listas de prompts** (pregunta + respuesta de varias
+listas a la vez). No entra en la pestaña de Descargas porque no opera sobre
+análisis sino sobre las listas de prompts, que viven en otra pantalla.
 
 ---
 
@@ -235,5 +253,5 @@ nombre.
 | ~~1~~ | ~~**4 · Gap de citaciones**~~ | ✅ arreglado 25/08/2026 |
 | 2 | **2 · Detalle de sentimiento** | Columna vacía + dimensión modelo perdida |
 | 3 | **3 · Línea por modelo** | Misma raíz que el 2, aprovecha el trabajo |
-| 4 | **1 · Descargas** | Elimina trabajo manual (hacer después del 4) |
+| ~~4~~ | ~~**1 · Descargas**~~ | ✅ parcial: falta la descarga múltiple de listas de prompts |
 | 5 | **5 · Nomenclatura** | Barato, evita líos de entregables |

@@ -156,6 +156,18 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
       ['Prompt', 'Tipo', 'URL citada', 'Frase', 'Modelo'],
       ...brandRows.map(r => [r.prompt, APPEARANCE_LABELS[r.type], r.url || '', r.phrase || '', r.model]),
     ];
+    // Gap de citaciones: se separan competidores configurados de marcas
+    // descubiertas, igual que en la tabla, para que el Excel no dé por
+    // competencia confirmada lo que no lo es.
+    const gaps: (string | number)[][] = [
+      ['Dominio', 'Citas con competencia', 'Competidores configurados', 'Marcas descubiertas'],
+      ...citationGaps.map(g => [
+        g.domain,
+        g.competitorCitations || 0,
+        g.competitors.join(', '),
+        g.discovered.join(', '),
+      ]),
+    ];
     exportSheetsToExcel(
       downloadFilename('citas', target),
       [
@@ -163,6 +175,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
         { name: 'Dominios', aoa: domains, cols: [32, 10, 14] },
         { name: 'Evolución', aoa: evolucion, cols: [22, 12] },
         { name: 'Menciones marca', aoa: menciones, cols: [50, 14, 60, 60, 16] },
+        { name: 'Gap de citaciones', aoa: gaps, cols: [34, 20, 42, 42] },
       ]
     );
   };

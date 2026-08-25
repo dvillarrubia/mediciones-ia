@@ -441,6 +441,101 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
     .slice(0, 20);
 }
 
+
+// === Topics (extraído de TopicsDashboard para que pantalla y Excel no diverjan) ===
+
+export interface TopicMetric {
+  topic: string;
+  mentions: number;
+  positive: number; neutral: number; negative: number;
+  pctPositive: number; pctNegative: number; pctNeutral: number;
+  net: number;
+}
+
+/**
+ * Agrega menciones por categoría del ÚLTIMO análisis del rango.
+ * Vive aquí y no en el dashboard porque la pestaña de Descargas necesita el
+ * mismo cálculo: si cada uno tuviera el suyo, el Excel podría decir una cosa y
+ * la pantalla otra.
+ */
+export function buildTopicMetrics(analyses: AnalysisDetail[]): TopicMetric[] {
+  if (!analyses || analyses.length === 0) return [];
+  const latest = sortByDate(analyses).slice(-1)[0];
+
+  const acc: Record<string, { mentions: number; pos: number; neu: number; neg: number }> = {};
+  (latest.results?.questions || []).forEach(q => {
+    const topic = q.category || 'Sin categoría';
+    if (!acc[topic]) acc[topic] = { mentions: 0, pos: 0, neu: 0, neg: 0 };
+    (q.brandMentions || []).forEach(bm => {
+      if (!bm.mentioned) return;
+      acc[topic].mentions++;
+      const k = normalizeSentimentKey(bm.detailedSentiment || bm.context);
+      if (k === 'very_positive' || k === 'positive') acc[topic].pos++;
+      else if (k === 'very_negative' || k === 'negative') acc[topic].neg++;
+      else acc[topic].neu++;
+    });
+  });
+
+  return Object.entries(acc)
+    .map(([topic, d]) => {
+      const total = d.mentions || 1;
+      return {
+        topic,
+        mentions: d.mentions,
+        positive: d.pos, neutral: d.neu, negative: d.neg,
+        pctPositive: (d.pos / total) * 100,
+        pctNegative: (d.neg / total) * 100,
+        pctNeutral: (d.neu / total) * 100,
+        net: ((d.pos - d.neg) / total) * 100,
+      };
+    })
+    .filter(t => t.mentions > 0)
+    .sort((a, b) => b.mentions - a.mentions);
+}
+
+// === Sentimiento por marca (extraído de SentimentDashboard, misma razón) ===
+
+export interface BrandSentimentRow {
+  brand: string;
+  total: number;
+  counts: Record<SentimentKey, number>;
+  positive: number; neutral: number; negative: number;
+  net: number;
+  isTarget: boolean;
+}
+
+/** Distribución de sentimiento por marca sobre TODOS los análisis del rango. */
+export function buildBrandSentiment(analyses: AnalysisDetail[], targetBrand: string): BrandSentimentRow[] {
+  const acc: Record<string, BrandSentimentRow> = {};
+  (analyses || []).forEach(a => {
+    (a.results?.questions || []).forEach(q => {
+      (q.brandMentions || []).forEach(bm => {
+        if (!bm.mentioned || !bm.brand) return;
+        const brand = bm.brand;
+        if (!acc[brand]) {
+          acc[brand] = {
+            brand, total: 0,
+            counts: { very_positive: 0, positive: 0, neutral: 0, negative: 0, very_negative: 0 },
+            positive: 0, neutral: 0, negative: 0, net: 0,
+            isTarget: brandMatches(brand, targetBrand),
+          };
+        }
+        acc[brand].counts[normalizeSentimentKey(bm.detailedSentiment || bm.context)]++;
+        acc[brand].total++;
+      });
+    });
+  });
+
+  return Object.values(acc).map(b => {
+    const positive = b.counts.very_positive + b.counts.positive;
+    const negative = b.counts.very_negative + b.counts.negative;
+    return {
+      ...b, positive, negative, neutral: b.counts.neutral,
+      net: b.total > 0 ? ((positive - negative) / b.total) * 100 : 0,
+    };
+  }).sort((a, b) => b.net - a.net);
+}
+
 // === Distribución de posición (Hito 5) ===
 
 export const POSITION_BUCKETS = ['Posición 1', 'Posición 2-3', 'Posición 4-7', 'Posición 8+'] as const;

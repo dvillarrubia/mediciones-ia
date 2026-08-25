@@ -44,6 +44,7 @@ import SentimentDashboard from '../components/intelligence/SentimentDashboard';
 import TopicsDashboard from '../components/intelligence/TopicsDashboard';
 import CitationsDashboard from '../components/intelligence/CitationsDashboard';
 import GapsDashboard from '../components/intelligence/GapsDashboard';
+import DownloadsDashboard from '../components/intelligence/DownloadsDashboard';
 import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
 import { useProjectStore } from '../store/projectStore';
 
@@ -142,7 +143,7 @@ const IntelligenceHub: React.FC = () => {
     return 'list';
   })();
   // Estado principal
-  const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'gaps' | 'ai-overview' | 'schedules'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'gaps' | 'ai-overview' | 'downloads' | 'schedules'>(initialTab);
   const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
 
   useEffect(() => {
@@ -323,7 +324,7 @@ const IntelligenceHub: React.FC = () => {
 
   // Cargar detalles cuando se cambia a la pestaña de tendencias o insights
   useEffect(() => {
-    if ((activeTab === 'metrics' || activeTab === 'sentiment' || activeTab === 'topics' || activeTab === 'citations' || activeTab === 'gaps' || activeTab === 'ai-overview') && analyses.length > 0 && allAnalysesDetails.length === 0) {
+    if ((activeTab === 'metrics' || activeTab === 'sentiment' || activeTab === 'topics' || activeTab === 'citations' || activeTab === 'gaps' || activeTab === 'ai-overview' || activeTab === 'downloads') && analyses.length > 0 && allAnalysesDetails.length === 0) {
       loadAllAnalysesDetails();
     }
   }, [activeTab, analyses]);
@@ -879,6 +880,18 @@ const IntelligenceHub: React.FC = () => {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('downloads')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'downloads'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Descargas
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('schedules')}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${activeTab === 'schedules'
                   ? 'border-blue-600 text-blue-600'
@@ -1379,6 +1392,16 @@ const IntelligenceHub: React.FC = () => {
           )}
 
           {/* TAB 7: AUTOMATIZACIONES */}
+          {/* TAB: DESCARGAS */}
+          {activeTab === 'downloads' && (
+            <DownloadsDashboard
+              analyses={displayAnalyses}
+              loading={trendsLoading}
+              brandDomain={brandDomain}
+              brandAliases={brandAliases}
+            />
+          )}
+
           {activeTab === 'schedules' && (
             <SchedulesDashboard projectId={selectedProjectId} />
           )}

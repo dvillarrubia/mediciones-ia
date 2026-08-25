@@ -2,9 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Hash, Download } from 'lucide-react';
 import InfoTip from './InfoTip';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import {
-  AnalysisDetail, normalizeSentimentKey, sortByDate
-} from './sharedMetrics';
+import { AnalysisDetail, sortByDate, buildTopicMetrics } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
@@ -13,18 +11,6 @@ const TOPIC_PAGE_SIZE = 25;
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
-}
-
-interface TopicMetric {
-  topic: string;
-  mentions: number;
-  positive: number;
-  neutral: number;
-  negative: number;
-  pctPositive: number;
-  pctNegative: number;
-  pctNeutral: number;
-  net: number;
 }
 
 // Color del treemap según net sentiment (rojo → gris → verde)
@@ -49,39 +35,8 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
   const data = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
-    const latest = sortByDate(scoped).slice(-1)[0];
-
-    const acc: Record<string, { mentions: number; pos: number; neu: number; neg: number }> = {};
-    (latest.results?.questions || []).forEach(q => {
-      const topic = q.category || 'Sin categoría';
-      if (!acc[topic]) acc[topic] = { mentions: 0, pos: 0, neu: 0, neg: 0 };
-      (q.brandMentions || []).forEach(bm => {
-        if (!bm.mentioned) return;
-        acc[topic].mentions++;
-        const k = normalizeSentimentKey(bm.detailedSentiment || bm.context);
-        if (k === 'very_positive' || k === 'positive') acc[topic].pos++;
-        else if (k === 'very_negative' || k === 'negative') acc[topic].neg++;
-        else acc[topic].neu++;
-      });
-    });
-
-    const topics: TopicMetric[] = Object.entries(acc)
-      .map(([topic, d]) => {
-        const total = d.mentions || 1;
-        const net = ((d.pos - d.neg) / total) * 100;
-        return {
-          topic,
-          mentions: d.mentions,
-          positive: d.pos, neutral: d.neu, negative: d.neg,
-          pctPositive: (d.pos / total) * 100,
-          pctNegative: (d.neg / total) * 100,
-          pctNeutral: (d.neu / total) * 100,
-          net,
-        };
-      })
-      .filter(t => t.mentions > 0)
-      .sort((a, b) => b.mentions - a.mentions);
-
+    // El cálculo vive en sharedMetrics: lo comparte la pestaña de Descargas.
+    const topics = buildTopicMetrics(scoped);
     const treemapData = topics.map(t => ({ name: t.topic, size: t.mentions, net: t.net }));
     return { topics, treemapData };
   }, [scoped]);
