@@ -316,16 +316,21 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
             Gap de citaciones
-            <InfoTip text="Dominios de terceros que la IA usa como fuente en preguntas donde aparecen tus competidores y tu marca no, en todo el rango de fechas. 'Citas con competencia' = nº de preguntas en esa situación. Se excluyen los dominios propios de marcas." />
+            <InfoTip text="Dominios de terceros que la IA usa como fuente en preguntas donde aparecen otras marcas y la tuya no. 'Citas con competencia' cuenta solo las preguntas con un competidor CONFIGURADO del proyecto; los dominios sin ninguna aparecen debajo, con las marcas que el modelo descubrió por su cuenta. Se excluyen los dominios propios de marcas." />
           </h3>
-          <p className="text-xs text-gray-400 mb-4">Webs de terceros (no de marcas) que la IA cita junto a tus competidores pero nunca contigo → dónde conseguir presencia (PR, colaboraciones, contenido).</p>
+          <p className="text-xs text-gray-400 mb-4">
+            Webs de terceros (no de marcas) que la IA cita junto a otras marcas pero nunca contigo → dónde conseguir
+            presencia (PR, colaboraciones, contenido). Las etiquetas <span className="text-orange-700">naranjas</span> son
+            competidores configurados del proyecto; las <span className="text-gray-500">grises punteadas</span>, marcas que
+            descubrió el modelo — pueden ser competencia real sin declarar, o clientes y verticales de tu sector.
+          </p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Dominio</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Citas con competencia</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Competidores presentes</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Marcas presentes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -336,12 +341,32 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
                         {g.domain}<ExternalLink className="w-3 h-3" />
                       </a>
                     </td>
-                    <td className="px-3 py-2 text-right font-semibold text-gray-900">{g.competitorCitations}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900">
+                      {g.competitorCitations > 0
+                        ? g.competitorCitations
+                        : <span className="text-gray-400 font-normal" title="Ninguna cita junto a un competidor configurado">—</span>}
+                    </td>
                     <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {/* Competidores DECLARADOS: naranja sólido, es competencia confirmada. */}
                         {g.competitors.map((c, j) => (
-                          <span key={j} className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full">{c}</span>
+                          <span key={`c${j}`} className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded-full">{c}</span>
                         ))}
+                        {/* Marcas DESCUBIERTAS por el modelo: gris con borde punteado, para que
+                            no se lean como competencia confirmada. Entre ellas hay competencia
+                            real sin configurar, pero también clientes y verticales de la marca. */}
+                        {g.discovered.map((c, j) => (
+                          <span
+                            key={`d${j}`}
+                            title="Marca descubierta por el modelo, no configurada como competidor"
+                            className="bg-gray-50 text-gray-500 border border-dashed border-gray-300 text-xs px-2 py-0.5 rounded-full"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                        {g.competitors.length === 0 && g.discovered.length > 0 && (
+                          <span className="text-[11px] text-gray-400 italic ml-1">solo descubiertas</span>
+                        )}
                       </div>
                     </td>
                   </tr>

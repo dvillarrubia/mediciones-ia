@@ -93,12 +93,30 @@ presencia.
 El emparejador se validó con 15 casos reales (8 que deben casar, 7 que no):
 15/15 correctos.
 
-### Pendiente relacionado
+### Competidores vs. descubiertas
 
-Competidores legítimos como **Brivo, Genetec o Verkada** siguen fuera del gap
-porque no están configurados en el proyecto. La solución no es código: hay que
-añadirlos a la configuración de Salto. Un desplegable de marcas descubiertas
-donde el gestor las promueva a competidor evitaría tener que mantenerlo a mano.
+Las marcas que el modelo encuentra por su cuenta **no se descartan**: se muestran
+aparte, marcadas como descubiertas. Tirarlas perdía información útil —entre ellas
+está la competencia real sin declarar— y meterlas como competencia era el bug
+original.
+
+| Origen | En la tabla | Cuenta en "Citas con competencia" |
+|---|---|---|
+| Competidor configurado | etiqueta naranja | **sí** |
+| Descubierta por el modelo | etiqueta gris punteada | no |
+
+El campo `isDiscovered` ya venía guardado en cada mención (2.213 descubiertas
+frente a 139 configuradas en la muestra de Salto), así que la distinción no
+necesitó tocar el backend.
+
+Los dominios respaldados por competencia declarada se ordenan primero. Los que
+solo tienen marcas descubiertas aparecen debajo, con la nota "solo descubiertas":
+son señal más débil, no una afirmación sobre tu competencia.
+
+**Efecto práctico:** en el gap de Salto se ve que Genetec, AMAG, LenelS2 y
+Allegion reaparecen en dominio tras dominio. Eso es exactamente la señal para
+promoverlos a competidor en la configuración del proyecto — decisión del gestor,
+no del código.
 
 > La normalización de variantes beneficia a **todos** los dashboards, no solo al
 > gap: la fragmentación de nombres infla el recuento de marcas en todo el

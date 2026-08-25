@@ -320,13 +320,20 @@ export function brandMatches(mentionName: string, referenceName: string): boolea
 
 export interface CitationGap {
   domain: string;
-  competitorCitations: number; // preguntas donde el dominio se cita con competencia y SIN la marca
+  /** Preguntas donde el dominio se cita junto a un competidor CONFIGURADO y SIN la marca. */
+  competitorCitations: number;
+  /** Competidores configurados presentes, con su nombre canónico. */
   competitors: string[];
+  /** Preguntas donde solo acompañan marcas DESCUBIERTAS por el modelo (sin competidor configurado). */
+  discoveredCitations: number;
+  /** Marcas descubiertas presentes. Pueden ser competencia real sin declarar
+   *  (Brivo, Genetec) o simplemente marcas del sector, clientes o verticales. */
+  discovered: string[];
 }
 
 /** Dominios (de terceros) que la IA cita junto a competidores pero nunca con tu marca → oportunidades de presencia. */
 export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: string): CitationGap[] {
-  const acc: Record<string, { targetCount: number; compCount: number; comps: Set<string> }> = {};
+  const acc: Record<string, { targetCount: number; compCount: number; comps: Set<string>; discCount: number; disc: Set<string> }> = {};
 
   // Claves de marca (objetivo + competidores) para excluir dominios PROPIOS de marcas (no son oportunidades).
   const brandKeys = new Set<string>();
@@ -367,16 +374,33 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
       // Cada mención se reduce a su competidor configurado (nombre canónico), de
       // modo que las variantes dejan de contarse por separado y dejan de diluir
       // al competidor real fuera del top.
+      // Competidores DECLARADOS presentes, reducidos a su nombre canónico.
       const comps = mentions
         .map(bm => configuredCompetitors.find(c => brandMatches(bm.brand, c)))
         .filter((c): c is string => !!c && !brandMatches(c, targetBrand));
+      // Marcas DESCUBIERTAS por el modelo: ni la objetivo, ni un competidor
+      // declarado. No se descartan —entre ellas hay competencia real sin
+      // configurar, como Brivo o Genetec— pero se cuentan aparte para que no se
+      // presenten como competencia confirmada.
+      const discovered = mentions
+        .filter(bm => !brandMatches(bm.brand, targetBrand))
+        .filter(bm => !configuredCompetitors.some(c => brandMatches(bm.brand, c)))
+        .map(bm => bm.brand);
       const domains = new Set(
         (q.sources || []).filter(s => isWebUrl(s.url) && isRealDomain(s.domain)).map(s => s.domain)
       );
       domains.forEach(d => {
-        if (!acc[d]) acc[d] = { targetCount: 0, compCount: 0, comps: new Set() };
-        if (targetHere) acc[d].targetCount++;
-        else if (comps.length > 0) { acc[d].compCount++; comps.forEach(c => acc[d].comps.add(c)); }
+        if (!acc[d]) acc[d] = { targetCount: 0, compCount: 0, comps: new Set(), discCount: 0, disc: new Set() };
+        if (targetHere) { acc[d].targetCount++; return; }
+        if (comps.length > 0) {
+          acc[d].compCount++;
+          comps.forEach(c => acc[d].comps.add(c));
+          discovered.forEach(c => acc[d].disc.add(c));
+        } else if (discovered.length > 0) {
+          // Solo marcas descubiertas: sigue siendo señal, pero más débil.
+          acc[d].discCount++;
+          discovered.forEach(c => acc[d].disc.add(c));
+        }
       });
     });
   });
@@ -402,9 +426,18 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
   };
 
   return Object.entries(acc)
-    .filter(([domain, d]) => d.targetCount === 0 && d.compCount > 0 && !isBrandOwnedDomain(domain))
-    .map(([domain, d]) => ({ domain, competitorCitations: d.compCount, competitors: Array.from(d.comps).slice(0, 6) }))
-    .sort((a, b) => b.competitorCitations - a.competitorCitations)
+    .filter(([domain, d]) => d.targetCount === 0 && (d.compCount > 0 || d.discCount > 0) && !isBrandOwnedDomain(domain))
+    .map(([domain, d]) => ({
+      domain,
+      competitorCitations: d.compCount,
+      competitors: Array.from(d.comps).slice(0, 6),
+      discoveredCitations: d.discCount,
+      discovered: Array.from(d.disc).slice(0, 6),
+    }))
+    // Los dominios respaldados por competencia DECLARADA van primero: son los
+    // que se pueden afirmar sin matices. Los de solo marcas descubiertas quedan
+    // debajo, visibles pero sin mezclarse con los anteriores.
+    .sort((a, b) => (b.competitorCitations - a.competitorCitations) || (b.discoveredCitations - a.discoveredCitations))
     .slice(0, 20);
 }
 
