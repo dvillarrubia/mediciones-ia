@@ -285,17 +285,9 @@ const Analysis = () => {
         return;
       }
 
-      // Obtener API keys del usuario desde localStorage
-      const userApiKeys = localStorage.getItem('userApiKeys');
-      let parsedApiKeys = null;
-      if (userApiKeys) {
-        try {
-          parsedApiKeys = JSON.parse(userApiKeys);
-        } catch (e) {
-          console.error('Error parsing user API keys:', e);
-        }
-      }
-
+      // Las API keys NO se envían: el servidor las resuelve por sesión desde su
+      // almacén cifrado por usuario. Mandarlas desde localStorage era la vía por
+      // la que la clave de un usuario acababa usándose en la sesión de otro.
       const countryInfo = countries.find(c => c.code === selectedCountry);
 
       // 1. Encolar el análisis — respuesta instantánea con jobId
@@ -305,7 +297,6 @@ const Analysis = () => {
         body: JSON.stringify({
           categories,
           configuration: { ...selectedConfig, questions: editableQuestions },
-          userApiKeys: parsedApiKeys,
           projectId: selectedProjectId || undefined,
           selectedModel: selectedModel,
           countryCode: selectedCountry,

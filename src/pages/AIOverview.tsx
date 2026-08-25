@@ -736,9 +736,7 @@ const AIOverview: React.FC = () => {
     setExecuting(true);
     setError(null);
     try {
-      let userApiKeys: Record<string, string> = {};
-      try { const saved = localStorage.getItem('userApiKeys'); if (saved) userApiKeys = JSON.parse(saved); } catch {}
-
+      // Credenciales resueltas en servidor por sesión (ver Analysis.tsx).
       const response = await apiFetch(`${API_BASE_URL}/api/ai-overview/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -747,7 +745,6 @@ const AIOverview: React.FC = () => {
           competitors: validCompetitors.map(c => c.trim()),
           countryCode, keywordsLimit,
           projectId: selectedProjectId,
-          userApiKeys,
         }),
       });
       const data = await response.json();

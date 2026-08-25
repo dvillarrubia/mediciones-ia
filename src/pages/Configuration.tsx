@@ -124,16 +124,19 @@ const Configuration: React.FC = () => {
   }, [error]);
 
   const loadApiKeys = () => {
-    const savedKeys = localStorage.getItem('userApiKeys');
-    if (savedKeys) {
-      try {
-        const parsed = JSON.parse(savedKeys);
-        // Merge con defaults para no perder claves nuevas (p.ej. openrouter)
-        setApiKeys(prev => ({ ...prev, ...parsed }));
-      } catch (e) {
-        console.error('Error loading API keys:', e);
-      }
-    }
+    // El formulario ya NO se precarga desde localStorage. Era una entrada global
+    // sin id de usuario que sobrevivía al logout: al entrar otra persona en el
+    // mismo navegador veía las claves de la anterior ya rellenas y, si pulsaba
+    // "Guardar", quedaban grabadas en SU cuenta del servidor.
+    //
+    // Las claves guardadas viven cifradas por usuario en el servidor y no se
+    // devuelven nunca en claro; el estado de cada proveedor (configurada / no
+    // configurada) se muestra desde `apiKeysStatus`. Los campos empiezan vacíos
+    // y solo se envía lo que el usuario escriba.
+    //
+    // Limpieza de la entrada heredada, para que no quede ninguna clave suelta en
+    // el navegador de nadie.
+    localStorage.removeItem('userApiKeys');
   };
 
   const saveApiKeys = async () => {
@@ -145,10 +148,9 @@ const Configuration: React.FC = () => {
         dataforseo: apiKeys.dataforseo.trim()
       };
       setApiKeys(trimmedKeys);
-      localStorage.setItem('userApiKeys', JSON.stringify(trimmedKeys));
 
-      // Persistir también en el servidor (cifradas). Necesario para
-      // automatizaciones programadas que corren sin sesión activa.
+      // Único destino: el servidor, cifradas y por usuario. Antes se guardaba
+      // además una copia en localStorage que acababa filtrándose entre sesiones.
       // Nota: anthropic/google ya no se gestionan aquí; las keys antiguas
       // guardadas en servidor se dejan intactas (sin uso).
       const providers = ['openai', 'openrouter', 'dataforseo'] as const;
@@ -178,7 +180,7 @@ const Configuration: React.FC = () => {
       }
 
       if (serverErrors.length > 0) {
-        setError(`Guardadas en local, pero fallaron en servidor: ${serverErrors.join(', ')}`);
+        setError(`No se pudieron guardar en el servidor: ${serverErrors.join(', ')}`);
       } else {
         setSuccess('API Keys guardadas correctamente');
       }
@@ -1209,7 +1211,9 @@ const Configuration: React.FC = () => {
                 <div>
                   <h4 className="font-medium text-blue-900 mb-1">Privacidad</h4>
                   <p className="text-sm text-blue-800">
-                    Tus claves se guardan solo en tu navegador (localStorage). No se envían a nuestros servidores.
+                    Tus claves se guardan cifradas en el servidor, asociadas a tu cuenta. Son necesarias ahí
+                    para que las automatizaciones programadas puedan ejecutarse sin que tengas la sesión abierta.
+                    No se muestran nunca en claro ni se comparten con otros usuarios.
                   </p>
                 </div>
               </div>

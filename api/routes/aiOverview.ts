@@ -89,64 +89,6 @@ async function getDataForSEOCredentials(userId: string): Promise<DataForSEOCrede
 // ==================== ENDPOINTS ====================
 
 /**
- * POST /api/ai-overview/debug-credentials
- * Debug: ver qué credenciales llegan (TEMPORAL)
- */
-router.post('/debug-credentials', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { userApiKeys } = req.body;
-    const dataforseoKey = userApiKeys?.dataforseo;
-
-    if (!dataforseoKey) {
-      res.json({ error: 'No dataforseo key in userApiKeys', keys: Object.keys(userApiKeys || {}) });
-      return;
-    }
-
-    const parts = dataforseoKey.split(':');
-    const login = parts[0];
-    const password = parts.slice(1).join(':');
-
-    // Probar la autenticación directamente
-    const authString = Buffer.from(`${login}:${password}`).toString('base64');
-
-    const testResponse = await fetch('https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${authString}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify([{
-        target: 'example.com',
-        location_code: 2840,
-        language_code: 'en',
-        item_types: ['ai_overview_reference'],
-        limit: 1,
-      }]),
-    });
-
-    const testData = await testResponse.json();
-
-    res.json({
-      debug: {
-        rawKeyLength: dataforseoKey.length,
-        rawKeyPreview: dataforseoKey.substring(0, 5) + '...' + dataforseoKey.substring(dataforseoKey.length - 3),
-        login,
-        passwordLength: password.length,
-        passwordPreview: password.substring(0, 2) + '***',
-        authHeaderPreview: `Basic ${authString.substring(0, 10)}...`,
-        partsCount: parts.length,
-      },
-      apiResponse: {
-        status_code: testData.status_code,
-        status_message: testData.status_message,
-      }
-    });
-  } catch (error: any) {
-    res.json({ error: error.message });
-  }
-});
-
-/**
  * POST /api/ai-overview/estimate
  * Estimar coste antes de ejecutar
  */
@@ -191,30 +133,20 @@ router.post('/estimate', async (req: Request, res: Response): Promise<void> => {
 router.post('/execute', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId;
-    const { targetDomain, targetAliases, competitors, countryCode, projectId, keywordsLimit, userApiKeys } = req.body;
+    const { targetDomain, targetAliases, competitors, countryCode, projectId, keywordsLimit } = req.body;
 
     if (!targetDomain || !competitors?.length || !countryCode) {
       res.status(400).json({ error: 'targetDomain, competitors y countryCode son requeridos' });
       return;
     }
 
-    // Obtener credenciales: primero del body (localStorage), luego de la DB
-    let credentials: DataForSEOCredentials | null = null;
-
-    const dataforseoKey = userApiKeys?.dataforseo;
-    console.log('[AI Overview] dataforseo key from body:', dataforseoKey ? `"${dataforseoKey.substring(0, 20)}..." (len=${dataforseoKey.length})` : 'NOT PRESENT');
-    console.log('[AI Overview] all userApiKeys keys:', Object.keys(userApiKeys || {}));
-    if (dataforseoKey) {
-      const parts = dataforseoKey.split(':');
-      console.log('[AI Overview] parsed login:', parts[0], '| password length:', parts.slice(1).join(':').length);
-      if (parts.length >= 2) {
-        credentials = { login: parts[0], password: parts.slice(1).join(':') };
-      }
-    }
-
-    if (!credentials) {
-      credentials = await getDataForSEOCredentials(userId);
-    }
+    // Credenciales SIEMPRE de la BD del usuario autenticado. Antes se tomaba
+    // primero lo que enviara el navegador, que es como la clave de un usuario
+    // acababa usándose en la sesión de otro (ver utils/resolveUserApiKeys.ts).
+    //
+    // Se elimina además el volcado de la clave al log: imprimía los primeros 20
+    // caracteres y el login de DataForSEO en texto plano.
+    const credentials: DataForSEOCredentials | null = await getDataForSEOCredentials(userId);
 
     if (!credentials) {
       res.status(401).json({

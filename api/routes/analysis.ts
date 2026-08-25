@@ -9,6 +9,7 @@ import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
 import { requireAuth } from '../middleware/auth.js';
+import { resolveUserApiKeys } from '../utils/resolveUserApiKeys.js';
 import { authService } from '../services/authService.js';
 import { getQueueStats } from '../services/providerQueue.js';
 
@@ -108,7 +109,6 @@ router.post('/execute-async', async (req: Request, res: Response) => {
     const {
       categories,
       configuration,
-      userApiKeys,
       projectId,
       selectedModel,
       countryCode,
@@ -118,21 +118,13 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       countryLanguage
     } = req.body;
 
-    // Obtener API keys del usuario
-    let apiKeysToUse = userApiKeys;
-    if (req.userId && !userApiKeys) {
-      try {
-        const storedKeys = await authService.getApiKeys(req.userId);
-        if (Object.keys(storedKeys).length > 0) {
-          apiKeysToUse = storedKeys;
-        }
-      } catch (err) {
-        // silenciar
-      }
-    }
+    // Las claves salen SIEMPRE de la BD del usuario autenticado. Lo que venga en
+    // el body se ignora: era la vía por la que la clave de un usuario acababa
+    // usándose en la sesión de otro (ver utils/resolveUserApiKeys.ts).
+    const apiKeysToUse = await resolveUserApiKeys(req.userId);
 
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
-      return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
+      return res.status(400).json({ error: 'API Key de OpenRouter requerida', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
     const modelInfo = getModelById(selectedModel || DEFAULT_MODEL);
@@ -318,7 +310,6 @@ router.post('/execute', async (req: Request, res: Response) => {
       categories,
       maxSources = 6,
       configuration,
-      userApiKeys,
       projectId,
       // Parámetros de modelo y país (del dropdown del frontend)
       selectedModel,
@@ -335,25 +326,16 @@ router.post('/execute', async (req: Request, res: Response) => {
     console.log(`   🌍 País: ${countryCode || 'ES'}`);
     console.log(`   🗣️ Idioma: ${countryLanguage || 'Español'}`);
 
-    // Obtener API keys del usuario autenticado si existen
-    let apiKeysToUse = userApiKeys;
-    if (req.userId && !userApiKeys) {
-      try {
-        const storedKeys = await authService.getApiKeys(req.userId);
-        if (Object.keys(storedKeys).length > 0) {
-          apiKeysToUse = storedKeys;
-          console.log('🔑 Using stored API keys for user:', req.userId);
-        }
-      } catch (err) {
-        console.log('⚠️ Could not retrieve stored API keys:', err);
-      }
-    }
+    // Las claves salen SIEMPRE de la BD del usuario autenticado. Lo que venga en
+    // el body se ignora: era la vía por la que la clave de un usuario acababa
+    // usándose en la sesión de otro (ver utils/resolveUserApiKeys.ts).
+    const apiKeysToUse = await resolveUserApiKeys(req.userId);
 
     // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
-        error: 'API Keys requeridas',
-        message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.',
+        error: 'API Key de OpenRouter requerida',
+        message: 'Debes configurar tu API Key de OpenRouter en Configuración > API Keys antes de ejecutar análisis.',
         code: 'API_KEYS_REQUIRED'
       });
     }
@@ -529,27 +511,19 @@ router.post('/execute', async (req: Request, res: Response) => {
  */
 router.post('/multi-model', async (req: Request, res: Response) => {
   try {
-    const { questions, configuration, userApiKeys, projectId } = req.body;
+    const { questions, configuration, projectId } = req.body;
 
-    // Obtener API keys del usuario autenticado si existen
-    let apiKeysToUse = userApiKeys;
-    if (req.userId && !userApiKeys) {
-      try {
-        const storedKeys = await authService.getApiKeys(req.userId);
-        if (Object.keys(storedKeys).length > 0) {
-          apiKeysToUse = storedKeys;
-        }
-      } catch (err) {
-        console.log('⚠️ Could not retrieve stored API keys:', err);
-      }
-    }
+    // Las claves salen SIEMPRE de la BD del usuario autenticado. Lo que venga en
+    // el body se ignora: era la vía por la que la clave de un usuario acababa
+    // usándose en la sesión de otro (ver utils/resolveUserApiKeys.ts).
+    const apiKeysToUse = await resolveUserApiKeys(req.userId);
 
     // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas.
     // La persona "chatgpt" corre por OpenAI directo o por OpenRouter; las
     // personas claude/gemini (nativas) ya no existen y se excluyen en el servicio.
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
-        error: 'API Keys requeridas',
+        error: 'API Key de OpenRouter requerida',
         message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis multi-modelo.',
         code: 'API_KEYS_REQUIRED'
       });

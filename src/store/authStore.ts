@@ -146,6 +146,16 @@ export const useAuthStore = create<AuthState>()(
           console.error('Error al cerrar sesión en servidor:', error);
         }
 
+        // Defensa en profundidad: aunque las claves ya no se guardan aquí, un
+        // navegador que venga de una versión anterior conserva la entrada. Sin
+        // este borrado, la siguiente persona que entre en este equipo arrastra
+        // las claves de quien acaba de salir.
+        try {
+          localStorage.removeItem('userApiKeys');
+        } catch {
+          // localStorage puede no estar disponible (modo privado, SSR): irrelevante aquí.
+        }
+
         set({
           user: null,
           token: null,

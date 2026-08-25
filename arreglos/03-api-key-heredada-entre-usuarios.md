@@ -1,4 +1,4 @@
-# La API key del usuario anterior se hereda al cambiar de usuario
+# La API key del usuario anterior se hereda al cambiar de usuario · ✅ ARREGLADO (25/08/2026)
 
 **Origen:** reporte de usuario, 25/08/2026
 **Contexto:** "si creamos un usuario y metemos una API, y después creamos o
@@ -113,6 +113,56 @@ de bug:
    primero, body solo como fallback sin sesión — en los cuatro endpoints
    listados arriba.
 
+## Arreglo aplicado
+
+Commit `fix(security)`, 25/08/2026. Se optó por la solución de raíz (opción 1),
+que elimina la clase entera de bug en vez de parchear sus síntomas. Fue viable
+porque **las cuatro rutas montan `requireAuth`**, así que `req.userId` está
+siempre disponible y no hace falta un camino alternativo sin sesión.
+
+**Backend — el servidor deja de aceptar claves del cliente:**
+
+- Nuevo `api/utils/resolveUserApiKeys.ts`: resuelve SIEMPRE desde
+  `user_api_keys` por `userId`. Descarta cadenas vacías, con lo que desaparece
+  de paso el fallo relacionado (`{openai: ''}` hacía pasar la validación y luego
+  fallaba contra el proveedor).
+- Sustituido en los tres puntos de `analysis.ts` y en `aiOverview.ts`. El campo
+  `userApiKeys` del body ya no se lee en ningún endpoint.
+- Eliminado `POST /ai-overview/debug-credentials`, marcado "TEMPORAL" y sin
+  ningún llamante: aceptaba credenciales por el body y devolvía el login de
+  DataForSEO completo más fragmentos de la contraseña y de la cabecera de
+  autenticación.
+- Eliminado el volcado al log de los primeros 20 caracteres de la clave de
+  DataForSEO y de su login.
+
+**Frontend — el navegador deja de ser fuente de claves:**
+
+- `Analysis.tsx` y `AIOverview.tsx` ya no leen `localStorage` ni envían
+  `userApiKeys`.
+- `Configuration.tsx` no precarga el formulario desde `localStorage` y no
+  escribe ahí al guardar. Además borra la entrada heredada al abrirse, para que
+  no quede ninguna clave suelta en navegadores que vengan de la versión anterior.
+- `authStore.logout()` borra `localStorage['userApiKeys']`: defensa en
+  profundidad para los navegadores que aún la tengan.
+- Corregido el aviso de privacidad, que afirmaba en falso que las claves no
+  salían del navegador.
+
+## Verificación
+
+Probado en local con dos usuarios reales, en las dos direcciones:
+
+| Escenario | Resultado |
+|---|---|
+| Usuario B **sin claves** inyecta la clave de A en el body | `400 API_KEYS_REQUIRED` — el body se ignora ✅ |
+| Usuario A **con clave en BD**, sin enviar nada en el body | La resuelve y llega al proveedor ✅ |
+
+El segundo caso devuelve un 401 del proveedor porque la clave está rotada, y eso
+mismo confirma que se leyó de la base y se usó.
+
 ## Estado
 
-Pendiente.
+Arreglado. Pendiente: los usuarios cuyo servidor tenga guardada una clave
+contaminada de otro usuario (por haber pulsado "Guardar" con el formulario
+precargado) **siguen con esa clave en su cuenta**. El código ya no la propaga,
+pero no puede saber cuál es legítima y cuál heredada. Si sospechas de algún
+caso, revisar con el usuario y volver a guardar la suya.
