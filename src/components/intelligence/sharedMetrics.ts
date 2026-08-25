@@ -284,6 +284,40 @@ export function isWebUrl(url: string | undefined): boolean {
 
 // === Gap de citaciones (Hito 6.B — GEO) ===
 
+/** Normaliza un nombre de marca para comparar: minúsculas, sin acentos y con
+ *  los separadores convertidos en espacios ("ASSA ABLOY (TESA Hotel)" →
+ *  "assa abloy tesa hotel"). A diferencia de aliasKey NO colapsa los espacios,
+ *  porque necesitamos comparar por palabra completa. */
+const normBrandName = (s: string): string =>
+  (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** ¿La marca mencionada es la de referencia? Compara por palabra completa en
+ *  AMBOS sentidos, porque los modelos devuelven el nombre con coletillas:
+ *
+ *    "ASSA ABLOY (TESA Hotel)" ~ "Assa Abloy"   (la mención contiene a la referencia)
+ *    "HID"                     ~ "HID Global"   (la referencia contiene a la mención)
+ *
+ *  La comparación por palabra completa evita falsos positivos por subcadena
+ *  ("tesa" no casa dentro de "protesta"). Se exigen 3 caracteres mínimo para no
+ *  emparejar por siglas de dos letras.
+ */
+export function brandMatches(mentionName: string, referenceName: string): boolean {
+  const a = normBrandName(mentionName);
+  const b = normBrandName(referenceName);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const containsWord = (haystack: string, needle: string) =>
+    needle.length >= 3 && new RegExp(`(^| )${escapeRe(needle)}( |$)`).test(haystack);
+  return containsWord(a, b) || containsWord(b, a);
+}
+
 export interface CitationGap {
   domain: string;
   competitorCitations: number; // preguntas donde el dominio se cita con competencia y SIN la marca
@@ -292,7 +326,6 @@ export interface CitationGap {
 
 /** Dominios (de terceros) que la IA cita junto a competidores pero nunca con tu marca → oportunidades de presencia. */
 export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: string): CitationGap[] {
-  const targetKey = aliasKey(targetBrand);
   const acc: Record<string, { targetCount: number; compCount: number; comps: Set<string> }> = {};
 
   // Claves de marca (objetivo + competidores) para excluir dominios PROPIOS de marcas (no son oportunidades).
@@ -300,14 +333,43 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
   const addBrandKey = (name: string) => { const k = aliasKey(name); if (k.length >= 4) brandKeys.add(k); };
   addBrandKey(targetBrand);
 
+  // Competidores CONFIGURADOS del proyecto. El gap solo puede considerar
+  // competencia lo que el gestor haya declarado como tal: antes se tomaba
+  // cualquier marca mencionada que no fuera la objetivo, y eso metía en la lista
+  // a clientes y verticales de la marca. En los análisis de Salto suponía 1.120
+  // "competidores" frente a los 11 configurados: hoteles, gimnasios, portales de
+  // reservas e incluso un hospital, que la IA nombra en la misma respuesta
+  // porque Salto les vende control de accesos.
+  const configuredCompetitors: string[] = [];
+  const addCompetitor = (name: string) => {
+    const clean = (name || '').trim();
+    if (clean.length < 2) return;
+    if (!configuredCompetitors.some(c => brandMatches(c, clean))) configuredCompetitors.push(clean);
+  };
+  analyses.forEach(a => (a.configuration?.competitors || []).forEach(addCompetitor));
+
+  // Sin competidores declarados el gap no significa nada: su premisa es
+  // "dominios citados junto a la COMPETENCIA y nunca contigo". Devolver la lista
+  // completa de marcas mencionadas sería exactamente el error que esto corrige.
+  if (configuredCompetitors.length === 0) return [];
+
   analyses.forEach(a => {
     addBrandKey(a.configuration?.brand || '');
     (a.configuration?.competitors || []).forEach(addBrandKey);
     (a.results?.questions || []).forEach(q => {
       const mentions = (q.brandMentions || []).filter(bm => bm.mentioned);
       mentions.forEach(bm => addBrandKey(bm.brand));
-      const targetHere = mentions.some(bm => aliasKey(bm.brand) === targetKey);
-      const comps = mentions.filter(bm => aliasKey(bm.brand) !== targetKey).map(bm => bm.brand);
+      // Comparación tolerante a variantes: el modelo devuelve "Salto Systems",
+      // "SALTO" o "Assa Abloy (VingCard)" para la misma marca. Con igualdad
+      // estricta la marca objetivo no se reconocía y el dominio se contaba como
+      // hueco aunque la marca SÍ estuviera presente.
+      const targetHere = mentions.some(bm => brandMatches(bm.brand, targetBrand));
+      // Cada mención se reduce a su competidor configurado (nombre canónico), de
+      // modo que las variantes dejan de contarse por separado y dejan de diluir
+      // al competidor real fuera del top.
+      const comps = mentions
+        .map(bm => configuredCompetitors.find(c => brandMatches(bm.brand, c)))
+        .filter((c): c is string => !!c && !brandMatches(c, targetBrand));
       const domains = new Set(
         (q.sources || []).filter(s => isWebUrl(s.url) && isRealDomain(s.domain)).map(s => s.domain)
       );
@@ -319,12 +381,21 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
     });
   });
 
-  // ¿El dominio pertenece a una marca? Compara por etiqueta (endesa.com → "endesa"), no substring del dominio entero.
+  // ¿El dominio pertenece a una marca? Compara por etiqueta (endesa.com → "endesa"),
+  // no substring del dominio entero.
+  //
+  // El nombre de marca no siempre encabeza la etiqueta: "accentra-assaabloy.com"
+  // es de Assa Abloy y con startsWith se colaba como "oportunidad". Un dominio de
+  // la propia competencia nunca es un hueco donde ganar presencia. Para la
+  // comparación por contención se exigen 5 caracteres, más que los 4 de prefijo,
+  // porque una marca corta dentro de una etiqueta larga es fácil que sea casual.
   const isBrandOwnedDomain = (domain: string): boolean => {
     const labels = domain.toLowerCase().split('.').map(l => aliasKey(l)).filter(Boolean);
     for (const label of labels) {
       for (const bk of brandKeys) {
-        if (label === bk || (bk.length >= 4 && label.startsWith(bk))) return true;
+        if (label === bk) return true;
+        if (bk.length >= 4 && label.startsWith(bk)) return true;
+        if (bk.length >= 5 && label.includes(bk)) return true;
       }
     }
     return false;

@@ -58,6 +58,14 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
     return buildCitationGaps(scoped, target);
   }, [scoped]);
 
+  // El gap necesita competidores declarados: sin ellos no se puede saber qué
+  // dominios acompañan a la competencia. Se distingue de "no hay huecos" para no
+  // dejar el panel vacío sin explicar por qué.
+  const hasConfiguredCompetitors = useMemo(
+    () => (scoped || []).some(a => (a.configuration?.competitors || []).length > 0),
+    [scoped]
+  );
+
   const data = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
     const sorted = sortByDate(scoped);
@@ -293,6 +301,17 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
       </div>
 
       {/* Gap de citaciones (Hito 6.B — GEO) */}
+      {citationGaps.length === 0 && !hasConfiguredCompetitors && (
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold text-gray-900 mb-1">Gap de citaciones</h3>
+          <p className="text-sm text-gray-500">
+            Este proyecto no tiene competidores configurados. El gap muestra los dominios que la IA
+            cita junto a tu competencia y nunca contigo, así que necesita saber quién es tu competencia.
+            Añádelos en la configuración del proyecto para activarlo.
+          </p>
+        </div>
+      )}
+
       {citationGaps.length > 0 && (
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">

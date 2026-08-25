@@ -6,7 +6,7 @@
 
 ---
 
-## 4. Gap de citaciones: aparecen competidores falsos · SEVERIDAD ALTA
+## 4. Gap de citaciones: aparecen competidores falsos · ✅ ARREGLADO (25/08/2026)
 
 > *"Están apareciendo competidores que no son los establecidos (salen gimnasios,
 > por ejemplo) y no aparecen los reales tipo Assa Abloy."*
@@ -61,19 +61,48 @@ Assa Abloy (VingCard)    ·  TESA Hotel
 Con 1.106 marcas intrusas compitiendo por 20 huecos ordenados por número de
 citaciones, el competidor real queda sepultado. Por eso "no aparece".
 
-### Arreglo propuesto
+### Arreglo aplicado
 
-1. **Restringir `comps`** a los competidores configurados del proyecto, más las
-   marcas descubiertas que se hayan promovido explícitamente a competidor.
-   Un desplegable de marcas descubiertas donde el gestor marque cuáles son
-   competencia resolvería el caso de Brivo, Genetec o Verkada — competidores
-   legítimos que hoy no están configurados.
-2. **Normalizar variantes de marca** antes de agregar. Ya existe `aliasKey()`;
-   falta aplicarlo con un diccionario de alias por proyecto para que las cinco
-   formas de "Assa Abloy" sumen como una.
+Commit `fix(citations)`, 25/08/2026. Tres cambios en `buildCitationGaps()`:
 
-> El punto 2 beneficia a **todos** los dashboards, no solo al gap: la
-> fragmentación de nombres infla el recuento de marcas en todo el sistema.
+1. **`comps` se restringe a los competidores configurados** del proyecto. Cada
+   mención se reduce a su competidor canónico, así que las variantes dejan de
+   contarse por separado.
+2. **Emparejamiento tolerante a variantes** (`brandMatches()`): compara por
+   palabra completa en ambos sentidos, de modo que "ASSA ABLOY (TESA Hotel)"
+   casa con "ASSA Abloy" y "HID" con "HID Global". Se exigen 3 caracteres y
+   límite de palabra para que "TESA" no case dentro de "protesta".
+3. **La marca objetivo se detecta igual de tolerante.** Antes usaba igualdad
+   estricta: si el modelo decía "Salto Systems" y el proyecto "Salto", no la
+   reconocía y el dominio se contaba como hueco **aunque la marca estuviera
+   presente**. Era un falso positivo que nadie había reportado.
+
+También se afinó `isBrandOwnedDomain()`: usaba `startsWith`, así que
+`accentra-assaabloy.com` —dominio propio de Assa Abloy— aparecía como
+"oportunidad". Un dominio de la competencia nunca es un hueco donde ganar
+presencia.
+
+**Resultado medido** sobre los 8 análisis de Salto en producción:
+
+| | Antes | Después |
+|---|---|---|
+| Marcas mostradas como competidor | **98** | **3** |
+| Cuáles | ruido: Clear Cloud Solutions, Walk In IQ, symplr Access, Aptly NoKey… | HID Global, ASSA Abloy, Dormakaba |
+| ¿Aparece Assa Abloy? | no (diluida en variantes) | **sí** |
+
+El emparejador se validó con 15 casos reales (8 que deben casar, 7 que no):
+15/15 correctos.
+
+### Pendiente relacionado
+
+Competidores legítimos como **Brivo, Genetec o Verkada** siguen fuera del gap
+porque no están configurados en el proyecto. La solución no es código: hay que
+añadirlos a la configuración de Salto. Un desplegable de marcas descubiertas
+donde el gestor las promueva a competidor evitaría tener que mantenerlo a mano.
+
+> La normalización de variantes beneficia a **todos** los dashboards, no solo al
+> gap: la fragmentación de nombres infla el recuento de marcas en todo el
+> sistema. Aquí solo se ha aplicado al gap; extenderla es trabajo aparte.
 
 ---
 
@@ -185,7 +214,7 @@ nombre.
 
 | Orden | Punto | Por qué |
 |---|---|---|
-| 1 | **4 · Gap de citaciones** | Dato erróneo en informes de cliente |
+| ~~1~~ | ~~**4 · Gap de citaciones**~~ | ✅ arreglado 25/08/2026 |
 | 2 | **2 · Detalle de sentimiento** | Columna vacía + dimensión modelo perdida |
 | 3 | **3 · Línea por modelo** | Misma raíz que el 2, aprovecha el trabajo |
 | 4 | **1 · Descargas** | Elimina trabajo manual (hacer después del 4) |
