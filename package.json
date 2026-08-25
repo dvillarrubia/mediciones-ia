@@ -14,7 +14,8 @@
     "server:dev": "nodemon",
     "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
     "release": "bash tools/release.sh",
-    "modelos:check": "node scripts/verificar-modelos.mjs"
+    "modelos:check": "node scripts/verificar-modelos.mjs",
+    "test:evidencias": "tsx scripts/test-evidencias.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",

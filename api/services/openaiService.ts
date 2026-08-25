@@ -2756,18 +2756,26 @@ Responde SOLO con JSON válido (sin texto adicional, en ${countryLanguage}):
     "name": "${targetBrand}",
     "mentioned": true/false,
     "sentiment": "very_positive|positive|neutral|negative|very_negative",
-    "position": número (orden de aparición en el texto, 1=primera marca, 0=no aparece)
+    "position": número (orden de aparición en el texto, 1=primera marca, 0=no aparece),
+    "evidence": ["frase LITERAL del texto donde se nombra la marca"]
   },
   "otherBrands": [
     {
       "name": "NombreMarca",
       "mentioned": true,
       "sentiment": "very_positive|positive|neutral|negative|very_negative",
-      "position": número
+      "position": número,
+      "evidence": ["frase LITERAL del texto donde se nombra la marca"]
     }
   ],
   "confidence": número entre 0.7 y 0.95
 }
+
+REGLAS PARA "evidence":
+- Copia la frase EXACTAMENTE como aparece en la respuesta analizada. No la reescribas, resumas ni traduzcas.
+- Una o dos frases por marca, la más informativa. Si la marca no está mencionada, deja la lista vacía.
+- Debe contener el nombre de la marca y ser lo bastante larga para entenderse por sí sola (mínimo 15 caracteres).
+- Si no encuentras una frase literal, devuelve [] en lugar de inventarla.
 
 IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en la lista de competidores. Ten en cuenta que el contexto es ${countryName} al evaluar las marcas.`;
 
@@ -2815,7 +2823,8 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
       mentioned: analysisJson.targetBrand.mentioned || false,
       frequency: analysisJson.targetBrand.mentioned ? 1 : 0,
       context: this.mapSentimentToContext(analysisJson.targetBrand.sentiment),
-      evidence: [],
+      // Solo las frases que existen en la respuesta: ver verifyEvidence().
+      evidence: this.verifyEvidence(analysisJson.targetBrand.evidence, naturalResponse),
       appearanceOrder: analysisJson.targetBrand.position || 0,
       isDiscovered: false,
       detailedSentiment: analysisJson.targetBrand.sentiment || 'neutral'
@@ -2833,7 +2842,7 @@ IMPORTANTE: Detecta TODAS las marcas mencionadas, incluso las que no están en l
         mentioned: brand.mentioned || true,
         frequency: 1,
         context: this.mapSentimentToContext(brand.sentiment),
-        evidence: [],
+        evidence: this.verifyEvidence(brand.evidence, naturalResponse),
         appearanceOrder: brand.position || 0,
         isDiscovered: !isConfiguredCompetitor,
         detailedSentiment: brand.sentiment || 'neutral'
@@ -3350,6 +3359,53 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
   /**
    * Limpia respuesta JSON de caracteres problemáticos
    */
+  /**
+   * Normaliza texto para cotejar evidencias: minúsculas, sin markdown ni URLs y
+   * con los espacios colapsados. No se usa para mostrar, solo para comparar.
+   */
+  private normalizeForEvidenceMatch(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .replace(/\(\[[^\]]*\]\([^)]*\)\)/g, ' ')  // enlaces markdown entre paréntesis
+      .replace(/https?:\/\/\S+/g, ' ')
+      .replace(/[*_`#>]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Devuelve solo las evidencias que APARECEN de verdad en la respuesta analizada.
+   *
+   * La fase 2 es un LLM y puede parafrasear o inventar la cita. Una evidencia
+   * fabricada es peor que ninguna: el informe se la enseña al cliente como prueba
+   * textual de que la IA nombró su marca. Se coteja un prefijo de la frase (no la
+   * frase entera) porque el modelo suele recortar por sitios distintos.
+   */
+  private verifyEvidence(raw: unknown, responseText: string): string[] {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    const haystack = this.normalizeForEvidenceMatch(responseText);
+    if (!haystack) return [];
+
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const item of raw) {
+      if (typeof item !== 'string') continue;
+      const frase = item.trim();
+      if (frase.length < 15) continue; // fragmentos demasiado cortos no prueban nada
+      const norm = this.normalizeForEvidenceMatch(frase);
+      if (!norm || seen.has(norm)) continue;
+      // Prefijo de 60 caracteres: suficiente para identificar la frase sin exigir
+      // que el modelo la haya copiado hasta el último signo de puntuación.
+      const sonda = norm.slice(0, 60);
+      if (sonda.length >= 15 && haystack.includes(sonda)) {
+        seen.add(norm);
+        out.push(frase);
+      }
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
   private cleanJSONResponse(response: string): string {
     let cleanedResponse = response.trim();
     

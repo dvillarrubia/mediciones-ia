@@ -10,7 +10,7 @@ que se le entrega al cliente**.
 
 ---
 
-## A. El campo `evidence` casi nunca se rellena · SEVERIDAD MEDIA
+## A. El campo `evidence` casi nunca se rellena · ✅ ARREGLADO (25/08/2026)
 
 ### Qué es
 
@@ -61,14 +61,46 @@ preguntas:
 Llamar "evidencias verificadas" a lo que en el 65% de los casos es una búsqueda
 de texto es generoso.
 
-### Arreglo propuesto
+### Arreglo aplicado
 
-Pedir la frase en el prompt de la fase 2 —que ya devuelve marca, sentimiento y
-posición— y guardarla en `evidence`. Convierte el 70% en casi 100%, con frases
-elegidas por el modelo. Coste added: unos pocos tokens de salida por mención.
+Commit `fix(evidence)`, 25/08/2026.
 
-Misma raíz que `contextualAnalysis` en la ficha 01, punto 2.a: arreglar ambos
-a la vez tiene sentido.
+1. **El prompt de la fase 2 pide la frase literal** por marca, con reglas
+   explícitas: copiar exactamente, no reescribir ni traducir, mínimo 15
+   caracteres, y devolver `[]` antes que inventarla.
+2. **`verifyEvidence()` coteja cada frase contra la respuesta antes de
+   guardarla.** Es la parte importante: la fase 2 es un LLM y puede parafrasear
+   o inventar la cita. Una evidencia fabricada es **peor que ninguna**, porque el
+   informe se la enseña al cliente como prueba textual de que la IA nombró su
+   marca. Se compara un prefijo de 60 caracteres sobre texto normalizado (sin
+   markdown ni URLs), porque el modelo recorta las frases por sitios distintos.
+
+Validado con `npm run test:evidencias`, que ejercita el código real sin llamar a
+ninguna API: 10 casos, 10 correctos. Acepta citas literales (incluso cuando el
+original lleva markdown), y **rechaza paráfrasis, invenciones y fragmentos
+demasiado cortos**; deduplica y corta en 3 por marca.
+
+**Efecto colateral útil:** el detalle del dashboard de sentimiento usa
+`bm.evidence?.[0]` como respaldo del motivo (ficha 01, punto 2.a), así que esa
+columna deja de estar vacía por el mismo cambio.
+
+### Pendiente de confirmar en producción
+
+El verificador está probado; lo que **no** se ha podido comprobar es con qué
+frecuencia el modelo devuelve una cita verdaderamente literal, porque hacía falta
+una llamada real y la API key se rotó. Si el modelo parafrasea a menudo, el
+verificador hará su trabajo —rechazarlas— y seguiremos con evidencias vacías,
+solo que sin inventos.
+
+**Cómo medirlo tras el despliegue:** contar menciones con `evidence` no vacío
+sobre el total. Si sube claramente del 4,6% actual (34 de 740), el prompt
+funciona. Si no, hay que ajustar la instrucción, no el verificador.
+
+### Análisis antiguos
+
+No se reprocesan. Los ya guardados siguen dependiendo del respaldo de
+`verifiedEvidence()` en el frontend, que cubre el 70%. El cambio solo afecta a
+los análisis nuevos.
 
 ---
 
@@ -160,7 +192,7 @@ de una instancia de la API.
 
 | Ficha | Afecta a | Arreglo |
 |---|---|---|
-| A · Evidencias | Credibilidad del informe | Pedir la frase en la fase 2 |
+| ~~A · Evidencias~~ | Credibilidad del informe | ✅ arreglado 25/08/2026 |
 | B · Sentimiento | Utilidad de la métrica | Decidir qué medir antes de tocar código |
 | C · Inestabilidad | Fiabilidad de la lista de competidores | Repetir N veces y usar frecuencia |
 | D · Trabajos en vuelo | Operación | Cola persistente, o desplegar en hueco |
