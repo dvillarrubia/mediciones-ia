@@ -7,7 +7,21 @@ import { Database } from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
-import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAILS, RESTRICT_REGISTRATION, AI_MODELS, type AIModelInfo } from '../config/constants.js';
+import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAILS, RESTRICT_REGISTRATION, AI_MODELS, OPENROUTER_MODELS, type AIModelInfo } from '../config/constants.js';
+
+/**
+ * Catálogo completo de modelos seleccionables. AI_MODELS (proveedores directos)
+ * quedó vacío al deprecar OpenAI los modelos *-search-preview; todo va por
+ * OpenRouter. Se mantiene la concatenación para que volver a tener un proveedor
+ * directo en el futuro no exija tocar el sembrado ni la limpieza.
+ */
+const ALL_MODELS: AIModelInfo[] = [...AI_MODELS, ...OPENROUTER_MODELS];
+
+/** Modelos retirados que deben desaparecer de la tabla ai_models al arrancar. */
+const DEPRECATED_MODEL_IDS = new Set<string>([
+  'gpt-4o-search-preview',
+  'gpt-4o-mini-search-preview',
+]);
 
 export interface WhitelistConfig {
   emails: string[];
@@ -215,13 +229,13 @@ class AdminService {
 
         if (row.count === 0) {
           // Insertar modelos desde constants.ts
-          let pending = AI_MODELS.length;
+          let pending = ALL_MODELS.length;
           if (pending === 0) {
             resolve();
             return;
           }
 
-          AI_MODELS.forEach((model, index) => {
+          ALL_MODELS.forEach((model, index) => {
             this.db!.run(
               `INSERT OR IGNORE INTO ai_models
                (id, name, provider, description, strengths, context_window, pricing, recommended, enabled, requires_api_key, sort_order)
@@ -571,7 +585,7 @@ class AdminService {
           if (err) {
             // Si la tabla no existe, devolver modelos de constants
             if (err.message.includes('no such table')) {
-              resolve(AI_MODELS.map((m, i) => ({ ...m, enabled: true, order: i })));
+              resolve(ALL_MODELS.map((m, i) => ({ ...m, enabled: true, order: i })));
               return;
             }
             reject(err);
@@ -803,7 +817,7 @@ class AdminService {
     let added = 0;
     let existing = 0;
 
-    for (const model of AI_MODELS) {
+    for (const model of ALL_MODELS) {
       if (existingIds.has(model.id)) {
         existing++;
       } else {
@@ -817,28 +831,48 @@ class AdminService {
   }
 
   /**
-   * Limpiar modelos antiguos sin búsqueda web (OpenAI sin 'search' en el ID)
-   * Solo mantiene modelos con búsqueda web real
+   * Limpia de la tabla ai_models los modelos que ya no son seleccionables:
+   *
+   *  1. Los DEPRECADOS por el proveedor (gpt-4o-search-preview y su mini). Estos
+   *     estaban sembrados como enabled=1, así que la UI los ofrecía y cualquier
+   *     análisis que los eligiera moría con un 404 del proveedor.
+   *  2. Los de proveedores directos que ya no existen en el catálogo, ahora que
+   *     todo pasa por OpenRouter.
+   *
+   * Se conserva cualquier modelo que siga en ALL_MODELS.
    */
   async cleanupNonSearchModels(): Promise<{ removed: number; kept: number }> {
     await this.ensureInitialized();
 
     const existingModels = await this.getAllAIModels();
-    const validModelIds = new Set(AI_MODELS.map(m => m.id));
+    const validModelIds = new Set(ALL_MODELS.map(m => m.id));
 
     let removed = 0;
     let kept = 0;
 
     for (const model of existingModels) {
-      // Si el modelo es de OpenAI y NO tiene 'search' en el ID, eliminarlo
-      // A menos que esté en la lista actual de AI_MODELS
-      if (model.provider === 'openai' && !model.id.includes('search') && !validModelIds.has(model.id)) {
-        await this.deleteAIModel(model.id);
-        console.log(`🗑️ Modelo sin búsqueda web eliminado: ${model.name} (${model.id})`);
-        removed++;
-      } else {
+      if (validModelIds.has(model.id)) {
         kept++;
+        continue;
       }
+
+      if (DEPRECATED_MODEL_IDS.has(model.id)) {
+        await this.deleteAIModel(model.id);
+        console.log(`🗑️ Modelo deprecado por el proveedor eliminado: ${model.name} (${model.id})`);
+        removed++;
+        continue;
+      }
+
+      // Proveedor directo fuera del catálogo: ya no hay integración que lo sirva.
+      if (model.provider !== 'openrouter') {
+        await this.deleteAIModel(model.id);
+        console.log(`🗑️ Modelo de proveedor directo eliminado: ${model.name} (${model.id})`);
+        removed++;
+        continue;
+      }
+
+      // Slug de OpenRouter no curado: puede ser válido (modo avanzado). Se respeta.
+      kept++;
     }
 
     console.log(`🧹 Limpieza de modelos: ${removed} eliminados, ${kept} mantenidos`);

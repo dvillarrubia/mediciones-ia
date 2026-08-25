@@ -4,7 +4,7 @@
  */
 import { Router, Request, Response } from 'express';
 import OpenAIService from '../services/openaiService.js';
-import { QuestionCategory, getModelById } from '../config/constants.js';
+import { QuestionCategory, getModelById, DEFAULT_MODEL } from '../config/constants.js';
 import { databaseService } from '../services/databaseService.js';
 import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
@@ -135,7 +135,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'API Keys requeridas', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
-    const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
+    const modelInfo = getModelById(selectedModel || DEFAULT_MODEL);
     if (modelInfo) {
       const provider = modelInfo.provider;
       if (provider === 'openai' && !apiKeysToUse.openai) {
@@ -176,7 +176,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
 
         const extendedConfiguration = {
           ...configuration,
-          selectedModel: selectedModel || 'gpt-4o-search-preview',
+          selectedModel: selectedModel || DEFAULT_MODEL,
           countryCode: countryCode || 'ES',
           countryName: countryName || 'España',
           timezone: timezone || 'Europe/Madrid',
@@ -196,7 +196,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
         }
 
         // Modelo(s) realmente usado(s), con nombre legible, para mostrar en informes.
-        const effectiveModel = selectedModel || 'gpt-4o-search-preview';
+        const effectiveModel = selectedModel || DEFAULT_MODEL;
         const modelsUsedLabel = isMultiModel
           ? (configuration.aiModels || ['chatgpt'])
           : [getModelById(effectiveModel)?.name || effectiveModel];
@@ -359,7 +359,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     }
 
     // Validar que exista la API key del proveedor correspondiente al modelo seleccionado
-    const modelInfo = getModelById(selectedModel || 'gpt-4o-search-preview');
+    const modelInfo = getModelById(selectedModel || DEFAULT_MODEL);
     if (modelInfo) {
       const provider = modelInfo.provider;
       if (provider === 'openai' && !apiKeysToUse.openai) {
@@ -420,7 +420,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     // Extender la configuración con modelo y país (datos del dropdown del frontend)
     const extendedConfiguration = {
       ...configuration,
-      selectedModel: selectedModel || 'gpt-4o-search-preview',
+      selectedModel: selectedModel || DEFAULT_MODEL,
       countryCode: countryCode || 'ES',
       countryName: countryName || 'España',
       timezone: timezone || 'Europe/Madrid',

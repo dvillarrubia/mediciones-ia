@@ -14,7 +14,7 @@ import {
 import { authService } from './authService.js';
 import ConfigService from './configService.js';
 import OpenAIService from './openaiService.js';
-import { getModelById } from '../config/constants.js';
+import { getModelById, DEFAULT_MODEL } from '../config/constants.js';
 
 const configService = new ConfigService();
 import { aiOverviewService, type AIOverviewConfig } from './aiOverviewService.js';
@@ -150,7 +150,7 @@ class SchedulerService {
     }
 
     const payload = schedule.payload || {};
-    const selectedModel = payload.selectedModel || 'gpt-4o-search-preview';
+    const selectedModel = payload.selectedModel || DEFAULT_MODEL;
     const countryCode = payload.countryCode || 'ES';
     const countryName = payload.countryName || 'España';
     const timezone = payload.timezone || 'Europe/Madrid';

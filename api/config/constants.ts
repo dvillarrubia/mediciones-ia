@@ -26,33 +26,18 @@ export interface AIModelInfo {
 
 export const AI_MODELS: AIModelInfo[] = [
   // =====================================================
-  // OPENAI - SOLO MODELOS CON BÚSQUEDA WEB (Fuentes reales)
+  // SIN PROVEEDORES DIRECTOS (ago 2026)
   // =====================================================
-  {
-    id: 'gpt-4o-search-preview',
-    name: 'GPT-4o Search',
-    provider: 'openai',
-    description: 'Modelo con búsqueda web integrada. Devuelve fuentes REALES y verificables.',
-    strengths: ['🌐 Búsqueda web real', '📚 Fuentes verificables', '🕐 Info actualizada', '✅ URLs reales'],
-    contextWindow: '128K tokens',
-    pricing: '$2.50 / $10 + $30 por 1K búsquedas',
-    recommended: true,
-    requiresApiKey: 'OPENAI_API_KEY'
-  },
-  {
-    id: 'gpt-4o-mini-search-preview',
-    name: 'GPT-4o Mini Search (Económico)',
-    provider: 'openai',
-    description: 'Versión económica con búsqueda web. Fuentes reales a menor costo.',
-    strengths: ['🌐 Búsqueda web real', '💰 Más económico', '📚 Fuentes verificables', '⚡ Rápido'],
-    contextWindow: '128K tokens',
-    pricing: '$0.15 / $0.60 + $25 por 1K búsquedas',
-    recommended: true,
-    requiresApiKey: 'OPENAI_API_KEY'
-  },
-
-  // Anthropic y Google nativos eliminados (jul 2026): Claude y Gemini se usan
-  // vía OpenRouter (ver OPENROUTER_MODELS y el buscador de modelos).
+  // Los modelos de OpenAI con búsqueda web (gpt-4o-search-preview y
+  // gpt-4o-mini-search-preview) fueron DEPRECADOS por OpenAI y devuelven 404.
+  // No hay reemplazo directo: `web_search_options` era un parámetro exclusivo
+  // de esos modelos en chat/completions, y OpenAI movió la búsqueda web a la
+  // Responses API. En vez de mantener dos integraciones, TODO pasa ahora por
+  // OpenRouter (ver OPENROUTER_MODELS), que además sale entre 3× y 6× más
+  // barato por el coste de búsqueda ($0.005-$0.014 vs. $0.030 de OpenAI).
+  //
+  // Esta lista se deja vacía a propósito: el tipo y los consumidores siguen
+  // funcionando, y si algún día vuelve a haber un proveedor directo se añade aquí.
 ] as const;
 
 // ==========================================
@@ -261,7 +246,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'GPT económico de OpenAI con búsqueda web. ~20× más barato que GPT-5.5: ideal para monitorizaciones recurrentes.',
     strengths: ['🌐 Búsqueda web', '💰 Económico', '📚 Citaciones', '✅ URLs reales'],
     contextWindow: '400K tokens',
-    pricing: '$0.25/M in · $2/M out',
+    pricing: '$0.25/M in · $2/M out · $0.01/búsqueda',
     recommended: true,
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
@@ -273,7 +258,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Claude económico con búsqueda web. 3× más barato que Sonnet: ideal para monitorizaciones recurrentes.',
     strengths: ['🌐 Búsqueda web', '💰 Económico', '📚 Citaciones'],
     contextWindow: '200K tokens',
-    pricing: '$1/M in · $5/M out',
+    pricing: '$1/M in · $5/M out · $0.01/búsqueda',
     recommended: true,
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
@@ -285,7 +270,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Gemini económico con búsqueda web. 6× más barato que Gemini 3.5 Flash: ideal para monitorizaciones recurrentes.',
     strengths: ['🌐 Búsqueda web', '💰 Económico', '⚡ Rápido'],
     contextWindow: '1M tokens',
-    pricing: '$0.25/M in · $1.50/M out',
+    pricing: '$0.25/M in · $1.50/M out · $0.014/búsqueda',
     recommended: true,
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
@@ -297,7 +282,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Gemini económico con búsqueda web. 5× más barato que Gemini 3.5 Flash.',
     strengths: ['🌐 Búsqueda web', '💰 Económico', '⚡ Rápido'],
     contextWindow: '1M tokens',
-    pricing: '$0.30/M in · $2.50/M out',
+    pricing: '$0.30/M in · $2.50/M out · $0.014/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -307,8 +292,8 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     provider: 'openrouter',
     description: 'Último GPT de OpenAI con búsqueda web. CARO para uso recurrente: quema tokens de razonamiento a $30/M. Para monitorizaciones usa GPT-5 Mini.',
     strengths: ['🌐 Búsqueda web', '🧠 Último GPT', '📚 Citaciones', '⚠️ Caro'],
-    contextWindow: '400K tokens',
-    pricing: '$5/M in · $30/M out',
+    contextWindow: '1M tokens',
+    pricing: '$5/M in · $30/M out · $0.01/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -319,7 +304,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Claude Sonnet con búsqueda web. Para monitorizaciones recurrentes usa Claude Haiku (3× más barato).',
     strengths: ['🌐 Búsqueda web', '🧠 Razonamiento', '📚 Citaciones', '⚠️ Caro'],
     contextWindow: '1M tokens',
-    pricing: '$3/M in · $15/M out',
+    pricing: '$3/M in · $15/M out · $0.01/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -330,7 +315,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Gemini razonador con búsqueda web. CARO para uso recurrente: factura el razonamiento oculto a $9/M. Para monitorizaciones usa Gemini 3.1 Flash Lite.',
     strengths: ['🌐 Búsqueda web', '🧠 Multimodal', '📚 Citaciones', '⚠️ Caro'],
     contextWindow: '1M tokens',
-    pricing: '$1.50/M in · $9/M out',
+    pricing: '$1.50/M in · $9/M out · $0.014/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -341,7 +326,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Perplexity económico con búsqueda online nativa y citaciones. 15× más barato que Sonar Pro: ideal para monitorizaciones recurrentes.',
     strengths: ['🌐 Búsqueda online nativa', '💰 Económico', '📚 Citaciones', '🕐 Info actualizada'],
     contextWindow: '128K tokens',
-    pricing: '$1/M in · $1/M out',
+    pricing: '$1/M in · $1/M out · $0.005/búsqueda',
     recommended: true,
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
@@ -353,7 +338,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Perplexity Sonar Pro: búsqueda online nativa con citaciones. CARO para uso recurrente: para monitorizaciones usa Sonar (15× más barato).',
     strengths: ['🌐 Búsqueda online nativa', '📚 Citaciones', '⚠️ Caro'],
     contextWindow: '200K tokens',
-    pricing: '$3/M in · $15/M out',
+    pricing: '$3/M in · $15/M out · $0.005/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -364,7 +349,7 @@ export const OPENROUTER_MODELS: AIModelInfo[] = [
     description: 'Perplexity Sonar con razonamiento y búsqueda online nativa. CARO para uso recurrente: factura tokens de razonamiento a $8/M.',
     strengths: ['🌐 Búsqueda online nativa', '🧠 Razonamiento', '📚 Citaciones', '⚠️ Caro'],
     contextWindow: '128K tokens',
-    pricing: '$2/M in · $8/M out',
+    pricing: '$2/M in · $8/M out · $0.005/búsqueda',
     requiresApiKey: 'OPENROUTER_API_KEY',
     supportsWebSearch: true,
   },
@@ -414,7 +399,7 @@ export const getCountryByCode = (code: string): CountryInfo | undefined => {
 };
 
 // Modelos por defecto
-export const DEFAULT_MODEL = 'gpt-4o-search-preview'; // Modelo con búsqueda web por defecto
+export const DEFAULT_MODEL = 'openai/gpt-5-mini:online'; // Modelo con búsqueda web por defecto (OpenRouter)
 export const DEFAULT_COUNTRY = 'ES';
 
 // ==========================================
