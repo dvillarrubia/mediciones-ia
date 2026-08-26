@@ -440,7 +440,14 @@ router.post('/execute', async (req: Request, res: Response) => {
         results: result,
         metadata: {
           duration: result.duration,
-          modelsUsed: configuration.aiModels || ['chatgpt'],
+          // El modelo REALMENTE usado, con su nombre legible. Antes se guardaba
+          // configuration.aiModels, que son las personas SOLICITADAS: había
+          // análisis con modelsUsed ["claude","gemini","chatgpt"] cuyas 103
+          // preguntas corrieron todas con Gemini. Misma lógica que la ruta
+          // asíncrona (execute-async), que ya lo hacía bien.
+          modelsUsed: isMultiModelAnalysis
+            ? (configuration.aiModels || ['chatgpt'])
+            : [getModelById(selectedModel || DEFAULT_MODEL)?.name || selectedModel || DEFAULT_MODEL],
           totalQuestions: configuration.questions.length
         }
       };

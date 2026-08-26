@@ -273,17 +273,55 @@ análisis sino sobre las listas de prompts, que viven en otra pantalla.
 
 ---
 
-## 5. Nomenclatura · SEVERIDAD BAJA
+## 5. Nomenclatura · ✅ ARREGLADO (26/08/2026)
 
 > *Nombre del modelo en el nombre de la lista; fichero como fecha-proyecto-modelo;
 > nombre del modelo en la columna de fecha del Excel de Gaps.*
 
-Cosmético pero con razón de fondo: con automatizaciones por modelo, sin el
-nombre del modelo en el fichero **no se distingue un informe de otro** al
-descargarlos. Es barato y evita confusiones al enviar entregables al cliente.
+Cosmético en apariencia, pero con razón de fondo: con automatizaciones por
+modelo, tres análisis del mismo proyecto y día eran **indistinguibles** tanto en
+la lista como en los ficheros descargados, que además se pisaban en la carpeta.
 
-El dato ya está guardado (`metadata.modelsUsed`), solo hay que propagarlo al
-nombre.
+### Hecho
+
+**Nombre de fichero:** `fecha-proyecto-modelo-tipo.xlsx`. La fecha delante ordena
+cronológicamente en el explorador; el modelo distingue descargas del mismo
+proyecto y día. Se limpian acentos, emojis y símbolos:
+
+```
+2026-08-26-Salto-Systems-Gemini-3-1-Flash-Lite-Search-gaps.xlsx
+2026-08-26-Salto-Systems-multimodelo-informe.xlsx
+2026-08-26-Banco-Pichincha-metricas.xlsx        (sin modelo → se omite)
+```
+
+Con varios modelos en el rango se escribe `multimodelo`: concatenar cuatro
+nombres daría un fichero ilegible.
+
+**Columna de fecha del Excel de Gaps:** ahora `fecha · modelo`, y solo cuando hay
+más de un modelo que distinguir. Se aplicó también a la **matriz en pantalla**,
+donde el problema era peor: tres columnas con la misma fecha y sin forma de saber
+cuál era cuál.
+
+**Nombre de la lista:** cada análisis muestra un distintivo con su modelo.
+
+### Trampa: `metadata.modelsUsed` no era de fiar
+
+Guardaba las personas **solicitadas**, no el modelo ejecutado. En producción
+conviven los dos formatos:
+
+```
+["ChatGPT (GPT-5 Mini) + Search 💰"]   ← correcto (ruta execute-async)
+["claude","gemini","chatgpt"]          ← personas solicitadas (ruta execute)
+```
+
+Se corrigió el origen en `analysis.ts` para que `/execute` guarde el modelo real,
+igual que ya hacía `/execute-async`.
+
+Para los análisis **ya guardados** no hay arreglo posible: el dato correcto no se
+registró. El distintivo de la lista **se oculta** cuando los valores son claves de
+persona sueltas — mejor no enseñar nada que enseñar tres modelos que no
+intervinieron. Los dashboards no se ven afectados: derivan el modelo de las
+propias preguntas mediante `analysisModelLabel()`.
 
 ---
 
@@ -295,4 +333,4 @@ nombre.
 | ~~2~~ | ~~**2 · Detalle de sentimiento**~~ | ✅ arreglado 26/08/2026 |
 | ~~3~~ | ~~**3 · Línea por modelo**~~ | ✅ arreglado 26/08/2026 (sentimiento + posición) |
 | ~~4~~ | ~~**1 · Descargas**~~ | ✅ parcial: falta la descarga múltiple de listas de prompts |
-| 5 | **5 · Nomenclatura** | Barato, evita líos de entregables |
+| ~~5~~ | ~~**5 · Nomenclatura**~~ | ✅ arreglado 26/08/2026 |

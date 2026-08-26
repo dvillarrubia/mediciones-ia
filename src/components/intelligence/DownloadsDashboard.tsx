@@ -3,12 +3,24 @@ import { Download, CheckSquare, Square } from 'lucide-react';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename, type SheetSpec } from './dashboardExcelExport';
 import {
-  type AnalysisDetail, type BrandAlias,
-  sortByDate, brandNameVariants, isWebUrl, isRealDomain,
-  buildTopicMetrics, buildBrandSentiment, buildCitationGaps,
-  buildPositionDistribution, buildModelVisibility,
-  getBrandAppearanceRows, buildGapsMatrix,
-  APPEARANCE_LABELS, SENTIMENT_LABELS, SENTIMENT_KEYS, modelLabel,
+  type AnalysisDetail,
+  type BrandAlias,
+  sortByDate,
+  brandNameVariants,
+  isWebUrl,
+  isRealDomain,
+  buildTopicMetrics,
+  buildBrandSentiment,
+  buildCitationGaps,
+  buildPositionDistribution,
+  buildModelVisibility,
+  getBrandAppearanceRows,
+  buildGapsMatrix,
+  APPEARANCE_LABELS,
+  SENTIMENT_LABELS,
+  SENTIMENT_KEYS,
+  modelLabel,
+  modelosDelRango,
 } from './sharedMetrics';
 
 interface Props {
@@ -174,7 +186,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
       hojas.push({
         name: 'Matriz GAPS',
         aoa: [
-          ['Prompt', 'Categoría', ...m.columns.map(c => c.label), 'Ausencias'],
+          ['Prompt', 'Categoría', ...m.columns.map(c => c.labelWithModel), 'Ausencias'],
           ...m.rows.map(r => [
             r.prompt,
             r.category || '',
@@ -182,7 +194,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
             r.absentCount,
           ]),
         ],
-        cols: [60, 20, ...m.columns.map(() => 18), 12],
+        cols: [60, 20, ...m.columns.map(() => 26), 12],
       });
     }
 
@@ -192,7 +204,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
   const descargar = () => {
     const hojas = construirHojas();
     if (hojas.length === 0) return;
-    exportSheetsToExcel(downloadFilename('informe', target), hojas);
+    exportSheetsToExcel(downloadFilename('informe', target, modelosDelRango(scoped)), hojas);
   };
 
   if (loading) return <div className="flex items-center justify-center py-20 text-gray-400">Cargando…</div>;

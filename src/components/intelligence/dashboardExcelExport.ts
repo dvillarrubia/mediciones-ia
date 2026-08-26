@@ -38,12 +38,30 @@ export function exportSheetsToExcel(filename: string, sheets: SheetSpec[]): void
   XLSX.writeFile(wb, filename);
 }
 
+/** Deja un fragmento apto para un nombre de archivo, sin acentos ni símbolos. */
+function sanitizeFilenamePart(value: string | undefined, maxLen: number): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')   // acentos
+    .replace(/[^a-z0-9]+/gi, '-')       // resto de símbolos (incluye emojis) → guion
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, maxLen)
+    .replace(/-$/, '');
+}
+
 /**
- * Construye un nombre de archivo consistente: `<prefix>_<label>_<fecha>.xlsx`.
- * La fecha se toma en el momento de la llamada (acción de usuario, no en render).
+ * Nombre de archivo: `<fecha>-<proyecto>-<modelo>-<tipo>.xlsx`.
+ *
+ * El orden lo pidieron los usuarios: la fecha delante ordena los ficheros
+ * cronológicamente en el explorador, y el modelo distingue descargas del mismo
+ * proyecto y día, que antes se llamaban igual y se pisaban en la carpeta.
+ *
+ * La fecha se toma al llamar (acción de usuario, no en render).
  */
-export function downloadFilename(prefix: string, label?: string): string {
+export function downloadFilename(prefix: string, label?: string, model?: string): string {
   const date = new Date().toISOString().slice(0, 10);
-  const safe = (label || '').replace(/[^a-z0-9.-]/gi, '_').slice(0, 40);
-  return `${prefix}${safe ? `_${safe}` : ''}_${date}.xlsx`;
+  const proyecto = sanitizeFilenamePart(label, 40);
+  const modelo = sanitizeFilenamePart(model, 30);
+  return [date, proyecto, modelo, prefix].filter(Boolean).join('-') + '.xlsx';
 }

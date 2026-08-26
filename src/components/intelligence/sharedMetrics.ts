@@ -487,6 +487,19 @@ export function modelsInAnalyses(analyses: AnalysisDetail[]): string[] {
   return out.sort((x, y) => x.localeCompare(y));
 }
 
+
+/**
+ * Etiqueta de modelo para nombrar una descarga: el modelo si solo hay uno en el
+ * rango, "multimodelo" si hay varios. Un nombre de fichero con cuatro modelos
+ * concatenados sería ilegible y se comería el límite de longitud.
+ */
+export function modelosDelRango(analyses: AnalysisDetail[]): string {
+  const ms = modelsInAnalyses(analyses || []);
+  if (ms.length === 0) return '';
+  if (ms.length === 1) return ms[0];
+  return 'multimodelo';
+}
+
 // === Topics (extraído de TopicsDashboard para que pantalla y Excel no diverjan) ===
 
 export interface TopicMetric {
@@ -910,7 +923,12 @@ export interface GapRow {
   absentLatest: boolean;          // no aparece en el análisis más reciente
 }
 export interface GapsMatrix {
-  columns: { id: string; label: string; date: string }[];
+  /**
+   * Una columna por análisis. `model` desambigua: cuando un proyecto lanza
+   * varios modelos el mismo día, la fecha sola produce columnas idénticas e
+   * indistinguibles. `labelWithModel` es la etiqueta lista para mostrar.
+   */
+  columns: { id: string; label: string; date: string; model: string; labelWithModel: string }[];
   rows: GapRow[];
   allCompetitors: string[];
 }
@@ -918,7 +936,20 @@ export interface GapsMatrix {
 /** Empareja prompts por texto normalizado y construye la matriz prompt × análisis. */
 export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[]): GapsMatrix {
   const sorted = sortByDate(analyses);
-  const columns = sorted.map(a => ({ id: a.id, label: dateLabel(a.timestamp), date: a.timestamp }));
+  // Si todos los análisis son del mismo modelo, añadirlo a cada columna solo
+  // añade ruido: se incluye únicamente cuando hay más de uno que distinguir.
+  const modelosDistintos = modelsInAnalyses(sorted);
+  const columns = sorted.map(a => {
+    const label = dateLabel(a.timestamp);
+    const model = analysisModelLabel(a);
+    return {
+      id: a.id,
+      label,
+      date: a.timestamp,
+      model,
+      labelWithModel: modelosDistintos.length > 1 ? `${label} · ${model}` : label,
+    };
+  });
   const targetKey = aliasKey(targetBrand);
   const rowMap = new Map<string, GapRow>();
   const order: string[] = [];

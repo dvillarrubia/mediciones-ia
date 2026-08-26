@@ -6,10 +6,23 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
-  AnalysisDetail, COLORS, PERSONA_LABELS, PERSONA_COLORS,
-  personasInQuestion, isRealDomain, isWebUrl, dateLabel, sortByDate,
-  getBrandAppearanceRows, APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType,
-  buildCitationGaps, BrandAlias, brandNameVariants
+  AnalysisDetail,
+  COLORS,
+  PERSONA_LABELS,
+  PERSONA_COLORS,
+  personasInQuestion,
+  isRealDomain,
+  isWebUrl,
+  dateLabel,
+  sortByDate,
+  getBrandAppearanceRows,
+  APPEARANCE_LABELS,
+  APPEARANCE_COLORS,
+  AppearanceType,
+  buildCitationGaps,
+  BrandAlias,
+  brandNameVariants,
+  modelosDelRango,
 } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -169,7 +182,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
       ]),
     ];
     exportSheetsToExcel(
-      downloadFilename('citas', target),
+      downloadFilename('citas', target, modelosDelRango(scoped)),
       [
         { name: 'URLs citadas', aoa: urls, cols: [6, 70, 28, 10] },
         { name: 'Dominios', aoa: domains, cols: [32, 10, 14] },

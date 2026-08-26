@@ -22,6 +22,7 @@ import {
   normalizeBrandName,
   isRealDomain,
   buildPositionByModelOverTime,
+  modelosDelRango,
 } from './sharedMetrics';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -610,7 +611,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
       ...sovAreaData.map(p => [p.label, ...topBrands.map(b => p[b] ?? 0)]),
     ];
     exportSheetsToExcel(
-      downloadFilename('metricas', cs.targetBrand),
+      downloadFilename('metricas', cs.targetBrand, modelosDelRango(scoped as unknown as AnalysisDetail[])),
       [
         { name: 'Share of Voice', aoa: sov, cols: [6, 24, 10, 26, 12, 14] },
         { name: 'Visibilidad por modelo', aoa: modelos, cols: [18, 12, 22, 16, 12, 16] },

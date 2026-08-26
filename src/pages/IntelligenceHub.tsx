@@ -131,6 +131,27 @@ type SortDirection = 'asc' | 'desc';
 
 const ITEMS_PER_PAGE = 10;
 
+/**
+ * Etiqueta de modelo fiable para la lista de análisis, o null si no la hay.
+ *
+ * `metadata.modelsUsed` es heterogéneo: los análisis nuevos guardan el modelo
+ * real ("ChatGPT (GPT-5 Mini) + Search"), pero los anteriores a ago/2026
+ * guardaban las PERSONAS SOLICITADAS ("chatgpt","claude","gemini"), que no es lo
+ * que se ejecutó — hay análisis con esas tres cuyas 103 preguntas corrieron todas
+ * con Gemini.
+ *
+ * Cuando los valores son claves de persona sueltas se devuelve null: mejor no
+ * enseñar nada que enseñar tres modelos que no intervinieron. Los dashboards no
+ * dependen de esto; ellos derivan el modelo de las propias preguntas.
+ */
+const PERSONA_KEYS = new Set(['chatgpt', 'claude', 'gemini', 'perplexity']);
+function etiquetaModeloFiable(modelsUsed: string[] | undefined): string | null {
+  const vals = (modelsUsed || []).filter(Boolean);
+  if (vals.length === 0) return null;
+  if (vals.every(v => PERSONA_KEYS.has(v.trim().toLowerCase()))) return null;
+  return vals.join(' · ');
+}
+
 const IntelligenceHub: React.FC = () => {
   const location = useLocation();
   // Auto-select tab desde ?tab=... (usado por el banner de salud)
@@ -1089,6 +1110,20 @@ const IntelligenceHub: React.FC = () => {
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2 flex-wrap">
                                 <h3 className="text-xl font-semibold">{analysis.targetBrand}</h3>
+                                {/* Modelo usado: con varias automatizaciones por modelo sobre el
+                                    mismo proyecto y día, sin esto los análisis son indistinguibles
+                                    en la lista (petición de nomenclatura de los usuarios). */}
+                                {(() => {
+                                  const modelo = etiquetaModeloFiable(analysis.modelsUsed);
+                                  return modelo ? (
+                                    <span
+                                      className="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-100 max-w-[16rem] truncate"
+                                      title={modelo}
+                                    >
+                                      {modelo}
+                                    </span>
+                                  ) : null;
+                                })()}
                                 <span className={`px-2 py-1 text-xs rounded ${analysis.status === 'completed' ? 'bg-green-100 text-green-800' :
                                     analysis.status === 'failed' ? 'bg-red-100 text-red-800' :
                                       'bg-yellow-100 text-yellow-800'

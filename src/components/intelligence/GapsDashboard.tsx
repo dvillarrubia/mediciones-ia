@@ -2,8 +2,16 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Crosshair, Info, CalendarDays, Users, Download, ChevronRight, ChevronDown, Link as LinkIcon, Quote } from 'lucide-react';
 import InfoTip from './InfoTip';
 import {
-  AnalysisDetail, sortByDate, buildGapsMatrix, buildCompetitiveView,
-  APPEARANCE_LABELS, APPEARANCE_COLORS, AppearanceType, BrandAlias, brandNameVariants
+  AnalysisDetail,
+  sortByDate,
+  buildGapsMatrix,
+  buildCompetitiveView,
+  APPEARANCE_LABELS,
+  APPEARANCE_COLORS,
+  AppearanceType,
+  BrandAlias,
+  brandNameVariants,
+  modelosDelRango,
 } from './sharedMetrics';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -153,7 +161,9 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
 
   // Export: matriz temporal (prompt × análisis) respetando los filtros de la vista temporal.
   const handleExport = () => {
-    const header = ['Prompt', 'Categoría', ...matrix.columns.map(c => c.label)];
+    // Con el modelo en la cabecera: varios análisis del mismo día dejan de ser
+    // columnas indistinguibles (petición de nomenclatura de los usuarios).
+    const header = ['Prompt', 'Categoría', ...matrix.columns.map(c => c.labelWithModel)];
     const rows = temporalRows.map(row => [
       row.prompt,
       row.category || '',
@@ -166,8 +176,8 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
     ]);
     const target = sorted.slice(-1)[0]?.configuration.brand || '';
     exportSheetsToExcel(
-      downloadFilename('gaps', target),
-      [{ name: 'Matriz GAPS', aoa: [header, ...rows], cols: [50, 20, ...matrix.columns.map(() => 16)] }]
+      downloadFilename('gaps', target, modelosDelRango(sorted)),
+      [{ name: 'Matriz GAPS', aoa: [header, ...rows], cols: [50, 20, ...matrix.columns.map(() => 26)] }]
     );
   };
 
@@ -233,7 +243,14 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10">Prompt</th>
                   {matrix.columns.map(c => (
-                    <th key={c.id} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{c.label}</th>
+                    <th key={c.id} className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">
+                      <div>{c.label}</div>
+                      {c.labelWithModel !== c.label && (
+                        <div className="font-normal normal-case text-[10px] text-gray-400 truncate max-w-[10rem] mx-auto" title={c.model}>
+                          {c.model}
+                        </div>
+                      )}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -286,7 +303,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
                                     if (!cell) return null;
                                     return (
                                       <div key={c.id} className="flex items-start gap-3">
-                                        <span className="text-xs text-gray-500 w-20 shrink-0 pt-0.5">{c.label}</span>
+                                        <span className="text-xs text-gray-500 w-20 shrink-0 pt-0.5" title={c.labelWithModel}>{c.label}</span>
                                         <div className="shrink-0">{posBadge(cell.type, cell.position)}</div>
                                         <AppearanceDetail urls={cell.urls} evidence={cell.evidence} />
                                       </div>

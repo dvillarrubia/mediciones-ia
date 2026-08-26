@@ -18,6 +18,7 @@ import {
   analysisModelLabel,
   modelsInAnalyses,
   COLORS,
+  modelosDelRango,
 } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -241,7 +242,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       ]),
     ];
     exportSheetsToExcel(
-      downloadFilename('sentiment', data.targetBrand),
+      downloadFilename('sentiment', data.targetBrand, modelosDelRango(scoped)),
       [
         { name: 'Resumen', aoa: resumen, cols: [22, 16, 10, 12, 12, 12, 12, 12] },
         { name: 'Detalle', aoa: detalle, cols: [20, 14, 14, 20, 60, 60] },

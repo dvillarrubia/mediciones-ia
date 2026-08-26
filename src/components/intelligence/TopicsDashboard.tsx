@@ -2,7 +2,12 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Hash, Download } from 'lucide-react';
 import InfoTip from './InfoTip';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import { AnalysisDetail, sortByDate, buildTopicMetrics } from './sharedMetrics';
+import {
+  AnalysisDetail,
+  sortByDate,
+  buildTopicMetrics,
+  modelosDelRango,
+} from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
@@ -54,7 +59,7 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
       ]),
     ];
     exportSheetsToExcel(
-      downloadFilename('topics', target),
+      downloadFilename('topics', target, modelosDelRango(scoped)),
       [{ name: 'Topics', aoa, cols: [40, 12, 12, 12, 12, 12, 12, 12] }]
     );
   };
