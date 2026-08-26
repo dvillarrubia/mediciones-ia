@@ -442,6 +442,51 @@ export function buildCitationGaps(analyses: AnalysisDetail[], targetBrand: strin
 }
 
 
+
+/**
+ * Etiqueta del modelo con el que se ejecutó un análisis.
+ *
+ * La dimensión "modelo" NO vive dentro de cada pregunta: en producción ninguna
+ * pregunta tiene más de una entrada en `multiModelAnalysis` (2.268 con una, 105
+ * con ninguna). Vive ENTRE análisis, porque las automatizaciones se configuran
+ * una por modelo (p.ej. "Salto gen ES - chatgpt", "- claude", "- gemini").
+ *
+ * De ahí que mirar solo el análisis más reciente enseñe un único modelo: el del
+ * último que corrió ese día. Para comparar modelos hay que agrupar por análisis.
+ */
+export function analysisModelLabel(a: AnalysisDetail): string {
+  // La fuente fiable son las propias preguntas. `metadata.modelsUsed` NO sirve:
+  // guarda los modelos SOLICITADOS, no los ejecutados. En producción hay
+  // análisis con modelsUsed = ["claude","gemini","chatgpt"] cuyas 103 preguntas
+  // corrieron todas con Gemini; fiarse de ese campo etiquetaría el gráfico con
+  // tres modelos que nunca intervinieron.
+  const encontrados = new Set<string>();
+  (a.results?.questions || []).forEach(q => {
+    (q.multiModelAnalysis || []).forEach(mm => {
+      const l = modelLabel(mm);
+      if (l) encontrados.add(l);
+    });
+  });
+  if (encontrados.size > 0) return Array.from(encontrados).sort().join(' + ');
+
+  // Sin datos por pregunta, metadata es lo único que queda. Se ordena para que
+  // el mismo conjunto no genere dos etiquetas distintas según el orden.
+  const desdeMetadata = (a.metadata?.modelsUsed || []).filter(Boolean);
+  if (desdeMetadata.length > 0) return Array.from(new Set(desdeMetadata)).sort().join(' + ');
+  return 'Sin modelo';
+}
+
+/** Modelos distintos presentes en un conjunto de análisis, en orden estable. */
+export function modelsInAnalyses(analyses: AnalysisDetail[]): string[] {
+  const vistos = new Set<string>();
+  const out: string[] = [];
+  (analyses || []).forEach(a => {
+    const m = analysisModelLabel(a);
+    if (!vistos.has(m)) { vistos.add(m); out.push(m); }
+  });
+  return out.sort((x, y) => x.localeCompare(y));
+}
+
 // === Topics (extraído de TopicsDashboard para que pantalla y Excel no diverjan) ===
 
 export interface TopicMetric {

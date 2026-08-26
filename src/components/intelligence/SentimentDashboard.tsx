@@ -2,13 +2,22 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Heart, Award, Download } from 'lucide-react';
 import InfoTip from './InfoTip';
 import {
-  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
+  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
-  AnalysisDetail, SENTIMENT_KEYS, SENTIMENT_LABELS, SENTIMENT_COLORS,
-  normalizeSentimentKey, normalizeBrandName,
-  modelLabel, dateLabel, sortByDate, SentimentKey
+  AnalysisDetail,
+  SENTIMENT_KEYS,
+  SENTIMENT_LABELS,
+  SENTIMENT_COLORS,
+  normalizeSentimentKey,
+  normalizeBrandName,
+  dateLabel,
+  sortByDate,
+  SentimentKey,
+  analysisModelLabel,
+  modelsInAnalyses,
+  COLORS,
 } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -44,6 +53,7 @@ interface DetailRow {
 const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
   const [sentimentFilter, setSentimentFilter] = useState<'all' | SentimentKey>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [modelFilter, setModelFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -60,14 +70,31 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     const targetBrand = latest.configuration.brand;
     const configured = [targetBrand, ...(latest.configuration.competitors || [])];
 
-    // === Distribución global (último análisis) ===
+    // Modelos presentes en el rango. Cada análisis se ejecuta con UN modelo
+    // (las automatizaciones se configuran una por modelo), así que la dimensión
+    // "modelo" está entre análisis, no dentro de cada pregunta.
+    const modelos = modelsInAnalyses(sorted);
+
+    // Análisis a considerar según el filtro de modelo.
+    const enFoco = modelFilter === 'all'
+      ? sorted
+      : sorted.filter(a => analysisModelLabel(a) === modelFilter);
+
+    // === Distribución y detalle sobre TODO el rango ===
+    //
+    // Antes esto solo miraba `latest`. Como las automatizaciones de un mismo
+    // proyecto corren escalonadas (chatgpt 12:00, claude 13:00, gemini 14:00),
+    // el análisis más reciente era siempre el del último modelo del día: de ahí
+    // el "el detalle solo aparece para Gemini" que reportaron los usuarios.
     const dist: Record<SentimentKey, number> = {
       very_positive: 0, positive: 0, neutral: 0, negative: 0, very_negative: 0,
     };
     const brandAcc: Record<string, BrandSentiment> = {};
     const detailRows: DetailRow[] = [];
 
-    (latest.results?.questions || []).forEach(q => {
+    enFoco.forEach(analisis => {
+    const modeloDelAnalisis = analysisModelLabel(analisis);
+    (analisis.results?.questions || []).forEach(q => {
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned) return;
         const key = normalizeSentimentKey(bm.detailedSentiment || bm.context);
@@ -85,11 +112,12 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         brandAcc[brand].counts[key]++;
         brandAcc[brand].total++;
 
-        const model = modelLabel(q.multiModelAnalysis?.[0]);
+        const model = modeloDelAnalisis;
         const ca = (bm as any).contextualAnalysis;
         const reasoning = ca?.reasoning || ca?.competitiveReasoning || bm.evidence?.[0];
         detailRows.push({ brand, sentiment: key, model, category: q.category || '—', question: q.question, isTarget, reasoning });
       });
+    });
     });
 
     const byBrand: BrandSentiment[] = Object.values(brandAcc).map(b => {
@@ -105,7 +133,44 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       .map(k => ({ key: k, name: SENTIMENT_LABELS[k], value: dist[k], color: SENTIMENT_COLORS[k] }))
       .filter(d => d.value > 0);
 
-    // === Series temporales (un punto por análisis) ===
+    // === Series temporales por MODELO ===
+    //
+    // Un punto por fecha y una serie por modelo, en vez de una sola línea que
+    // los mezclaba: los usuarios pedían "una línea por modelo (3 líneas) en
+    // lugar de un dato agregado". Promediar entre modelos con distinto número
+    // de respuestas producía además un número que no significaba nada.
+    const netPorModeloYFecha = new Map<string, Map<string, { pos: number; neg: number; total: number }>>();
+    sorted.forEach(a => {
+      const modelo = analysisModelLabel(a);
+      const fecha = dateLabel(a.timestamp);
+      if (!netPorModeloYFecha.has(fecha)) netPorModeloYFecha.set(fecha, new Map());
+      const porModelo = netPorModeloYFecha.get(fecha)!;
+      if (!porModelo.has(modelo)) porModelo.set(modelo, { pos: 0, neg: 0, total: 0 });
+      const acc = porModelo.get(modelo)!;
+      (a.results?.questions || []).forEach(q => {
+        (q.brandMentions || []).forEach(bm => {
+          if (!bm.mentioned) return;
+          const k = normalizeSentimentKey(bm.detailedSentiment || bm.context);
+          acc.total++;
+          if (k === 'very_positive' || k === 'positive') acc.pos++;
+          else if (k === 'very_negative' || k === 'negative') acc.neg++;
+        });
+      });
+    });
+
+    /** Una fila por fecha con una columna `net` por modelo, para el multilínea. */
+    const netByModel = [...netPorModeloYFecha.entries()].map(([fecha, porModelo]) => {
+      const fila: Record<string, string | number | null> = { label: fecha };
+      modelos.forEach(m => {
+        const acc = porModelo.get(m);
+        // null (no 0) para que la línea se corte donde ese modelo no corrió, en
+        // vez de dibujar una caída ficticia hasta cero.
+        fila[m] = acc && acc.total > 0 ? +(((acc.pos - acc.neg) / acc.total) * 100).toFixed(1) : null;
+      });
+      return fila;
+    });
+
+    // === Serie agregada (un punto por análisis) ===
     const overTime = sorted.map(a => {
       const d: Record<SentimentKey, number> = {
         very_positive: 0, positive: 0, neutral: 0, negative: 0, very_negative: 0,
@@ -129,11 +194,11 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       };
     });
 
-    return { targetBrand, dist, totalMentions, pieData, byBrand, overTime, detailRows, multiple: sorted.length > 1 };
-  }, [scoped]);
+    return { targetBrand, dist, totalMentions, pieData, byBrand, overTime, netByModel, modelos, detailRows, multiple: sorted.length > 1 };
+  }, [scoped, modelFilter]);
 
   // Reset de página al cambiar cualquier filtro de la tabla de detalle.
-  useEffect(() => { setPage(1); }, [sentimentFilter, brandFilter, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [sentimentFilter, brandFilter, modelFilter, dateFrom, dateTo]);
 
   // Las opciones de marca y el filtrado de detalle deben calcularse siempre (antes de
   // los early-returns) para no romper el orden de hooks; usan `data` de forma defensiva.
@@ -362,6 +427,37 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         </div>
       )}
 
+      {/* Evolución del sentimiento POR MODELO (petición de Salto: 3 líneas, no un agregado) */}
+      {data.modelos.length > 1 && data.netByModel.length > 0 && (
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            Evolución del sentimiento por modelo
+            <InfoTip text="Sentimiento neto (% positivas − % negativas sobre el total de menciones) de cada modelo por separado. Cada análisis se ejecuta con un modelo, así que comparar modelos exige separarlos: un promedio entre modelos con distinto número de respuestas no significa nada. Una línea se corta donde ese modelo no se ejecutó." />
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data.netByModel}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+              <YAxis tickFormatter={(v) => `${Math.round(Number(v))}%`} domain={[-100, 100]} />
+              <Tooltip formatter={(v: number | string | null) => (v == null ? 'sin datos' : `${Number(v).toFixed(1)}%`)} />
+              <Legend />
+              {data.modelos.map((m, i) => (
+                <Line
+                  key={m}
+                  type="monotone"
+                  dataKey={m}
+                  name={m}
+                  stroke={COLORS[i % COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Drivers de sentimiento negativo (Hito 6.2) */}
       {negativeDrivers.length > 0 && (
         <div className="bg-white rounded-lg border p-5">
@@ -391,9 +487,19 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             Sentiment Details
-            <InfoTip text="Una fila por cada mención de marca del último análisis. 'Modelo' indica el primer modelo de IA de la pregunta: cuando una pregunta se lanzó a varios modelos, las menciones se consolidan y no se puede atribuir cada una a un modelo concreto." />
+            <InfoTip text="Una fila por cada mención de marca en TODOS los análisis del rango de fechas. 'Modelo' es el modelo con el que se ejecutó ese análisis. Usa el selector de modelo para comparar uno contra otro." />
           </h3>
           <div className="flex items-center gap-2 flex-wrap">
+            {data.modelos.length > 1 && (
+              <select
+                value={modelFilter}
+                onChange={(e) => setModelFilter(e.target.value)}
+                className="text-sm border rounded-md px-3 py-1.5 text-gray-700"
+              >
+                <option value="all">Todos los modelos</option>
+                {data.modelos.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
             <select
               value={brandFilter}
               onChange={(e) => setBrandFilter(e.target.value)}

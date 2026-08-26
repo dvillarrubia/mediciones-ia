@@ -124,55 +124,61 @@ no del código.
 
 ---
 
-## 2. Sentimiento: el detalle solo aparece para Gemini · SEVERIDAD ALTA
+## 2. Sentimiento: el detalle solo aparece para Gemini · ✅ ARREGLADO (26/08/2026)
 
 > *"Ahora mismo el detalle solo aparece para Gemini: ¿es lo esperado o falta el
 > resto de modelos?"*
 
-**No es lo esperado.** No he podido reproducir exactamente "solo Gemini", pero he
-encontrado dos defectos reales en esa vista.
+**Reproducido y arreglado sin necesidad de la captura.** No era lo esperado.
 
-### 2.a — La columna de motivo está vacía SIEMPRE, en todos los modelos
+### Causa
 
-`src/components/intelligence/SentimentDashboard.tsx:90`:
-
-```js
-const reasoning = ca?.reasoning || ca?.competitiveReasoning || bm.evidence?.[0];
-```
-
-Las tres fuentes están vacías. Medido sobre 4.673 menciones de Salto:
-
-| Modelo | Menciones | Con `contextualAnalysis` | Con `evidence` |
-|---|---|---|---|
-| GPT-4o Search | 2.060 | **0 (0%)** | 0 (0%) |
-| ChatGPT (GPT-5 Mini) | 1.352 | **0 (0%)** | 0 (0%) |
-| Gemini 3.1 Flash Lite | 648 | **0 (0%)** | 0 (0%) |
-| Claude Haiku 4.5 | 613 | **0 (0%)** | 0 (0%) |
-
-`contextualAnalysis` no se rellena nunca en el flujo que generan estos análisis.
-Ver ficha 02 para el problema de `evidence`, que es la misma raíz.
-
-### 2.b — La etiqueta de modelo se toma del primer elemento
-
-Misma vista, línea 88:
+`SentimentDashboard` calculaba distribución, ranking por marca y tabla de
+detalle **únicamente sobre el análisis más reciente** del rango:
 
 ```js
-const model = modelLabel(q.multiModelAnalysis?.[0]);
+const latest = sorted[sorted.length - 1];
+(latest.results?.questions || []).forEach(...)
 ```
 
-Coge siempre `[0]`. En un análisis multi-modelo, **todas** las filas de detalle
-se etiquetan con el primer modelo, ocultando el resto. Esa es la explicación más
-probable de "solo aparece Gemini", pero **hay que confirmarla** reproduciendo el
-caso: pedir al usuario captura y el proyecto/fecha donde lo ve.
+Y las automatizaciones de un mismo proyecto corren escalonadas: en Salto,
+chatgpt a las 12:00, claude a las 13:00 y **gemini a las 14:00**. El análisis más
+reciente era siempre el de Gemini, así que el detalle solo podía enseñar Gemini.
 
-### Arreglo propuesto
+### La dimensión "modelo" está entre análisis, no dentro de la pregunta
 
-Recorrer `multiModelAnalysis` completo y emitir una fila por modelo, en vez de
-asumir `[0]`. Y rellenar el motivo (ver ficha 02).
+Dato comprobado en producción: de 2.373 preguntas, **ninguna tiene más de un
+modelo** en `multiModelAnalysis` (2.268 con uno, 105 con ninguno). Cada análisis
+se ejecuta con un modelo. Para comparar modelos hay que agrupar por análisis.
 
----
+### Trampa: `metadata.modelsUsed` no es de fiar
 
-## 3. Métricas: una línea por modelo · SEVERIDAD MEDIA
+Guarda los modelos **solicitados**, no los ejecutados. Hay análisis en producción
+con `modelsUsed: ["claude","gemini","chatgpt"]` cuyas **103 preguntas corrieron
+todas con Gemini**. Etiquetar el gráfico con ese campo habría pintado tres
+modelos que nunca intervinieron.
+
+`analysisModelLabel()` deriva el modelo de las propias preguntas y solo cae a
+`metadata` si no hay otro dato.
+
+### Cambios
+
+- La distribución, el ranking por marca y el detalle recorren **todos** los
+  análisis del rango, no solo el último.
+- Cada fila del detalle se etiqueta con el modelo de **su** análisis.
+- Nuevo **selector de modelo** (aparece solo si hay más de uno).
+- Corregido el InfoTip, que describía un comportamiento que ya no era cierto.
+
+### Verificación (datos reales de Salto)
+
+| | Modelos visibles |
+|---|---|
+| Antes | **1** — `Gemini 3.1 Flash Lite` |
+| Después | **4** — ChatGPT GPT-5 Mini · Claude Haiku 4.5 · GPT-4o Search · Gemini 3.1 Flash Lite |
+
+El "antes" reproduce exactamente el síntoma reportado.
+
+## 3. Métricas: una línea por modelo · ✅ PARCIAL (26/08/2026)
 
 > *"Tracking de posición y evolución del sentimiento: mostrar una línea por
 > modelo (3 líneas) en lugar de un dato agregado."*
@@ -181,12 +187,23 @@ Petición razonable y coherente con cómo trabaja Salto: tiene automatizaciones
 separadas por modelo (`Salto gen ES - chatgpt`, `- claude`, `- gemini`), así que
 el dato por modelo **ya existe**, solo se está promediando al pintarlo.
 
-Comparte raíz con el punto 2.b: el frontend colapsa la dimensión "modelo" en
-lugar de conservarla. Si se arregla 2.b, esto es en gran parte el mismo trabajo.
+### Hecho
 
-**Ojo al agregar:** promediar posiciones entre modelos con distinto número de
-respuestas da un número que no significa nada. Al separar por líneas el problema
-desaparece, pero conviene no dejar el agregado como opción por defecto.
+**Evolución del sentimiento:** nuevo gráfico "Evolución del sentimiento por
+modelo" con una línea por modelo (sentimiento neto = % positivas − % negativas).
+Las líneas se **cortan** donde ese modelo no se ejecutó, en lugar de caer a cero
+y fingir un desplome.
+
+Aparece solo cuando hay más de un modelo en el rango.
+
+### Pendiente
+
+**Tracking de posición** por modelo. `buildModelVisibility()` ya calcula
+`avgPosition` por modelo, así que el dato existe: falta el gráfico temporal.
+
+> **Ojo al agregar:** promediar posiciones entre modelos con distinto número de
+> respuestas da un número que no significa nada. Por eso se separan en líneas y
+> no conviene dejar el agregado como defecto.
 
 ---
 
@@ -251,7 +268,7 @@ nombre.
 | Orden | Punto | Por qué |
 |---|---|---|
 | ~~1~~ | ~~**4 · Gap de citaciones**~~ | ✅ arreglado 25/08/2026 |
-| 2 | **2 · Detalle de sentimiento** | Columna vacía + dimensión modelo perdida |
-| 3 | **3 · Línea por modelo** | Misma raíz que el 2, aprovecha el trabajo |
+| ~~2~~ | ~~**2 · Detalle de sentimiento**~~ | ✅ arreglado 26/08/2026 |
+| ~~3~~ | ~~**3 · Línea por modelo**~~ | ✅ sentimiento hecho · falta tracking de posición |
 | ~~4~~ | ~~**1 · Descargas**~~ | ✅ parcial: falta la descarga múltiple de listas de prompts |
 | 5 | **5 · Nomenclatura** | Barato, evita líos de entregables |
