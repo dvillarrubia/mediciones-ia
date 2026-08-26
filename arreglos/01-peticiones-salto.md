@@ -178,7 +178,7 @@ modelos que nunca intervinieron.
 
 El "antes" reproduce exactamente el síntoma reportado.
 
-## 3. Métricas: una línea por modelo · ✅ PARCIAL (26/08/2026)
+## 3. Métricas: una línea por modelo · ✅ ARREGLADO (26/08/2026)
 
 > *"Tracking de posición y evolución del sentimiento: mostrar una línea por
 > modelo (3 líneas) en lugar de un dato agregado."*
@@ -196,14 +196,38 @@ y fingir un desplome.
 
 Aparece solo cuando hay más de un modelo en el rango.
 
-### Pendiente
+**Tracking de posición:** nuevo gráfico "Posición media por modelo", con el eje
+Y **invertido** (más arriba = mejor posición, porque #1 es el mejor puesto) y
+una línea por modelo.
 
-**Tracking de posición** por modelo. `buildModelVisibility()` ya calcula
-`avgPosition` por modelo, así que el dato existe: falta el gráfico temporal.
+Ambos gráficos aparecen solo cuando hay más de un modelo en el rango, y sus
+líneas se cortan donde ese modelo no corrió.
+
+### Por qué importaba separarlos
+
+Datos reales de Salto Systems al implementarlo:
+
+| fecha | ChatGPT | Claude | Gemini |
+|---|---|---|---|
+| 17/08 | #1.37 | #1.37 | #1.62 |
+| 25/08 | **#2.00** | **#2.29** | #1.65 |
+
+Salto **perdió casi un puesto en ChatGPT y casi uno entero en Claude**, mientras
+que en Gemini se mantuvo. Con una sola línea agregada esa divergencia quedaba
+enterrada en un promedio — que es exactamente lo que motivaba la petición.
 
 > **Ojo al agregar:** promediar posiciones entre modelos con distinto número de
 > respuestas da un número que no significa nada. Por eso se separan en líneas y
 > no conviene dejar el agregado como defecto.
+
+### Deuda anotada
+
+`buildPositionByModelOverTime()` compara la marca con `aliasKey` estricto, igual
+que `positionDistFor()` y `buildModelVisibility()`, para que los tres gráficos de
+posición cuenten igual. Es más estricto que el `brandMatches()` que se introdujo
+al arreglar el gap de citaciones y puede perder variantes ("Salto Systems" frente
+a "Salto"). Unificarlos es un cambio aparte: movería números que los clientes ya
+tienen en informes entregados.
 
 ---
 
@@ -269,6 +293,6 @@ nombre.
 |---|---|---|
 | ~~1~~ | ~~**4 · Gap de citaciones**~~ | ✅ arreglado 25/08/2026 |
 | ~~2~~ | ~~**2 · Detalle de sentimiento**~~ | ✅ arreglado 26/08/2026 |
-| ~~3~~ | ~~**3 · Línea por modelo**~~ | ✅ sentimiento hecho · falta tracking de posición |
+| ~~3~~ | ~~**3 · Línea por modelo**~~ | ✅ arreglado 26/08/2026 (sentimiento + posición) |
 | ~~4~~ | ~~**1 · Descargas**~~ | ✅ parcial: falta la descarga múltiple de listas de prompts |
 | 5 | **5 · Nomenclatura** | Barato, evita líos de entregables |

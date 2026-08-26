@@ -11,8 +11,17 @@ import {
 } from 'recharts';
 import BrandPositionChart from './charts/BrandPositionChart';
 import {
-  countBrandAppearances, buildModelVisibility, buildPositionDistribution, POSITION_BUCKETS, POSITION_COLORS,
-  sentimentToNumeric, fmtSentiment, COLORS, normalizeBrandName, isRealDomain,
+  countBrandAppearances,
+  buildModelVisibility,
+  buildPositionDistribution,
+  POSITION_BUCKETS,
+  POSITION_COLORS,
+  sentimentToNumeric,
+  fmtSentiment,
+  COLORS,
+  normalizeBrandName,
+  isRealDomain,
+  buildPositionByModelOverTime,
 } from './sharedMetrics';
 import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -483,6 +492,17 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     return buildModelVisibility(scoped as any, sorted[sorted.length - 1].configuration.brand);
   }, [scoped]);
 
+  // Tracking de posición POR MODELO (petición de Salto: una línea por modelo).
+  // Se calcula aparte de posDist porque aquella agrega todos los modelos en una
+  // sola serie, que es justo lo que los usuarios pedían dejar de ver.
+  const posPorModelo = useMemo(() => {
+    if (!scoped || scoped.length === 0) return { rows: [], models: [] };
+    // La marca sale del propio rango, no de `cs`: este hook corre antes de que
+    // `metrics` esté disponible. Mismo patrón que posDist.
+    const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return buildPositionByModelOverTime(scoped as unknown as AnalysisDetail[], sorted[sorted.length - 1].configuration.brand);
+  }, [scoped]);
+
   // Distribución de posición (Hito 5)
   const posDist = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
@@ -794,6 +814,41 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
                   <Bar dataKey="p4_7" name={POSITION_BUCKETS[2]} stackId="p" fill={POSITION_COLORS[2]} />
                   <Bar dataKey="p8plus" name={POSITION_BUCKETS[3]} stackId="p" fill={POSITION_COLORS[3]} />
                 </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {posPorModelo.models.length > 1 && posPorModelo.rows.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border p-5 lg:col-span-2">
+              <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                Posición media por modelo
+                <InfoTip text="Posición media en la que aparece tu marca dentro de cada respuesta (1 = primera marca nombrada), con una línea por modelo. El eje va invertido: más arriba es mejor. Cada análisis se ejecuta con un modelo, así que promediarlos juntos daba un número que no distinguía si pierdes posiciones en ChatGPT o en Gemini. Una línea se corta donde ese modelo no se ejecutó o la marca no apareció." />
+              </h3>
+              <p className="text-xs text-gray-400 mb-4">Más arriba = mejor posición. Solo promedia respuestas donde la marca aparece.</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={posPorModelo.rows}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    reversed
+                    domain={[1, 'auto']}
+                    allowDecimals
+                    tickFormatter={(v) => `#${Number(v).toFixed(1)}`}
+                  />
+                  <Tooltip formatter={(v: number | string | null) => (v == null ? 'sin datos' : `#${Number(v).toFixed(2)}`)} />
+                  <Legend />
+                  {posPorModelo.models.map((m, i) => (
+                    <Line
+                      key={m}
+                      type="monotone"
+                      dataKey={m}
+                      name={m}
+                      stroke={COLORS[i % COLORS.length]}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  ))}
+                </LineChart>
               </ResponsiveContainer>
             </div>
           )}

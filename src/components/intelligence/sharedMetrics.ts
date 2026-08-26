@@ -619,6 +619,68 @@ export function buildPositionDistribution(analyses: AnalysisDetail[], targetBran
   return { current, overTime };
 }
 
+
+/**
+ * Posición media de la marca objetivo por MODELO y fecha, para el gráfico
+ * multilínea de tracking.
+ *
+ * Devuelve una fila por fecha con una columna por modelo. El valor es `null`
+ * —no 0— cuando ese modelo no corrió ese día o la marca no apareció en ninguna
+ * respuesta: con 0 la línea se desplomaría al mejor puesto posible, que es
+ * justo lo contrario de lo que significa.
+ *
+ * La posición de cada pregunta es la MEJOR (mínima) del target, igual que en el
+ * resto de métricas de posición: el glosario de alias puede dejar varias
+ * entradas de la misma marca en una pregunta.
+ *
+ * Nota: usa la comparación estricta por `aliasKey`, la misma que
+ * `positionDistFor` y `buildModelVisibility`, para que los tres gráficos de
+ * posición cuenten igual. Es más estricta que `brandMatches` y puede perder
+ * variantes ("Salto Systems" frente a "Salto"); unificarlas es un cambio aparte
+ * porque movería números que los clientes ya tienen en sus informes.
+ */
+export function buildPositionByModelOverTime(
+  analyses: AnalysisDetail[],
+  targetBrand: string
+): { rows: Array<Record<string, string | number | null>>; models: string[] } {
+  const sorted = sortByDate(analyses);
+  const targetKey = aliasKey(targetBrand);
+  const models = modelsInAnalyses(sorted);
+
+  // fecha -> modelo -> acumulado de posiciones
+  const porFecha = new Map<string, Map<string, { suma: number; n: number }>>();
+
+  sorted.forEach(a => {
+    const modelo = analysisModelLabel(a);
+    const fecha = dateLabel(a.timestamp);
+    if (!porFecha.has(fecha)) porFecha.set(fecha, new Map());
+    const porModelo = porFecha.get(fecha)!;
+    if (!porModelo.has(modelo)) porModelo.set(modelo, { suma: 0, n: 0 });
+    const acc = porModelo.get(modelo)!;
+
+    (a.results?.questions || []).forEach(q => {
+      let mejor: number | null = null;
+      (q.brandMentions || []).forEach(bm => {
+        if (!bm.mentioned || aliasKey(bm.brand) !== targetKey) return;
+        if (!bm.appearanceOrder || bm.appearanceOrder <= 0) return;
+        mejor = mejor === null ? bm.appearanceOrder : Math.min(mejor, bm.appearanceOrder);
+      });
+      if (mejor !== null) { acc.suma += mejor; acc.n++; }
+    });
+  });
+
+  const rows = [...porFecha.entries()].map(([fecha, porModelo]) => {
+    const fila: Record<string, string | number | null> = { label: fecha };
+    models.forEach(m => {
+      const acc = porModelo.get(m);
+      fila[m] = acc && acc.n > 0 ? +(acc.suma / acc.n).toFixed(2) : null;
+    });
+    return fila;
+  });
+
+  return { rows, models };
+}
+
 // === Visibilidad por modelo (Hito 6.1 — GEO) ===
 
 export interface ModelVisibility {
