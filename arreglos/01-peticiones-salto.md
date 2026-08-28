@@ -265,10 +265,34 @@ vivían sueltos dentro de los dashboards (Topics y Sentimiento) se movieron a
 `sharedMetrics.ts`; el dashboard y la descarga usan ahora la misma función. Los
 demás bloques ya tiraban de funciones compartidas.
 
-**3. Descarga múltiple de listas de prompts** (28/08). En Configuración → Mis
-Configuraciones: casillas por lista, botón "Todas/Ninguna" y descarga en un solo
-Excel con una hoja por lista y las columnas Pregunta · Categoría · Respuesta ·
-Modelo · Fecha.
+**3. Descarga múltiple de listas de prompts** (28/08). Implementado en **dos
+sitios**, porque "lista de prompts" resultó ser ambiguo:
+
+**a) Centro de Inteligencia → Lista** *(lo que pedían los usuarios)*. La barra
+que aparece al marcar varios análisis ya ofrecía "Comparar" y "Eliminar";
+faltaba **"Descargar"**. Exporta un Excel con una hoja por análisis y las
+columnas Pregunta · Categoría · Modelo · Respuesta · Marca mencionada · Posición.
+
+Encaja con la petición literal: la selección múltiple ya existía y el panel de
+detalle ya enseñaba el análisis pregunta a pregunta, pero **de uno en uno y sin
+el texto de la respuesta**.
+
+**b) Configuración → Mis Configuraciones**. Casillas por lista y descarga con
+Pregunta · Categoría · Respuesta · Modelo · Fecha. Útil para exportar los prompts
+de una lista aunque no se recuerde qué análisis la ejecutó.
+
+### El texto de la respuesta sí está guardado
+
+Comprobado sobre 2.981 preguntas de producción: **2.968 tienen respuesta
+completa** (99,6%), con una media de **2.868 caracteres**, en
+`multiModelAnalysis[].response`.
+
+| Marca | Preguntas con respuesta |
+|---|---|
+| Salto Systems | 2.157/2.163 (100%) |
+| Pichincha Envíos | 236/236 (100%) |
+| UOC | 162/164 (99%) |
+| Saunier Duval | 271/276 (98%) |
 
 ### El enlace lista→respuesta no existía
 

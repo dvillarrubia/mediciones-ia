@@ -45,6 +45,7 @@ import TopicsDashboard from '../components/intelligence/TopicsDashboard';
 import CitationsDashboard from '../components/intelligence/CitationsDashboard';
 import GapsDashboard from '../components/intelligence/GapsDashboard';
 import DownloadsDashboard from '../components/intelligence/DownloadsDashboard';
+import { exportSheetsToExcel, downloadFilename, type SheetSpec } from '../components/intelligence/dashboardExcelExport';
 import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
 import { useProjectStore } from '../store/projectStore';
 
@@ -202,6 +203,7 @@ const IntelligenceHub: React.FC = () => {
 
   // Selección múltiple
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [descargandoSeleccion, setDescargandoSeleccion] = useState(false);
 
   // Comparación
   const [compareAnalyses, setCompareAnalyses] = useState<AnalysisDetail[]>([]);
@@ -587,6 +589,100 @@ const IntelligenceHub: React.FC = () => {
       showNotification('error', 'Error al generar CSV');
     } finally {
       setExportingId(null);
+    }
+  };
+
+  /**
+   * Descarga las preguntas y respuestas de los análisis seleccionados en un
+   * único Excel, una hoja por análisis.
+   *
+   * Es lo que pedían los usuarios: "seleccionar varias listas y descargarlas
+   * todas (pregunta + respuesta de todos los prompts)". La selección múltiple ya
+   * existía aquí —se usaba para comparar y borrar— y el panel de detalle ya
+   * enseña el análisis pregunta a pregunta, pero solo de uno en uno y sin el
+   * texto de la respuesta.
+   */
+  const descargarSeleccionados = async () => {
+    // Formas mínimas de lo que se lee del resultado. Se declaran aquí y no se
+    // importan porque el detalle guardado es más laxo que los tipos del hub.
+    type MencionExport = { mentioned?: boolean; brand?: string; appearanceOrder?: number };
+    type ModeloExport = { modelName?: string; modelPersona?: string; response?: string; brandMentions?: MencionExport[] };
+    type PreguntaExport = { question?: string; category?: string; multiModelAnalysis?: ModeloExport[]; brandMentions?: MencionExport[] };
+
+    if (selectedIds.size === 0) return;
+    setDescargandoSeleccion(true);
+    try {
+      const ids = Array.from(selectedIds);
+
+      // Reutiliza los detalles ya cargados; solo pide los que falten.
+      const yaCargados = new Map(allAnalysesDetails.map(d => [d.id, d]));
+      const porPedir = ids.filter(id => !yaCargados.has(id));
+
+      const CONCURRENCIA = 6;
+      for (let i = 0; i < porPedir.length; i += CONCURRENCIA) {
+        const lote = porPedir.slice(i, i + CONCURRENCIA);
+        const res = await Promise.all(lote.map(async id => {
+          try {
+            const r = await apiFetch(`${API_ENDPOINTS.analysisSaved}/${id}`);
+            const d = await r.json();
+            return d.success ? (d.data as AnalysisDetail) : null;
+          } catch { return null; }
+        }));
+        res.forEach(d => { if (d) yaCargados.set(d.id, d); });
+      }
+
+      const hojas: SheetSpec[] = [];
+      let sinRespuesta = 0;
+      for (const id of ids) {
+        const det = yaCargados.get(id);
+        if (!det) continue;
+        const fecha = new Date(det.timestamp).toISOString().slice(0, 10);
+        const marca = det.configuration?.brand || '';
+        const filas: (string | number)[][] = [
+          ['Pregunta', 'Categoría', 'Modelo', 'Respuesta', 'Marca mencionada', 'Posición'],
+        ];
+        ((det.results?.questions || []) as unknown as PreguntaExport[]).forEach((q) => {
+          const modelos: Array<ModeloExport | null> = (q.multiModelAnalysis && q.multiModelAnalysis.length > 0) ? q.multiModelAnalysis : [null];
+          modelos.forEach((m) => {
+            const menciones: MencionExport[] = (m?.brandMentions?.length ? m.brandMentions : q.brandMentions) || [];
+            const objetivo = menciones.find((bm) => bm.mentioned && bm.brand
+              && bm.brand.toLowerCase().includes(String(marca).toLowerCase().slice(0, 12)));
+            const respuesta = m?.response || '';
+            if (!respuesta) sinRespuesta++;
+            filas.push([
+              q.question || '',
+              q.category || '',
+              m?.modelName || m?.modelPersona || 'IA',
+              respuesta || '(sin respuesta guardada)',
+              objetivo ? 'sí' : 'no',
+              objetivo?.appearanceOrder || '',
+            ]);
+          });
+        });
+        hojas.push({
+          name: `${fecha} ${marca}`.trim() || det.id.slice(0, 20),
+          aoa: filas,
+          cols: [70, 20, 26, 110, 16, 10],
+        });
+      }
+
+      if (hojas.length === 0) {
+        showNotification('error', 'No se pudo cargar el detalle de los análisis seleccionados');
+        return;
+      }
+
+      const marcaRef = yaCargados.get(ids[0])?.configuration?.brand || '';
+      exportSheetsToExcel(downloadFilename('preguntas-respuestas', marcaRef), hojas);
+      showNotification(
+        'success',
+        sinRespuesta > 0
+          ? `${hojas.length} análisis descargados. ${sinRespuesta} filas sin texto de respuesta guardado.`
+          : `${hojas.length} análisis descargados con todas sus respuestas.`
+      );
+    } catch (e) {
+      showNotification('error', e instanceof Error ? e.message : 'Error al descargar');
+    } finally {
+      setDescargandoSeleccion(false);
     }
   };
 
@@ -1056,6 +1152,15 @@ const IntelligenceHub: React.FC = () => {
                     {selectedIds.size} análisis seleccionados
                   </span>
                   <div className="flex gap-2">
+                    <button
+                      onClick={descargarSeleccionados}
+                      disabled={descargandoSeleccion}
+                      title="Descarga pregunta y respuesta de todos los prompts de los análisis seleccionados"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      {descargandoSeleccion ? 'Preparando…' : 'Descargar'}
+                    </button>
                     <button
                       onClick={startComparison}
                       disabled={selectedIds.size < 2 || selectedIds.size > 4}
