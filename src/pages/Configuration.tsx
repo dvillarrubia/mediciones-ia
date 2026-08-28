@@ -24,10 +24,12 @@ import {
   GraduationCap,
   Phone,
   Shield,
-  Tag
+  Tag,
+  Download
 } from 'lucide-react';
 import API_BASE_URL, { apiFetch } from '../config/api';
 import BrandGlossaryEditor from '../components/intelligence/BrandGlossaryEditor';
+import { exportSheetsToExcel, downloadFilename, type SheetSpec } from '../components/intelligence/dashboardExcelExport';
 
 interface AnalysisQuestion {
   id: string;
@@ -69,6 +71,8 @@ const industryIcons: { [key: string]: React.ReactNode } = {
 const Configuration: React.FC = () => {
   const [templates, setTemplates] = useState<AnalysisTemplate[]>([]);
   const [customConfigs, setCustomConfigs] = useState<CustomConfiguration[]>([]);
+  const [listasSeleccionadas, setListasSeleccionadas] = useState<Set<string>>(new Set());
+  const [descargandoListas, setDescargandoListas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -137,6 +141,71 @@ const Configuration: React.FC = () => {
     // Limpieza de la entrada heredada, para que no quede ninguna clave suelta en
     // el navegador de nadie.
     localStorage.removeItem('userApiKeys');
+  };
+
+  const alternarLista = (id: string) => {
+    setListasSeleccionadas(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  /**
+   * Descarga en un solo Excel las listas seleccionadas, con la respuesta que dio
+   * la IA a cada prompt. El cruce pregunta→respuesta lo hace el servidor: los
+   * análisis pesan ~570 KB y no tiene sentido traerlos al navegador para
+   * recortar tres campos.
+   */
+  const descargarListas = async () => {
+    if (listasSeleccionadas.size === 0) return;
+    setDescargandoListas(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/templates/configurations/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configurationIds: Array.from(listasSeleccionadas) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al exportar');
+
+      const hojas: SheetSpec[] = (data.data || []).map((lista: {
+        configurationName: string;
+        rows: Array<{ pregunta: string; categoria: string; respuesta: string; modelo: string; fecha: string }>;
+      }) => ({
+        name: lista.configurationName || 'Lista',
+        aoa: [
+          ['Pregunta', 'Categoría', 'Respuesta', 'Modelo', 'Fecha'],
+          ...lista.rows.map(r => [
+            r.pregunta,
+            r.categoria,
+            r.respuesta || '(sin análisis para este prompt)',
+            r.modelo,
+            r.fecha ? r.fecha.slice(0, 10) : '',
+          ]),
+        ],
+        cols: [70, 20, 110, 26, 12],
+      }));
+
+      if (hojas.length === 0) {
+        setError('No se encontraron datos para las listas seleccionadas');
+        return;
+      }
+
+      const sinRespuesta = (data.data || []).reduce(
+        (n: number, l: { rows: unknown[]; conRespuesta: number }) => n + (l.rows.length - l.conRespuesta), 0
+      );
+      exportSheetsToExcel(downloadFilename('listas-prompts', String(hojas.length) + '-listas'), hojas);
+      setSuccess(
+        sinRespuesta > 0
+          ? `Descargadas ${hojas.length} listas. ${sinRespuesta} prompts sin respuesta: aún no se han analizado.`
+          : `Descargadas ${hojas.length} listas con todas sus respuestas.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al descargar las listas');
+    } finally {
+      setDescargandoListas(false);
+    }
   };
 
   const saveApiKeys = async () => {
@@ -589,9 +658,36 @@ const Configuration: React.FC = () => {
 
             {/* Mis Configuraciones */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Mis Configuraciones</h2>
-                <p className="text-gray-600 text-sm mt-1">Configuraciones guardadas para usar en tus análisis</p>
+              <div className="p-6 border-b border-gray-200 flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Mis Configuraciones</h2>
+                  <p className="text-gray-600 text-sm mt-1">Configuraciones guardadas para usar en tus análisis</p>
+                </div>
+                {customConfigs.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setListasSeleccionadas(
+                        listasSeleccionadas.size === customConfigs.length
+                          ? new Set()
+                          : new Set(customConfigs.map(c => c.id))
+                      )}
+                      className="text-sm text-gray-600 hover:text-gray-900 px-3 py-2"
+                    >
+                      {listasSeleccionadas.size === customConfigs.length ? 'Ninguna' : 'Todas'}
+                    </button>
+                    <button
+                      onClick={descargarListas}
+                      disabled={listasSeleccionadas.size === 0 || descargandoListas}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400"
+                      title="Descarga las listas marcadas en un Excel con la pregunta y la respuesta de cada prompt"
+                    >
+                      <Download className="h-4 w-4" />
+                      {descargandoListas
+                        ? 'Preparando…'
+                        : `Descargar ${listasSeleccionadas.size > 0 ? `(${listasSeleccionadas.size})` : ''}`}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {customConfigs.length === 0 ? (
@@ -603,8 +699,15 @@ const Configuration: React.FC = () => {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {customConfigs.map(config => (
-                    <div key={config.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div key={config.id} className={`p-4 transition-colors ${listasSeleccionadas.has(config.id) ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                       <div className="flex items-center justify-between">
+                        <input
+                          type="checkbox"
+                          checked={listasSeleccionadas.has(config.id)}
+                          onChange={() => alternarLista(config.id)}
+                          className="mr-3 w-4 h-4 text-blue-600 rounded focus:ring-blue-500 shrink-0"
+                          aria-label={`Seleccionar ${config.name}`}
+                        />
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">{config.name}</h3>
                           <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">

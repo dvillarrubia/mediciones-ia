@@ -231,7 +231,7 @@ tienen en informes entregados.
 
 ---
 
-## 1. Descargas y exportación · ✅ PARCIAL (25/08/2026)
+## 1. Descargas y exportación · ✅ ARREGLADO (28/08/2026)
 
 > *Tablas descargables, pestaña de Descargas con selector y filtro por periodo,
 > y descarga múltiple de listas de prompts.*
@@ -265,11 +265,37 @@ vivían sueltos dentro de los dashboards (Topics y Sentimiento) se movieron a
 `sharedMetrics.ts`; el dashboard y la descarga usan ahora la misma función. Los
 demás bloques ya tiraban de funciones compartidas.
 
-### Pendiente
+**3. Descarga múltiple de listas de prompts** (28/08). En Configuración → Mis
+Configuraciones: casillas por lista, botón "Todas/Ninguna" y descarga en un solo
+Excel con una hoja por lista y las columnas Pregunta · Categoría · Respuesta ·
+Modelo · Fecha.
 
-**3. Descarga múltiple de listas de prompts** (pregunta + respuesta de varias
-listas a la vez). No entra en la pestaña de Descargas porque no opera sobre
-análisis sino sobre las listas de prompts, que viven en otra pantalla.
+### El enlace lista→respuesta no existía
+
+Un análisis guardado **no registra de qué lista salió**: su campo
+`configuration` solo conserva marca, competidores y plantilla, y `template_id`
+vale `custom` en los 341 registros. El primer intento cruzó por nombre de
+configuración y devolvió **0 coincidencias** en todas las listas.
+
+Se cruza por el **texto de la pregunta**, que es lo único que enlaza ambos lados
+y además es más robusto: si un prompt se comparte entre listas, cada una
+recupera su respuesta igual. Medido sobre datos reales de producción:
+
+| Lista | Prompts con respuesta |
+|---|---|
+| Análisis de Presencia IA · Salto (108 prompts) | **100%** |
+| Análisis de Presencia IA · Salto (32 prompts) | **100%** |
+| Salto Marca US | 97% |
+| Análisis de Presencia IA · Banco Pichincha | 98% |
+| Salto Generico US | 0% — nunca analizada |
+
+Los prompts sin analizar se exportan con `(sin análisis para este prompt)` en
+vez de una celda vacía, y el mensaje de éxito dice cuántos son.
+
+### Se resuelve en servidor
+
+`POST /api/templates/configurations/export`. Un análisis ocupa ~570 KB: traerse
+varios al navegador para recortar tres campos no tenía sentido.
 
 ---
 
@@ -332,5 +358,5 @@ propias preguntas mediante `analysisModelLabel()`.
 | ~~1~~ | ~~**4 · Gap de citaciones**~~ | ✅ arreglado 25/08/2026 |
 | ~~2~~ | ~~**2 · Detalle de sentimiento**~~ | ✅ arreglado 26/08/2026 |
 | ~~3~~ | ~~**3 · Línea por modelo**~~ | ✅ arreglado 26/08/2026 (sentimiento + posición) |
-| ~~4~~ | ~~**1 · Descargas**~~ | ✅ parcial: falta la descarga múltiple de listas de prompts |
+| ~~4~~ | ~~**1 · Descargas**~~ | ✅ arreglado 28/08/2026 |
 | ~~5~~ | ~~**5 · Nomenclatura**~~ | ✅ arreglado 26/08/2026 |

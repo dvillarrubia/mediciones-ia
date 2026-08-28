@@ -17,6 +17,7 @@ import {
   getCountryByCode
 } from '../config/constants.js';
 import { adminService } from '../services/adminService.js';
+import { databaseService } from '../services/databaseService.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -334,6 +335,90 @@ router.get('/configurations/all', async (req: Request, res: Response) => {
       success: false,
       error: 'Error interno del servidor'
     });
+  }
+});
+
+
+/**
+ * POST /api/templates/configurations/export
+ *
+ * Devuelve, para varias listas de prompts a la vez, cada pregunta con la
+ * respuesta que dio la IA. Lo pidieron los usuarios de Salto: hasta ahora había
+ * que entrar lista por lista y copiar a mano.
+ *
+ * El cruce se hace por el TEXTO de la pregunta, no por la lista de origen. Un
+ * análisis guardado no registra de qué configuración salió: su campo
+ * `configuration` solo conserva marca, competidores y plantilla, y
+ * `template_id` vale 'custom' en los 341 registros. El texto del prompt es lo
+ * único que enlaza ambos lados, y además es más robusto: si un prompt se
+ * comparte entre listas, cada una recupera su respuesta igual.
+ *
+ * Se resuelve en servidor a propósito: un análisis ocupa ~570 KB y mandar
+ * varios al navegador para recortar tres campos sería absurdo.
+ *
+ * Body: { configurationIds: string[] }
+ */
+router.post('/configurations/export', async (req: Request, res: Response) => {
+  try {
+    const { configurationIds } = req.body as { configurationIds?: string[] };
+    if (!Array.isArray(configurationIds) || configurationIds.length === 0) {
+      res.status(400).json({ error: 'Indica al menos una lista', code: 'NO_CONFIGURATIONS' });
+      return;
+    }
+
+    const todas = await configService.getCustomConfigurations(req.userId);
+    const seleccionadas = todas.filter(c => configurationIds.includes(c.id));
+    if (seleccionadas.length === 0) {
+      res.status(404).json({ error: 'No se encontró ninguna de las listas indicadas' });
+      return;
+    }
+
+    const normalizar = (t: string) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+    // Respuesta más reciente por texto de pregunta, en un solo barrido.
+    // Se recorre de más antiguo a más nuevo para que la última sobrescriba.
+    const analisis = await databaseService.getAllAnalyses(200, undefined, req.userId);
+    const respuestas = new Map<string, { respuesta: string; modelo: string; fecha: string }>();
+    [...analisis]
+      .sort((x, y) => new Date(x.timestamp).getTime() - new Date(y.timestamp).getTime())
+      .forEach(a => {
+        (a.results?.questions || []).forEach(q => {
+          const texto = normalizar(q.question || '');
+          if (!texto) return;
+          const conRespuesta = (q.multiModelAnalysis || []).find(m => m?.response);
+          if (!conRespuesta?.response) return;
+          respuestas.set(texto, {
+            respuesta: conRespuesta.response,
+            modelo: conRespuesta.modelName || conRespuesta.modelPersona || '',
+            fecha: a.timestamp,
+          });
+        });
+      });
+
+    const data = seleccionadas.map(config => {
+      const rows = (config.questions || []).map(q => {
+        const hit = respuestas.get(normalizar(q.question));
+        return {
+          pregunta: q.question,
+          categoria: q.category || '',
+          respuesta: hit?.respuesta || '',
+          modelo: hit?.modelo || '',
+          fecha: hit?.fecha || '',
+        };
+      });
+      return {
+        configurationId: config.id,
+        configurationName: config.name,
+        targetBrand: config.targetBrand,
+        conRespuesta: rows.filter(r => r.respuesta).length,
+        rows,
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error exportando listas de prompts:', error);
+    res.status(500).json({ error: 'Error exportando las listas' });
   }
 });
 
