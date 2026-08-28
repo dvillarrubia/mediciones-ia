@@ -10,6 +10,7 @@ import { excelService } from '../services/excelService.js';
 import { pdfService } from '../services/pdfService.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveUserApiKeys } from '../utils/resolveUserApiKeys.js';
+import { modelsUsedFromResult } from '../utils/modelsUsed.js';
 import { authService } from '../services/authService.js';
 import { getQueueStats } from '../services/providerQueue.js';
 
@@ -189,8 +190,12 @@ router.post('/execute-async', async (req: Request, res: Response) => {
 
         // Modelo(s) realmente usado(s), con nombre legible, para mostrar en informes.
         const effectiveModel = selectedModel || DEFAULT_MODEL;
-        const modelsUsedLabel = isMultiModel
-          ? (configuration.aiModels || ['chatgpt'])
+        // Se deriva del resultado: las personas solicitadas no son las que
+        // corrieron (ver utils/modelsUsed.ts). Solo si el resultado no trae esa
+        // información se cae al modelo seleccionado.
+        const modelosReales = modelsUsedFromResult(result);
+        const modelsUsedLabel = modelosReales.length > 0
+          ? modelosReales
           : [getModelById(effectiveModel)?.name || effectiveModel];
 
         // Guardar en BD
@@ -440,13 +445,12 @@ router.post('/execute', async (req: Request, res: Response) => {
         results: result,
         metadata: {
           duration: result.duration,
-          // El modelo REALMENTE usado, con su nombre legible. Antes se guardaba
+          // El modelo REALMENTE usado, derivado del resultado. Antes se guardaba
           // configuration.aiModels, que son las personas SOLICITADAS: había
           // análisis con modelsUsed ["claude","gemini","chatgpt"] cuyas 103
-          // preguntas corrieron todas con Gemini. Misma lógica que la ruta
-          // asíncrona (execute-async), que ya lo hacía bien.
-          modelsUsed: isMultiModelAnalysis
-            ? (configuration.aiModels || ['chatgpt'])
+          // preguntas corrieron todas con Gemini.
+          modelsUsed: modelsUsedFromResult(result).length > 0
+            ? modelsUsedFromResult(result)
             : [getModelById(selectedModel || DEFAULT_MODEL)?.name || selectedModel || DEFAULT_MODEL],
           totalQuestions: configuration.questions.length
         }
