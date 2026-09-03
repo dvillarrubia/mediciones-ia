@@ -1371,7 +1371,7 @@ FORMATO JSON (responde SOLO con JSON válido, en ${countryLanguage}):
         mentioned: m.mention.mentioned || false,
         frequency: m.mention.frequency || 0,
         context: m.mention.context || 'neutral',
-        evidence: Array.isArray(m.mention.evidence) ? m.mention.evidence : [],
+        evidence: this.normalizeEvidenceList(m.mention.evidence),
         appearanceOrder: m.mention.mentioned ? (orderMap.get(m.llmIndex) || 0) : 0,
         isDiscovered: m.isDiscovered,
         detailedSentiment: m.mention.context || 'neutral'
@@ -3452,6 +3452,27 @@ Responde ÚNICAMENTE con el JSON válido, sin texto adicional.`;
    * extracción determinista. El orden importa: nunca se guarda algo que el
    * modelo se haya inventado, y rara vez se guarda nada.
    */
+  /**
+   * Lista de evidencias saneada: solo strings no vacíos, aplanando un nivel.
+   *
+   * El modelo devuelve a veces `evidence: [["frase"]]` (array dentro del array)
+   * y hasta ago/2026 se guardaba tal cual. Ese elemento anidado rompía la
+   * matriz de GAPS en el frontend (TypeError en cleanEvidencePhrase). El flujo
+   * persona ya pasa por verifyEvidence(), que descarta lo que no es texto; este
+   * es el equivalente para el flujo multi-modelo, que copiaba el array a ciegas.
+   */
+  private normalizeEvidenceList(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const out: string[] = [];
+    for (const item of raw) {
+      const items = Array.isArray(item) ? item : [item];
+      for (const v of items) {
+        if (typeof v === 'string' && v.trim()) out.push(v.trim());
+      }
+    }
+    return out;
+  }
+
   private buildEvidence(raw: unknown, responseText: string, brandName: string): string[] {
     const verificadas = this.verifyEvidence(raw, responseText);
     if (verificadas.length > 0) return verificadas;

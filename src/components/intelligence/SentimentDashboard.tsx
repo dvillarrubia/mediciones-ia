@@ -19,6 +19,7 @@ import {
   modelsInAnalyses,
   COLORS,
   modelosDelRango,
+  evidenceStrings,
 } from './sharedMetrics';
 import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
@@ -115,7 +116,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
         const model = modeloDelAnalisis;
         const ca = (bm as any).contextualAnalysis;
-        const reasoning = ca?.reasoning || ca?.competitiveReasoning || bm.evidence?.[0];
+        const reasoning = ca?.reasoning || ca?.competitiveReasoning || evidenceStrings(bm.evidence)[0];
         detailRows.push({ brand, sentiment: key, model, category: q.category || '—', question: q.question, isTarget, reasoning });
       });
     });

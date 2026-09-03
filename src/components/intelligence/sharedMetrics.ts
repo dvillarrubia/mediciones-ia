@@ -833,9 +833,30 @@ export function getBrandAppearanceRows(
   return rows;
 }
 
+/**
+ * Evidencias de una mención como lista de strings, pase lo que pase con el dato guardado.
+ *
+ * El modelo no siempre respeta el esquema: en producción hay análisis (UOC jun-jul/2026,
+ * Saunier Duval 27/08/2026) con `evidence: [["frase"]]` —arrays anidados— que llegaron a la
+ * base de datos sin sanear. Un `.replace` sobre ese elemento lanzaba TypeError dentro de
+ * buildGapsMatrix y, sin ErrorBoundary, la pestaña GAPS quedaba en blanco.
+ * Aplana un nivel, descarta lo que no sea texto y recorta espacios.
+ */
+export function evidenceStrings(evidence: unknown): string[] {
+  if (!Array.isArray(evidence)) return [];
+  const out: string[] = [];
+  evidence.forEach(item => {
+    const items = Array.isArray(item) ? item : [item];
+    items.forEach(v => {
+      if (typeof v === 'string' && v.trim()) out.push(v.trim());
+    });
+  });
+  return out;
+}
+
 /** Limpia una frase de evidencia para mostrarla: quita enlaces markdown "([dominio](url))" y espacios repetidos. */
-export function cleanEvidencePhrase(e: string): string {
-  return (e || '').replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, '').replace(/\s+/g, ' ').trim();
+export function cleanEvidencePhrase(e: unknown): string {
+  return (typeof e === 'string' ? e : '').replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, '').replace(/\s+/g, ' ').trim();
 }
 
 const normEvidenceText = (s: string) =>
@@ -863,7 +884,7 @@ export function verifiedEvidence(q: QuestionAnalysis, target: BrandMention | und
   // la versión limpia es solo para mostrar y para cotejar contra la respuesta.
   const seen = new Set<string>();
   const pairs: { raw: string; clean: string }[] = [];
-  (target.evidence || []).forEach(raw => {
+  evidenceStrings(target.evidence).forEach(raw => {
     const c = cleanEvidencePhrase(raw);
     if (c.length > 10 && !seen.has(c)) { seen.add(c); pairs.push({ raw, clean: c }); }
   });

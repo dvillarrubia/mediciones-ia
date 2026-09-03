@@ -21,6 +21,7 @@ import {
   SENTIMENT_KEYS,
   modelLabel,
   modelosDelRango,
+  evidenceStrings,
 } from './sharedMetrics';
 
 interface Props {
@@ -124,7 +125,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
             modelLabel(q.multiModelAnalysis?.[0]),
             q.category || '',
             q.question || '',
-            (bm.evidence || [])[0] || '',
+            evidenceStrings(bm.evidence)[0] || '',
           ]);
         });
       }));

@@ -44,6 +44,7 @@ import SentimentDashboard from '../components/intelligence/SentimentDashboard';
 import TopicsDashboard from '../components/intelligence/TopicsDashboard';
 import CitationsDashboard from '../components/intelligence/CitationsDashboard';
 import GapsDashboard from '../components/intelligence/GapsDashboard';
+import DashboardErrorBoundary from '../components/DashboardErrorBoundary';
 import DownloadsDashboard from '../components/intelligence/DownloadsDashboard';
 import { exportSheetsToExcel, downloadFilename, type SheetSpec } from '../components/intelligence/dashboardExcelExport';
 import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
@@ -1503,27 +1504,37 @@ const IntelligenceHub: React.FC = () => {
 
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
-            <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+            <DashboardErrorBoundary tab="Métricas">
+              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+            </DashboardErrorBoundary>
           )}
 
           {/* TAB: SENTIMIENTO */}
           {activeTab === 'sentiment' && (
-            <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            <DashboardErrorBoundary tab="Sentimiento">
+              <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            </DashboardErrorBoundary>
           )}
 
           {/* TAB: TOPICS */}
           {activeTab === 'topics' && (
-            <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            <DashboardErrorBoundary tab="Topics">
+              <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+            </DashboardErrorBoundary>
           )}
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
-            <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+            <DashboardErrorBoundary tab="URLs / Citas">
+              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+            </DashboardErrorBoundary>
           )}
 
           {/* TAB: GAPS */}
           {activeTab === 'gaps' && (
-            <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+            <DashboardErrorBoundary tab="GAPS">
+              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+            </DashboardErrorBoundary>
           )}
 
           {/* TAB 6: AI OVERVIEWS */}
@@ -1534,12 +1545,14 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 7: AUTOMATIZACIONES */}
           {/* TAB: DESCARGAS */}
           {activeTab === 'downloads' && (
-            <DownloadsDashboard
-              analyses={displayAnalyses}
-              loading={trendsLoading}
-              brandDomain={brandDomain}
-              brandAliases={brandAliases}
-            />
+            <DashboardErrorBoundary tab="Descargas">
+              <DownloadsDashboard
+                analyses={displayAnalyses}
+                loading={trendsLoading}
+                brandDomain={brandDomain}
+                brandAliases={brandAliases}
+              />
+            </DashboardErrorBoundary>
           )}
 
           {activeTab === 'schedules' && (

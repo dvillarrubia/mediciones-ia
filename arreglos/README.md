@@ -10,6 +10,7 @@ Cada ficha dice qué falla, por qué, dónde está el código y qué haría falt
 | 01 | [Peticiones de Salto](01-peticiones-salto.md) | Usuarios · 18/08/2026 | ver ficha | pendiente |
 | 02 | [Hallazgos de auditoría](02-hallazgos-auditoria.md) | Auditoría técnica · 25/08/2026 | ver ficha | pendiente |
 | 03 | [API key heredada entre usuarios](03-api-key-heredada-entre-usuarios.md) | Usuario · 25/08/2026 | Alta | ✅ código · ⏳ limpieza de datos |
+| 04 | [GAPS en blanco: evidencia anidada](04-gaps-en-blanco-evidencia-anidada.md) | Usuario · 03/09/2026 | Alta | ✅ código · pendiente deploy |
 
 ## Cómo leer las severidades
 
