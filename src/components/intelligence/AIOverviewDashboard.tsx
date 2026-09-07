@@ -133,6 +133,13 @@ function fmtVol(n: number): string {
   return n.toLocaleString();
 }
 
+/**
+ * Caché del desglose por subdominio entre montajes del dashboard. La pestaña se
+ * desmonta al cambiar de pestaña en el Intelligence Hub, así que sin esto cada
+ * visita repetía la petición.
+ */
+const subdomainCache = new Map<string, Record<string, SubdomainBreakdownEntry> | null>();
+
 // ==================== COMPONENT ====================
 
 const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
@@ -217,6 +224,15 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
     let cancelled = false;
     setSelectedSubDomain('');
     setExpandedHost(null);
+
+    if (subdomainCache.has(analysisId)) {
+      const cached = subdomainCache.get(analysisId) || null;
+      setSubdomains(cached);
+      setSubsAvailable(!!cached);
+      setLoadingSubs(false);
+      return;
+    }
+
     const load = async () => {
       try {
         setLoadingSubs(true);
@@ -224,9 +240,11 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
         const data = await resp.json();
         if (cancelled) return;
         if (data.success && data.data?.available) {
+          subdomainCache.set(analysisId, data.data.breakdown);
           setSubdomains(data.data.breakdown);
           setSubsAvailable(true);
         } else {
+          subdomainCache.set(analysisId, null);
           setSubdomains(null);
           setSubsAvailable(false);
         }

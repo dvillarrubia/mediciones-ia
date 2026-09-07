@@ -406,28 +406,28 @@ router.get('/results/:id/raw', async (req: Request, res: Response): Promise<void
  * el sitio principal del blog, campus, repositorio, etc.
  *
  * Para análisis nuevos viene precalculado en `results.subdomain_breakdown`;
- * para los antiguos se calcula al vuelo desde `raw_data` (sin coste de API).
+ * para los antiguos se calcula al vuelo desde `raw_data` y **se guarda**, para
+ * pagar ese coste una sola vez por análisis: `raw_data` llega a 19 MB y su
+ * JSON.parse es síncrono (~200 ms bloqueando el event loop de toda la API).
+ * Por eso la consulta pide primero solo `results` (~90 KB) y únicamente lee
+ * `raw_data` cuando el desglose no está guardado todavía.
  * Si el análisis es anterior a `raw_data`, devuelve `available: false`.
  */
 router.get('/results/:id/subdomains', async (req: Request, res: Response): Promise<void> => {
+  const db = getDb();
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
 
-    const db = getDb();
     await ensureTable(db);
 
-    const row: any = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT id, timestamp, target_domain, results, raw_data FROM ai_overview_analyses WHERE id = ? AND user_id = ?',
-        [id, userId],
-        (err, row) => {
-          db.close();
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    const get = <T = any>(sql: string, params: any[]): Promise<T> =>
+      new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row as T)));
+
+    const row: any = await get(
+      'SELECT id, timestamp, target_domain, results FROM ai_overview_analyses WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
 
     if (!row) {
       res.status(404).json({ error: 'Análisis no encontrado' });
@@ -438,9 +438,29 @@ router.get('/results/:id/subdomains', async (req: Request, res: Response): Promi
     let breakdown = results?.subdomain_breakdown || null;
     let source: 'stored' | 'computed' = 'stored';
 
-    if (!breakdown && row.raw_data) {
-      breakdown = computeSubdomainBreakdown(JSON.parse(row.raw_data), row.target_domain);
-      source = 'computed';
+    if (!breakdown) {
+      // Solo aquí se toca raw_data, y solo una vez: el resultado se guarda debajo.
+      const rawRow: any = await get(
+        'SELECT raw_data FROM ai_overview_analyses WHERE id = ? AND user_id = ?',
+        [id, userId]
+      );
+      if (rawRow?.raw_data) {
+        breakdown = computeSubdomainBreakdown(JSON.parse(rawRow.raw_data), row.target_domain);
+        source = 'computed';
+
+        results.subdomain_breakdown = breakdown;
+        await new Promise<void>((resolve) => {
+          db.run(
+            'UPDATE ai_overview_analyses SET results = ? WHERE id = ? AND user_id = ?',
+            [JSON.stringify(results), id, userId],
+            (err) => {
+              // Es solo caché: si falla, se recalculará la próxima vez.
+              if (err) console.error('No se pudo cachear subdomain_breakdown:', err.message);
+              resolve();
+            }
+          );
+        });
+      }
     }
 
     if (!breakdown) {
@@ -461,6 +481,8 @@ router.get('/results/:id/subdomains', async (req: Request, res: Response): Promi
   } catch (error: any) {
     console.error('Error obteniendo desglose por subdominio:', error);
     res.status(500).json({ error: error.message || 'Error al obtener desglose por subdominio' });
+  } finally {
+    db.close();
   }
 });
 
