@@ -6,7 +6,7 @@ import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth } from '../middleware/auth.js';
 import { authService } from '../services/authService.js';
-import { aiOverviewService, type AIOverviewConfig } from '../services/aiOverviewService.js';
+import { aiOverviewService, computeSubdomainBreakdown, type AIOverviewConfig } from '../services/aiOverviewService.js';
 import { dataforseoService, COUNTRY_TO_LOCATION_CODE, type DataForSEOCredentials } from '../services/dataforseoService.js';
 import sqlite3 from 'sqlite3';
 import path from 'path';
@@ -395,6 +395,72 @@ router.get('/results/:id/raw', async (req: Request, res: Response): Promise<void
   } catch (error: any) {
     console.error('Error obteniendo raw data AI Overview:', error);
     res.status(500).json({ error: error.message || 'Error al obtener datos crudos' });
+  }
+});
+
+/**
+ * GET /api/ai-overview/results/:id/subdomains
+ *
+ * Desglose por subdominio (host citado) de cada dominio del análisis.
+ * DataForSEO devuelve todos los subdominios del target, así que esto separa
+ * el sitio principal del blog, campus, repositorio, etc.
+ *
+ * Para análisis nuevos viene precalculado en `results.subdomain_breakdown`;
+ * para los antiguos se calcula al vuelo desde `raw_data` (sin coste de API).
+ * Si el análisis es anterior a `raw_data`, devuelve `available: false`.
+ */
+router.get('/results/:id/subdomains', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId;
+    const { id } = req.params;
+
+    const db = getDb();
+    await ensureTable(db);
+
+    const row: any = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, timestamp, target_domain, results, raw_data FROM ai_overview_analyses WHERE id = ? AND user_id = ?',
+        [id, userId],
+        (err, row) => {
+          db.close();
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!row) {
+      res.status(404).json({ error: 'Análisis no encontrado' });
+      return;
+    }
+
+    const results = JSON.parse(row.results);
+    let breakdown = results?.subdomain_breakdown || null;
+    let source: 'stored' | 'computed' = 'stored';
+
+    if (!breakdown && row.raw_data) {
+      breakdown = computeSubdomainBreakdown(JSON.parse(row.raw_data), row.target_domain);
+      source = 'computed';
+    }
+
+    if (!breakdown) {
+      res.json({ success: true, data: { available: false, breakdown: null, source: null } });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        available: true,
+        source,
+        targetDomain: row.target_domain,
+        timestamp: row.timestamp,
+        breakdown,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error obteniendo desglose por subdominio:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener desglose por subdominio' });
   }
 });
 

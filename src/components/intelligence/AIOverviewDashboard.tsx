@@ -3,10 +3,10 @@ import {
   Globe, TrendingUp, Eye, Target, Zap, Loader2,
   ArrowUp, ArrowDown, MessageSquareQuote, BarChart3,
   AlertTriangle, Shield, ExternalLink, ChevronDown, ChevronUp,
-  Download
+  Download, Layers
 } from 'lucide-react';
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import API_BASE_URL, { apiFetch } from '../../config/api';
@@ -33,6 +33,33 @@ interface GapEntry {
   keyword_difficulty: number | null;
   competitors_present: Array<{ domain: string; etv: number; url: string | null }>;
   total_competitors: number;
+}
+
+interface SubdomainEntry {
+  host: string;
+  keywords_count: number;
+  share_by_count_pct: number;
+  total_search_volume: number;
+  share_by_volume_pct: number;
+  total_etv: number;
+  share_by_etv_pct: number;
+  is_main: boolean;
+  is_aggregate: boolean;
+  top_keywords: Array<{ keyword: string; search_volume: number; cited_url: string | null }>;
+}
+
+interface SubdomainBreakdownEntry {
+  domain: string;
+  is_target: boolean;
+  hosts_count: number;
+  main_host: string | null;
+  main_host_found: boolean;
+  off_main_count_pct: number;
+  off_main_volume_pct: number;
+  total_keywords: number;
+  total_search_volume: number;
+  total_etv: number;
+  hosts: SubdomainEntry[];
 }
 
 interface AIOverviewResult {
@@ -119,6 +146,14 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
   const [showGaps, setShowGaps] = useState(true);
   const [showExclusive, setShowExclusive] = useState(true);
 
+  // Desglose por subdominio
+  const [subdomains, setSubdomains] = useState<Record<string, SubdomainBreakdownEntry> | null>(null);
+  const [subsAvailable, setSubsAvailable] = useState(true);
+  const [loadingSubs, setLoadingSubs] = useState(false);
+  const [selectedSubDomain, setSelectedSubDomain] = useState('');
+  const [expandedHost, setExpandedHost] = useState<string | null>(null);
+  const [showSubdomains, setShowSubdomains] = useState(true);
+
   const handleDownloadExcel = async () => {
     if (!fullResult?.id || exporting) return;
     setExporting(true);
@@ -175,6 +210,37 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
     load();
   }, [history]);
 
+  // Fetch desglose por subdominio del análisis mostrado
+  useEffect(() => {
+    const analysisId = fullResult?.id;
+    if (!analysisId) return;
+    let cancelled = false;
+    setSelectedSubDomain('');
+    setExpandedHost(null);
+    const load = async () => {
+      try {
+        setLoadingSubs(true);
+        const resp = await apiFetch(`${API_BASE_URL}/api/ai-overview/results/${analysisId}/subdomains`);
+        const data = await resp.json();
+        if (cancelled) return;
+        if (data.success && data.data?.available) {
+          setSubdomains(data.data.breakdown);
+          setSubsAvailable(true);
+        } else {
+          setSubdomains(null);
+          setSubsAvailable(false);
+        }
+      } catch (e) {
+        console.error('Error fetching subdomain breakdown:', e);
+        if (!cancelled) { setSubdomains(null); setSubsAvailable(false); }
+      } finally {
+        if (!cancelled) setLoadingSubs(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [fullResult?.id]);
+
   const validHistory = useMemo(() =>
     [...history]
       .filter(h => h.shareOfVoice && h.shareOfVoice.length > 0)
@@ -187,7 +253,7 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
   const hasHistory = validHistory.length >= 2;
   const r = fullResult?.results; // shorthand for the full result
   const targetDomain = r?.metadata?.target_domain || latest?.targetDomain || '';
-  const allDomains = r ? [targetDomain, ...(r.metadata.competitors || [])] : [];
+  const allDomains = useMemo(() => (r ? [targetDomain, ...(r.metadata.competitors || [])] : []), [r, targetDomain]);
 
   // All domains sorted by volume SoV
   const allDomainsSorted = useMemo(() =>
@@ -245,6 +311,29 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
       .filter(k => r.volume_distribution[targetDomain][k] !== undefined)
       .map(k => ({ bucket: k, count: r.volume_distribution[targetDomain][k] }));
   }, [r, targetDomain]);
+
+  // Desglose por subdominio: dominio seleccionado y comparativa entre dominios
+  const subDomainKey = selectedSubDomain || targetDomain;
+  const activeSub = subdomains?.[subDomainKey] || null;
+  const targetSub = subdomains?.[targetDomain] || null;
+
+  const offMainChart = useMemo(() => {
+    if (!subdomains) return [];
+    return allDomains
+      .filter(d => subdomains[d])
+      .map(d => ({
+        domain: d.replace(/^www\./, ''),
+        pct: subdomains[d].off_main_volume_pct,
+        isTarget: d === targetDomain,
+      }));
+  }, [subdomains, allDomains, targetDomain]);
+
+  // Si ningún dominio dispersa visibilidad fuera de su sitio principal, un gráfico
+  // de barras a 0 se lee como "sin datos": mejor decirlo con palabras.
+  const maxOffMain = useMemo(
+    () => offMainChart.reduce((max, d) => Math.max(max, d.pct), 0),
+    [offMainChart]
+  );
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
@@ -349,6 +438,198 @@ const AIOverviewDashboard: React.FC<Props> = ({ projectId }) => {
 
       {r && (
         <>
+          {/* Desglose por subdominio */}
+          <div className="bg-white rounded-xl border p-5">
+            <button onClick={() => setShowSubdomains(!showSubdomains)} className="w-full flex items-center justify-between">
+              <div className="text-left">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-cyan-500" />
+                  Desglose por subdominio
+                  <InfoTip text="DataForSEO devuelve las citas de TODO el dominio, subdominios incluidos. Aquí se reparten las citas de cada dominio entre los hosts concretos que Google cita (www, blog, campus, repositorio, biblioteca...), para distinguir la visibilidad del sitio principal de la del resto." />
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  {targetSub
+                    ? `${targetDomain}: ${targetSub.hosts_count} hosts citados · ${fmtPct(targetSub.off_main_volume_pct)} del volumen fuera de ${targetSub.main_host}`
+                    : 'Reparto de las citas de cada dominio entre sus subdominios'}
+                </p>
+              </div>
+              {showSubdomains ? <ChevronUp className="w-5 h-5 text-gray-400 shrink-0" /> : <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />}
+            </button>
+
+            {showSubdomains && (
+              <div className="mt-4">
+                {loadingSubs && (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>
+                )}
+
+                {!loadingSubs && !subsAvailable && (
+                  <p className="text-sm text-gray-500 bg-gray-50 border rounded-lg p-4">
+                    Este análisis es anterior al guardado de datos crudos, así que no se puede desglosar por subdominio.
+                    El próximo análisis que ejecutes ya lo incluirá.
+                  </p>
+                )}
+
+                {!loadingSubs && activeSub && (
+                  <>
+                    {/* Selector de dominio */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {allDomains.filter(d => subdomains?.[d]).map(d => (
+                        <button
+                          key={d}
+                          onClick={() => { setSelectedSubDomain(d); setExpandedHost(null); }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            d === subDomainKey
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          {d}
+                          {d === targetDomain && <span className={`ml-1.5 ${d === subDomainKey ? 'text-blue-100' : 'text-blue-500'}`}>· target</span>}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Aviso de concentración fuera del host principal */}
+                    {activeSub.off_main_volume_pct >= 30 && (
+                      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <p>
+                          El <strong>{fmtPct(activeSub.off_main_volume_pct)}</strong> del volumen y el{' '}
+                          <strong>{fmtPct(activeSub.off_main_count_pct)}</strong> de las citas de <strong>{activeSub.domain}</strong>{' '}
+                          no vienen de {activeSub.main_host_found
+                            ? <>su sitio principal (<code className="text-xs">{activeSub.main_host}</code>)</>
+                            : <>un host principal identificable (referencia: <code className="text-xs">{activeSub.main_host}</code>)</>}
+                          {' '}sino de otros subdominios (blog, campus, repositorio...). Tenlo en cuenta al leer el Share of Voice.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tabla de hosts */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b text-xs">
+                            <th className="pb-2">Host citado</th>
+                            <th className="pb-2 text-right">Keywords</th>
+                            <th className="pb-2 text-right">% kw</th>
+                            <th className="pb-2 text-right">Volumen</th>
+                            <th className="pb-2 text-right">% vol.</th>
+                            <th className="pb-2 text-right">ETV</th>
+                            <th className="pb-2 w-32"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeSub.hosts.map(h => {
+                            const isExpandable = !h.is_aggregate && h.top_keywords.length > 0;
+                            const isExpanded = expandedHost === h.host;
+                            return (
+                              <React.Fragment key={h.host}>
+                                <tr
+                                  className={`border-b last:border-0 ${h.is_main ? 'bg-blue-50' : ''} ${isExpandable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                  onClick={() => isExpandable && setExpandedHost(isExpanded ? null : h.host)}
+                                >
+                                  <td className="py-2.5 font-medium text-gray-700">
+                                    <span className={h.is_aggregate ? 'text-gray-400 italic' : ''}>{h.host}</span>
+                                    {h.is_main && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-2">Principal</span>}
+                                    {isExpandable && (isExpanded
+                                      ? <ChevronUp className="w-3 h-3 inline-block ml-1.5 text-gray-400" />
+                                      : <ChevronDown className="w-3 h-3 inline-block ml-1.5 text-gray-300" />)}
+                                  </td>
+                                  <td className="py-2.5 text-right font-mono text-gray-600">{h.keywords_count.toLocaleString()}</td>
+                                  <td className="py-2.5 text-right font-mono text-gray-500">{fmtPct(h.share_by_count_pct)}</td>
+                                  <td className="py-2.5 text-right font-mono text-gray-600">{fmtVol(h.total_search_volume)}</td>
+                                  <td className="py-2.5 text-right font-mono font-semibold">{fmtPct(h.share_by_volume_pct)}</td>
+                                  <td className="py-2.5 text-right font-mono text-gray-500">${Math.round(h.total_etv).toLocaleString()}</td>
+                                  <td className="py-2.5">
+                                    <div className="w-full bg-gray-100 rounded-full h-2">
+                                      <div
+                                        className={`h-2 rounded-full ${h.is_main ? 'bg-blue-500' : h.is_aggregate ? 'bg-gray-300' : 'bg-cyan-400'}`}
+                                        style={{ width: `${Math.min(h.share_by_volume_pct, 100)}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className="border-b last:border-0 bg-gray-50">
+                                    <td colSpan={7} className="py-2.5 px-3">
+                                      <p className="text-xs text-gray-400 mb-1.5">Keywords con más volumen citadas desde este host:</p>
+                                      <div className="space-y-1">
+                                        {h.top_keywords.map((kw, i) => (
+                                          <div key={i} className="flex items-center gap-2 text-xs min-w-0">
+                                            <span className="font-mono text-gray-500 w-16 text-right shrink-0">{fmtVol(kw.search_volume)}</span>
+                                            <span className="text-gray-700 shrink-0">{kw.keyword}</span>
+                                            {kw.cited_url && (
+                                              <a
+                                                href={kw.cited_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={e => e.stopPropagation()}
+                                                className="text-gray-400 hover:text-blue-600 inline-flex items-center gap-1 min-w-0"
+                                                title={kw.cited_url}
+                                              >
+                                                <span className="truncate">{kw.cited_url.replace(/^https?:\/\//, '')}</span>
+                                                <ExternalLink className="w-3 h-3 shrink-0" />
+                                              </a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Comparativa entre dominios */}
+                    {offMainChart.length > 1 && (
+                      <div className="mt-6 pt-5 border-t">
+                        <h4 className="text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-2">
+                          Volumen fuera del sitio principal
+                          <InfoTip text="% del volumen de búsqueda de cada dominio que Google cita desde subdominios distintos del sitio principal (dominio o www). Cuanto más alto, más pesan blog, campus, repositorio, etc. en su Share of Voice." />
+                        </h4>
+                        <p className="text-xs text-gray-400 mb-3">Comparativa entre los dominios analizados</p>
+                        {maxOffMain < 1 ? (
+                          <div className="bg-gray-50 border rounded-lg p-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                              Ningún dominio dispersa visibilidad fuera de su sitio principal: Google los cita
+                              casi siempre desde su host principal, no desde blogs, campus ni repositorios.
+                            </p>
+                            <div className="flex flex-wrap gap-x-5 gap-y-1">
+                              {offMainChart.map(d => (
+                                <span key={d.domain} className={`text-xs font-mono ${d.isTarget ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+                                  {d.domain}: {fmtPct(d.pct)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={Math.max(140, offMainChart.length * 38)}>
+                            <BarChart data={offMainChart} layout="vertical" margin={{ left: 10, right: 44 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fill: '#6b7280', fontSize: 11 }} />
+                              <YAxis type="category" dataKey="domain" width={110} tick={{ fill: '#6b7280', fontSize: 11 }} />
+                              <Tooltip formatter={(v: number) => [`${v}%`, 'Fuera del sitio principal']} />
+                              <Bar dataKey="pct" radius={[0, 4, 4, 0]} name="Fuera del sitio principal" minPointSize={2}>
+                                {offMainChart.map((entry, i) => (
+                                  <Cell key={i} fill={entry.isTarget ? '#3b82f6' : '#94a3b8'} />
+                                ))}
+                                <LabelList dataKey="pct" position="right" formatter={(v: number) => `${v}%`} style={{ fill: '#6b7280', fontSize: 11 }} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Intent + Volume distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {intentData.length > 0 && (

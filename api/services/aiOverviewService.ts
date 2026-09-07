@@ -89,6 +89,33 @@ export interface GapEntry {
   total_competitors: number;
 }
 
+export interface SubdomainEntry {
+  host: string;
+  keywords_count: number;
+  share_by_count_pct: number;   // % sobre el total del propio dominio
+  total_search_volume: number;
+  share_by_volume_pct: number;
+  total_etv: number;
+  share_by_etv_pct: number;
+  is_main: boolean;             // es el host principal (dominio o www.dominio)
+  is_aggregate: boolean;        // fila agregada "otros subdominios"
+  top_keywords: Array<{ keyword: string; search_volume: number; cited_url: string | null }>;
+}
+
+export interface SubdomainBreakdownEntry {
+  domain: string;
+  is_target: boolean;
+  hosts_count: number;
+  main_host: string | null;           // dominio o www.dominio; null si no aparece
+  main_host_found: boolean;           // false => main_host es el host con más volumen
+  off_main_count_pct: number;         // % de citas fuera del host principal
+  off_main_volume_pct: number;        // % de volumen fuera del host principal
+  total_keywords: number;
+  total_search_volume: number;
+  total_etv: number;
+  hosts: SubdomainEntry[];
+}
+
 export interface AIOverviewResult {
   metadata: {
     analyzed_at: string;
@@ -147,6 +174,7 @@ export interface AIOverviewResult {
     total_volume: number;
     total_etv: number;
   }>>;
+  subdomain_breakdown?: Record<string, SubdomainBreakdownEntry>;
 }
 
 // ==================== HELPERS ====================
@@ -158,6 +186,128 @@ function extractDomain(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Host completo de una URL (sin quitar www), en minúsculas.
+ */
+function extractHost(url: string): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+const MAX_HOSTS_PER_DOMAIN = 25;
+
+/**
+ * Desglose por subdominio: reparte las citaciones de cada dominio entre los
+ * hosts concretos que Google cita (www, blog, campus, repositorio...).
+ *
+ * Necesario porque DataForSEO devuelve, para un `target` a nivel de dominio,
+ * TODOS sus subdominios. Sin este desglose no se distingue la visibilidad del
+ * sitio corporativo de la del blog, el campus virtual o el repositorio.
+ *
+ * Se exporta para poder calcularlo también sobre análisis antiguos a partir
+ * de `raw_data`, sin volver a llamar a DataForSEO.
+ */
+export function computeSubdomainBreakdown(
+  byDomain: Record<string, ParsedEntry[]>,
+  targetDomain: string
+): Record<string, SubdomainBreakdownEntry> {
+  const breakdown: Record<string, SubdomainBreakdownEntry> = {};
+
+  for (const [domain, entries] of Object.entries(byDomain)) {
+    if (!entries || entries.length === 0) continue;
+
+    const acc: Record<string, { count: number; volume: number; etv: number; kws: ParsedEntry[] }> = {};
+
+    for (const entry of entries) {
+      const host = extractHost(entry.cited_url || '') || entry.cited_page_domain || domain;
+      if (!acc[host]) acc[host] = { count: 0, volume: 0, etv: 0, kws: [] };
+      acc[host].count++;
+      acc[host].volume += entry.search_volume || 0;
+      acc[host].etv += entry.etv || 0;
+      acc[host].kws.push(entry);
+    }
+
+    const totalCount = entries.length;
+    const totalVolume = entries.reduce((s, e) => s + (e.search_volume || 0), 0);
+    const totalEtv = entries.reduce((s, e) => s + (e.etv || 0), 0);
+
+    // Host principal: el dominio o su versión www. Si ninguno aparece citado,
+    // se usa como referencia el host con más volumen (marcado con main_host_found=false).
+    const bare = domain.replace(/^www\./, '').toLowerCase();
+    const candidates = [bare, `www.${bare}`].filter(h => acc[h]);
+    let mainHost: string | null = null;
+    let mainHostFound = false;
+    if (candidates.length > 0) {
+      mainHost = candidates.sort((a, b) => acc[b].volume - acc[a].volume)[0];
+      mainHostFound = true;
+    } else {
+      const byVolume = Object.entries(acc).sort((a, b) => b[1].volume - a[1].volume);
+      mainHost = byVolume.length > 0 ? byVolume[0][0] : null;
+    }
+
+    const sorted = Object.entries(acc).sort((a, b) => b[1].volume - a[1].volume);
+    const shown = sorted.slice(0, MAX_HOSTS_PER_DOMAIN);
+    const rest = sorted.slice(MAX_HOSTS_PER_DOMAIN);
+
+    const hosts: SubdomainEntry[] = shown.map(([host, d]) => ({
+      host,
+      keywords_count: d.count,
+      share_by_count_pct: totalCount > 0 ? round((d.count / totalCount) * 100) : 0,
+      total_search_volume: d.volume,
+      share_by_volume_pct: totalVolume > 0 ? round((d.volume / totalVolume) * 100) : 0,
+      total_etv: round(d.etv),
+      share_by_etv_pct: totalEtv > 0 ? round((d.etv / totalEtv) * 100) : 0,
+      is_main: host === mainHost,
+      is_aggregate: false,
+      top_keywords: d.kws
+        .sort((a, b) => (b.search_volume || 0) - (a.search_volume || 0))
+        .slice(0, 3)
+        .map(e => ({ keyword: e.keyword, search_volume: e.search_volume || 0, cited_url: e.cited_url })),
+    }));
+
+    if (rest.length > 0) {
+      const restCount = rest.reduce((s, [, d]) => s + d.count, 0);
+      const restVolume = rest.reduce((s, [, d]) => s + d.volume, 0);
+      const restEtv = rest.reduce((s, [, d]) => s + d.etv, 0);
+      hosts.push({
+        host: `otros (${rest.length} subdominios)`,
+        keywords_count: restCount,
+        share_by_count_pct: totalCount > 0 ? round((restCount / totalCount) * 100) : 0,
+        total_search_volume: restVolume,
+        share_by_volume_pct: totalVolume > 0 ? round((restVolume / totalVolume) * 100) : 0,
+        total_etv: round(restEtv),
+        share_by_etv_pct: totalEtv > 0 ? round((restEtv / totalEtv) * 100) : 0,
+        is_main: false,
+        is_aggregate: true,
+        top_keywords: [],
+      });
+    }
+
+    const mainCount = mainHost ? acc[mainHost].count : 0;
+    const mainVolume = mainHost ? acc[mainHost].volume : 0;
+
+    breakdown[domain] = {
+      domain,
+      is_target: domain === targetDomain,
+      hosts_count: sorted.length,
+      main_host: mainHost,
+      main_host_found: mainHostFound,
+      off_main_count_pct: totalCount > 0 ? round(((totalCount - mainCount) / totalCount) * 100) : 0,
+      off_main_volume_pct: totalVolume > 0 ? round(((totalVolume - mainVolume) / totalVolume) * 100) : 0,
+      total_keywords: totalCount,
+      total_search_volume: totalVolume,
+      total_etv: round(totalEtv),
+      hosts,
+    };
+  }
+
+  return breakdown;
 }
 
 function round(n: number): number {
@@ -539,6 +689,7 @@ class AIOverviewService {
       volume_distribution: volumeDistByDomain,
       top_keywords: topKeywords,
       top_pages: topPages,
+      subdomain_breakdown: computeSubdomainBreakdown(byDomain, targetDomain),
     };
   }
 }
