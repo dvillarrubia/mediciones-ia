@@ -28,6 +28,7 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
 }
 
@@ -46,7 +47,7 @@ const BLOQUES: Bloque[] = [
   { id: 'gaps',       label: 'GAPS',          descripcion: 'Matriz de prompts × fecha' },
 ];
 
-export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases }) => {
+export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set(BLOQUES.map(b => b.id)));
@@ -161,7 +162,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
         cols: [36, 10],
       });
 
-      const filas = getBrandAppearanceRows(scoped, target, brandDomain || '', nombres);
+      const filas = getBrandAppearanceRows(scoped, target, brandDomain || '', nombres, brandBlogPattern);
       hojas.push({
         name: 'Menciones marca',
         aoa: [
@@ -183,7 +184,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
     }
 
     if (seleccion.has('gaps')) {
-      const m = buildGapsMatrix(scoped, target, brandDomain || '', nombres);
+      const m = buildGapsMatrix(scoped, target, brandDomain || '', nombres, brandBlogPattern);
       hojas.push({
         name: 'Matriz GAPS',
         aoa: [

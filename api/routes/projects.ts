@@ -107,7 +107,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, brandAliases, brandDomain } = req.body;
+    const { name, description, brandAliases, brandDomain, brandBlogPattern } = req.body;
 
     const existingProject = await databaseService.getProject(id, req.userId);
     if (!existingProject) {
@@ -117,7 +117,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[]; brandDomain?: string } = {};
+    const updates: { name?: string; description?: string; brandAliases?: { canonical: string; variants: string[] }[]; brandDomain?: string; brandBlogPattern?: string } = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || undefined;
     if (brandDomain !== undefined) {
@@ -125,6 +125,14 @@ router.put('/:id', async (req: Request, res: Response) => {
       const normalized = String(brandDomain).trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
       const isDomain = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(normalized);
       updates.brandDomain = isDomain ? normalized.slice(0, 120) : '';
+    }
+    if (brandBlogPattern !== undefined) {
+      // Es un nombre de subdominio o de segmento de ruta (re-magazine, blog, revista),
+      // no un dominio: se queda solo con letras, dígitos y guiones.
+      const clean = String(brandBlogPattern).trim().toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/[^a-z0-9-]/g, '');
+      updates.brandBlogPattern = clean.slice(0, 60);
     }
     if (brandAliases !== undefined && Array.isArray(brandAliases)) {
       // Topes para evitar payloads gigantes en la columna TEXT

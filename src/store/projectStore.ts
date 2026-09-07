@@ -13,6 +13,7 @@ export interface Project {
   description?: string;
   brandAliases?: BrandAlias[];
   brandDomain?: string;
+  brandBlogPattern?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +21,7 @@ export interface Project {
 export interface BrandSettings {
   brandAliases?: BrandAlias[];
   brandDomain?: string;
+  brandBlogPattern?: string;
 }
 
 interface ProjectState {

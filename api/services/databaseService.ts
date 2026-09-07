@@ -17,6 +17,7 @@ export interface Project {
   description?: string;
   brandAliases?: BrandAlias[]; // Glosario de marcas (unificación de menciones)
   brandDomain?: string; // Dominio de la marca objetivo (ej. pichincha.com) para distinguir mención vs citación
+  brandBlogPattern?: string; // Subdominio o segmento de ruta del blog (ej. re-magazine) para distinguir citación al sitio vs al blog
   createdAt: string;
   updatedAt: string;
 }
@@ -263,6 +264,14 @@ class DatabaseService {
           }
         });
 
+        // Migración idempotente: patrón del blog de la marca (subdominio o ruta).
+        // El blog no siempre vive en /blog: en Saunier Duval es re-magazine.saunierduval.es.
+        this.db!.run('ALTER TABLE projects ADD COLUMN brand_blog_pattern TEXT', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            console.error('Error añadiendo brand_blog_pattern:', err);
+          }
+        });
+
         // Crear índices para optimización multi-tenant
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis(user_id)');
@@ -490,6 +499,7 @@ class DatabaseService {
             description: row.description,
             brandAliases: this.parseBrandAliases(row.brand_aliases),
             brandDomain: row.brand_domain || undefined,
+            brandBlogPattern: row.brand_blog_pattern || undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at
           }));
@@ -534,6 +544,7 @@ class DatabaseService {
             description: row.description,
             brandAliases: this.parseBrandAliases(row.brand_aliases),
             brandDomain: row.brand_domain || undefined,
+            brandBlogPattern: row.brand_blog_pattern || undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at
           });
@@ -552,7 +563,7 @@ class DatabaseService {
     }
   }
 
-  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'brandAliases' | 'brandDomain'>>, userId?: string): Promise<Project | null> {
+  async updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'brandAliases' | 'brandDomain' | 'brandBlogPattern'>>, userId?: string): Promise<Project | null> {
     await this.ensureInitialized();
 
     return new Promise((resolve, reject) => {
@@ -580,6 +591,10 @@ class DatabaseService {
       if (updates.brandDomain !== undefined) {
         fields.push('brand_domain = ?');
         params.push(updates.brandDomain || null);
+      }
+      if (updates.brandBlogPattern !== undefined) {
+        fields.push('brand_blog_pattern = ?');
+        params.push(updates.brandBlogPattern || null);
       }
 
       params.push(id);

@@ -33,13 +33,14 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
 }
 
 interface UrlRank { url: string; domain: string; count: number; }
 interface DomainRank { domain: string; count: number; percentage: number; }
 
-const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases }) => {
+const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AppearanceType>('all');
   const [page, setPage] = useState(1);
@@ -55,8 +56,8 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
   const brandRows = useMemo(() => {
     if (!scoped || scoped.length === 0) return [];
     const target = sortByDate(scoped).slice(-1)[0]?.configuration.brand || '';
-    return getBrandAppearanceRows(scoped, target, brandDomain || '', brandNameVariants(target, brandAliases));
-  }, [scoped, brandDomain, brandAliases]);
+    return getBrandAppearanceRows(scoped, target, brandDomain || '', brandNameVariants(target, brandAliases), brandBlogPattern);
+  }, [scoped, brandDomain, brandAliases, brandBlogPattern]);
 
   const brandCounts = useMemo(() => {
     const c: Record<AppearanceType, number> = { no_aparece: 0, mencion: 0, citacion_com: 0, citacion_blog: 0 };
@@ -266,7 +267,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             Menciones y citaciones de la marca
-            <InfoTip text="Cómo aparece tu marca en cada prompt (todos los análisis del rango). Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio como fuente. Citación al blog = esa URL es de la sección /blog. Requiere configurar el dominio de marca en el proyecto." />
+            <InfoTip text="Cómo aparece tu marca en cada prompt (todos los análisis del rango). Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio (subdominios incluidos) como fuente. Citación al blog = esa URL es del blog, detectado por el subdominio o carpeta que configures en Glosario (p. ej. re-magazine.marca.es). Requiere configurar el dominio de marca en el proyecto." />
           </h3>
           <div className="flex items-center gap-2 flex-wrap">
             {(['all', 'mencion', 'citacion_com', 'citacion_blog'] as const).map(t => (

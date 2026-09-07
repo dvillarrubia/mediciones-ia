@@ -227,6 +227,7 @@ const IntelligenceHub: React.FC = () => {
   );
   const brandAliases = useMemo(() => selectedProject?.brandAliases || [], [selectedProject]);
   const brandDomain = selectedProject?.brandDomain || '';
+  const brandBlogPattern = selectedProject?.brandBlogPattern || '';
   const displayAnalyses = useMemo(
     () => applyAliasesToAnalyses(allAnalysesDetails as any, brandAliases) as any[],
     [allAnalysesDetails, brandAliases]
@@ -1505,7 +1506,7 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
             <DashboardErrorBoundary tab="Métricas">
-              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} />
+              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandBlogPattern={brandBlogPattern} />
             </DashboardErrorBoundary>
           )}
 
@@ -1526,14 +1527,14 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
             <DashboardErrorBoundary tab="URLs / Citas">
-              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: GAPS */}
           {activeTab === 'gaps' && (
             <DashboardErrorBoundary tab="GAPS">
-              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} />
+              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
             </DashboardErrorBoundary>
           )}
 
@@ -1551,6 +1552,7 @@ const IntelligenceHub: React.FC = () => {
                 loading={trendsLoading}
                 brandDomain={brandDomain}
                 brandAliases={brandAliases}
+                brandBlogPattern={brandBlogPattern}
               />
             </DashboardErrorBoundary>
           )}

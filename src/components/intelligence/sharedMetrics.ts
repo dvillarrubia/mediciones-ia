@@ -768,10 +768,47 @@ export function sourceBelongsToBrand(source: AnalysisSource, brandDomain: string
   return u.includes('//' + bd) || u.includes('.' + bd + '/') || u.includes('/' + bd + '/');
 }
 
-/** ¿Es una citación al blog de la marca? (dominio de marca + ruta /blog) */
-export function isBrandBlog(source: AnalysisSource, brandDomain: string): boolean {
+/** Host y ruta de una URL, tolerante a URLs malformadas. */
+function urlParts(url: string, fallbackDomain?: string): { host: string; path: string } {
+  try {
+    const u = new URL(url);
+    return { host: u.hostname.toLowerCase(), path: u.pathname.toLowerCase() };
+  } catch {
+    return { host: (fallbackDomain || '').toLowerCase(), path: '' };
+  }
+}
+
+/** Subdominios que, sin patrón configurado, se consideran blog de la marca. */
+const BLOG_SUBDOMAINS = ['blog', 'blogs', 'magazine', 'revista'];
+
+/**
+ * ¿Es una citación al blog de la marca?
+ *
+ * El blog puede vivir en una ruta (marca.com/blog/...) o en un subdominio con
+ * nombre arbitrario (re-magazine.saunierduval.es, blogs.uoc.edu). Por eso:
+ *  - si el proyecto define `blogPattern`, se compara contra el subdominio y contra
+ *    los segmentos de la ruta (cubre tanto re-magazine.marca.es como marca.es/r-magazine/);
+ *  - si no, se usa la heurística: subdominio blog./blogs./magazine./revista.,
+ *    o un segmento de ruta que empiece por "blog".
+ *
+ * La ruta se comprueba sobre el pathname real, no sobre la URL entera: el
+ * `includes('/blog')` anterior acertaba por accidente (en "https://blogs.uoc.edu/…"
+ * la cadena "//blogs" contiene "/blog") y fallaba en cuanto el blog vivía en un
+ * subdominio con otro nombre — en Saunier Duval dejaba 36 citaciones del blog
+ * contadas como citaciones al sitio.
+ */
+export function isBrandBlog(source: AnalysisSource, brandDomain: string, blogPattern?: string): boolean {
   if (!sourceBelongsToBrand(source, brandDomain)) return false;
-  return (source.url || '').toLowerCase().includes('/blog');
+  const { host, path } = urlParts((source.url || '').toLowerCase(), source.domain);
+  const segments = path.split('/').filter(Boolean);
+  const labels = host.split('.');
+  const pattern = (blogPattern || '').trim().toLowerCase();
+
+  if (pattern) {
+    return labels.includes(pattern) || segments.includes(pattern);
+  }
+  if (BLOG_SUBDOMAINS.includes(labels[0])) return true;
+  return segments.some(seg => seg.startsWith('blog'));
 }
 
 export const APPEARANCE_LABELS: Record<AppearanceType, string> = {
@@ -804,7 +841,8 @@ export function getBrandAppearanceRows(
   analyses: AnalysisDetail[],
   targetBrand: string,
   brandDomain: string,
-  brandNames?: string[]
+  brandNames?: string[],
+  blogPattern?: string
 ): BrandAppearanceRow[] {
   const targetKey = aliasKey(targetBrand);
   const rows: BrandAppearanceRow[] = [];
@@ -812,7 +850,7 @@ export function getBrandAppearanceRows(
     (a.results?.questions || []).forEach(q => {
       const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
       const brandSources = (q.sources || []).filter(s => sourceBelongsToBrand(s, brandDomain));
-      const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain));
+      const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain, blogPattern));
       let type: AppearanceType;
       let url: string | undefined;
       if (blogSource) { type = 'citacion_blog'; url = blogSource.url; }
@@ -910,12 +948,13 @@ export function classifyQuestionForBrand(
   q: QuestionAnalysis,
   targetBrand: string,
   brandDomain: string,
-  brandNames?: string[]
+  brandNames?: string[],
+  blogPattern?: string
 ): { type: AppearanceType; position: number | null; urls: string[]; evidence: string[] } {
   const targetKey = aliasKey(targetBrand);
   const target = (q.brandMentions || []).find(bm => bm.mentioned && aliasKey(bm.brand) === targetKey);
   const brandSources = (q.sources || []).filter(s => sourceBelongsToBrand(s, brandDomain));
-  const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain));
+  const blogSource = brandSources.find(s => isBrandBlog(s, brandDomain, blogPattern));
   let type: AppearanceType = 'no_aparece';
   if (blogSource) type = 'citacion_blog';
   else if (brandSources.length > 0) type = 'citacion_com';
@@ -955,7 +994,7 @@ export interface GapsMatrix {
 }
 
 /** Empareja prompts por texto normalizado y construye la matriz prompt × análisis. */
-export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[]): GapsMatrix {
+export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[], blogPattern?: string): GapsMatrix {
   const sorted = sortByDate(analyses);
   // Si todos los análisis son del mismo modelo, añadirlo a cada columna solo
   // añade ruido: se incluye únicamente cuando hay más de uno que distinguir.
@@ -984,7 +1023,7 @@ export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string,
         order.push(key);
       }
       const row = rowMap.get(key)!;
-      const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames);
+      const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames, blogPattern);
       row.cells[a.id] = { type: cls.type, position: cls.position, urls: cls.urls, evidence: cls.evidence };
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned || aliasKey(bm.brand) === targetKey) return;
@@ -1025,13 +1064,14 @@ export function buildCompetitiveView(
   analysis: AnalysisDetail | null | undefined,
   targetBrand: string,
   brandDomain: string,
-  brandNames?: string[]
+  brandNames?: string[],
+  blogPattern?: string
 ): { rows: CompetitiveRow[]; competitors: string[] } {
   if (!analysis) return { rows: [], competitors: [] };
   const targetKey = aliasKey(targetBrand);
   const allComp = new Set<string>();
   const rows: CompetitiveRow[] = (analysis.results?.questions || []).map(q => {
-    const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames);
+    const cls = classifyQuestionForBrand(q, targetBrand, brandDomain, brandNames, blogPattern);
     const competitors = (q.brandMentions || [])
       .filter(bm => bm.mentioned && aliasKey(bm.brand) !== targetKey)
       .map(bm => ({ brand: bm.brand, position: bm.appearanceOrder || null }))
@@ -1060,7 +1100,8 @@ export interface BrandAppearanceCounts {
 export function countBrandAppearances(
   analyses: AnalysisDetail[],
   targetBrand: string,
-  brandDomain: string
+  brandDomain: string,
+  blogPattern?: string
 ): BrandAppearanceCounts {
   const targetKey = aliasKey(targetBrand);
   const acc: BrandAppearanceCounts = { mentionedResponses: 0, citacionCom: 0, citacionBlog: 0, posSum: 0, posCount: 0 };
@@ -1077,7 +1118,7 @@ export function countBrandAppearances(
       }
       (q.sources || []).forEach(s => {
         if (!sourceBelongsToBrand(s, brandDomain)) return;
-        if (isBrandBlog(s, brandDomain)) acc.citacionBlog++;
+        if (isBrandBlog(s, brandDomain, blogPattern)) acc.citacionBlog++;
         else acc.citacionCom++;
       });
     });

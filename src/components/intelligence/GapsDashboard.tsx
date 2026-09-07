@@ -20,6 +20,7 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
 }
 
@@ -28,7 +29,7 @@ const TYPE_SHORT: Record<AppearanceType, string> = {
   no_aparece: 'No aparece', mencion: 'Mención', citacion_com: 'sitio', citacion_blog: 'blog',
 };
 
-const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases }) => {
+const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
   const [view, setView] = useState<'temporal' | 'competencia'>('temporal');
 
   // --- temporal ---
@@ -67,14 +68,14 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
   }, [sorted, selectedAnalysisId]);
 
   const matrix = useMemo(
-    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '', brandNames) : null),
-    [sorted, targetBrand, brandDomain, brandNames]
+    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '', brandNames, brandBlogPattern) : null),
+    [sorted, targetBrand, brandDomain, brandNames, brandBlogPattern]
   );
 
   const selectedAnalysis = sorted.find(a => a.id === selectedAnalysisId) || sorted[sorted.length - 1] || null;
   const competitive = useMemo(
-    () => buildCompetitiveView(selectedAnalysis, targetBrand, brandDomain || '', brandNames),
-    [selectedAnalysis, targetBrand, brandDomain, brandNames]
+    () => buildCompetitiveView(selectedAnalysis, targetBrand, brandDomain || '', brandNames, brandBlogPattern),
+    [selectedAnalysis, targetBrand, brandDomain, brandNames, brandBlogPattern]
   );
 
   if (loading) {
@@ -106,7 +107,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
           {APPEARANCE_LABELS[t]}
         </span>
       ))}
-      <InfoTip text="Clasificación por prompt y análisis: No aparece = la marca no se nombra ni se cita. Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio como fuente. Citación al blog = esa URL es de /blog. El número dentro del punto es la posición de aparición (1 = primera marca nombrada)." />
+      <InfoTip text="Clasificación por prompt y análisis: No aparece = la marca no se nombra ni se cita. Mención = la IA nombra la marca en el texto. Citación al sitio = la IA cita una URL de tu dominio (subdominios incluidos) como fuente. Citación al blog = esa URL es del blog, según el subdominio o carpeta configurada en Glosario. El número dentro del punto es la posición de aparición (1 = primera marca nombrada)." />
       {!brandDomain && (
         <span className="inline-flex items-center gap-1 text-amber-600">
           <Info className="w-3 h-3" /> Configura el dominio de marca para distinguir citaciones (.com / blog).

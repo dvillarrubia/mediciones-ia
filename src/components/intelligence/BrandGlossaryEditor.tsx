@@ -14,13 +14,15 @@ const BrandGlossaryEditor: React.FC = () => {
   const [entries, setEntries] = useState<BrandAlias[]>([]);
   const [variantInputs, setVariantInputs] = useState<Record<number, string>>({});
   const [brandDomain, setBrandDomain] = useState('');
+  const [brandBlogPattern, setBrandBlogPattern] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setEntries((project?.brandAliases || []).map(a => ({ canonical: a.canonical, variants: [...(a.variants || [])] })));
     setBrandDomain(project?.brandDomain || '');
+    setBrandBlogPattern(project?.brandBlogPattern || '');
     setSaved(false);
-  }, [selectedProjectId, project?.brandAliases, project?.brandDomain]);
+  }, [selectedProjectId, project?.brandAliases, project?.brandDomain, project?.brandBlogPattern]);
 
   if (!selectedProjectId || !project) {
     return (
@@ -51,7 +53,7 @@ const BrandGlossaryEditor: React.FC = () => {
     const clean = entries
       .map(e => ({ canonical: e.canonical.trim(), variants: e.variants.map(v => v.trim()).filter(Boolean) }))
       .filter(e => e.canonical);
-    const result = await updateBrandSettings(selectedProjectId, { brandAliases: clean, brandDomain: brandDomain.trim() });
+    const result = await updateBrandSettings(selectedProjectId, { brandAliases: clean, brandDomain: brandDomain.trim(), brandBlogPattern: brandBlogPattern.trim() });
     if (result) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -75,12 +77,27 @@ const BrandGlossaryEditor: React.FC = () => {
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <label className="block text-sm font-medium text-gray-800 mb-1">Dominio de la marca</label>
         <p className="text-xs text-gray-500 mb-2">
-          Para distinguir <strong>mención</strong> (sin enlace) de <strong>citación</strong> (la IA enlaza a tu sitio) y <strong>citación al blog</strong> (ruta <code className="bg-gray-100 px-1 rounded">/blog</code>).
+          Para distinguir <strong>mención</strong> (sin enlace) de <strong>citación</strong> (la IA enlaza a tu sitio).
+          Incluye los subdominios: <code className="bg-gray-100 px-1 rounded">campus.marca.com</code> cuenta como tuyo.
         </p>
         <input
           value={brandDomain}
           onChange={(e) => setBrandDomain(e.target.value)}
           placeholder="pichincha.com"
+          className="w-full border rounded-md px-3 py-2 text-sm text-gray-900"
+        />
+
+        <label className="block text-sm font-medium text-gray-800 mt-4 mb-1">Blog de la marca <span className="font-normal text-gray-400">(opcional)</span></label>
+        <p className="text-xs text-gray-500 mb-2">
+          Nombre del subdominio o de la carpeta del blog, para separar <strong>citación al sitio</strong> de <strong>citación al blog</strong>.
+          Ej.: <code className="bg-gray-100 px-1 rounded">re-magazine</code> para <code className="bg-gray-100 px-1 rounded">re-magazine.saunierduval.es</code>.
+          Si lo dejas vacío se detectan <code className="bg-gray-100 px-1 rounded">blog.</code>, <code className="bg-gray-100 px-1 rounded">blogs.</code>,
+          <code className="bg-gray-100 px-1 rounded ml-1">magazine.</code>, <code className="bg-gray-100 px-1 rounded">revista.</code> y las rutas <code className="bg-gray-100 px-1 rounded">/blog…</code>.
+        </p>
+        <input
+          value={brandBlogPattern}
+          onChange={(e) => setBrandBlogPattern(e.target.value)}
+          placeholder="re-magazine"
           className="w-full border rounded-md px-3 py-2 text-sm text-gray-900"
         />
       </div>

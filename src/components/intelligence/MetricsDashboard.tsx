@@ -83,6 +83,7 @@ interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
   brandDomain?: string;
+  brandBlogPattern?: string;
 }
 
 // === CALCULATION ===
@@ -421,7 +422,7 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
   </div>
 );
 
-const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) => {
+const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandBlogPattern }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [trendBrand, setTrendBrand] = useState('');
@@ -481,10 +482,10 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain }) =
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     const latest = sorted[sorted.length - 1];
     const target = latest.configuration.brand;
-    const cur = countBrandAppearances([latest] as any, target, brandDomain || '');
-    const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '') : null;
+    const cur = countBrandAppearances([latest] as any, target, brandDomain || '', brandBlogPattern);
+    const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '', brandBlogPattern) : null;
     return { cur, prev, hasDomain: !!brandDomain, totalQuestions: latest.results?.questions?.length || 0 };
-  }, [scoped, brandDomain]);
+  }, [scoped, brandDomain, brandBlogPattern]);
 
   // Visibilidad por modelo (Hito 6.1 — GEO)
   const modelVis = useMemo(() => {
