@@ -23,8 +23,14 @@ import {
   isRealDomain,
   buildPositionByModelOverTime,
   modelosDelRango,
+  latestAnalysisPerModel,
+  groupAnalysesByModel,
+  poolWeightedMean,
+  modelsInAnalysesBy,
+  SNAPSHOT_FRESHNESS_DAYS,
+  type ModelGranularity,
 } from './sharedMetrics';
-import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
+import { DateRangeFilter, filterAnalysesByDateRange, ModelGranularityToggle } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 // Re-use types from IntelligenceHub
@@ -144,20 +150,30 @@ interface HistoricalPoint {
   confidence: number;
 }
 
-function calculateMetrics(analyses: AnalysisDetail[]) {
-  if (analyses.length === 0) return null;
+/** Fotografía de un solo modelo, para el desglose. */
+interface ModelBreakdown {
+  modelKey: string;
+  timestamp: string;
+  staleDays: number;
+  state: CurrentState;
+}
 
-  const sorted = [...analyses].sort((a, b) =>
-    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-  const latest = sorted[sorted.length - 1];
-  const targetBrand = latest.configuration.brand;
-
-  // === CURRENT STATE (from latest analysis) ===
-  const questions = latest.results?.questions || [];
-
+/**
+ * Calcula la "fotografía" a partir de un conjunto de preguntas ya agregado.
+ *
+ * Recibe las preguntas en vez de un análisis porque la fotografía del total
+ * agrupa las del último análisis de CADA modelo: sumar aquí numeradores y
+ * denominadores es lo que hace que los porcentajes sean pooled y no una media
+ * de las medias por modelo.
+ */
+function buildCurrentState(
+  questions: QuestionAnalysis[],
+  targetBrand: string,
+  competitors: string[],
+  aiConfidence: number,
+): CurrentState {
   // Build canonical brand list for normalization
-  const configuredBrandsList = [targetBrand, ...latest.configuration.competitors];
+  const configuredBrandsList = [targetBrand, ...competitors];
   const configuredSet = new Set(configuredBrandsList.map(b => b.toLowerCase()));
 
   // SoV
@@ -301,13 +317,62 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     shareOfVoice,
     avgAppearanceOrder: targetOrderCount > 0 ? targetOrderSum / targetOrderCount : null,
     netSentimentScore: targetSov?.sentimentScore || 0,
-    aiConfidence: latest.results?.overallConfidence || 0,
+    aiConfidence,
     discoveredBrands,
     topDomains,
     categoryBreakdown,
     categoryBrandMentions,
     totalMentions,
   };
+  return currentState;
+}
+
+function calculateMetrics(analyses: AnalysisDetail[], granularity: ModelGranularity) {
+  if (analyses.length === 0) return null;
+
+  const sorted = [...analyses].sort((a, b) =>
+    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+  const latest = sorted[sorted.length - 1];
+  const targetBrand = latest.configuration.brand;
+  const competitors = latest.configuration.competitors;
+  const configuredBrandsList = [targetBrand, ...competitors];
+
+  // === FOTOGRAFÍA ACTUAL ===
+  // El último análisis de CADA modelo, no el último a secas: con una
+  // automatización por modelo, `sorted[length - 1]` es solo la del modelo que
+  // acabó más tarde ese día, y la fotografía entera salía de un único modelo.
+  const snapshots = latestAnalysisPerModel(sorted, granularity, {
+    freshnessDays: SNAPSHOT_FRESHNESS_DAYS,
+  });
+  const snapshotAnalyses = snapshots.map(s => s.analysis);
+  const questions = snapshotAnalyses.flatMap(a => a.results?.questions || []);
+
+  // Confianza pooled: ponderada por nº de preguntas de cada análisis. Promediar
+  // los `overallConfidence` daría el mismo peso a un modelo con 32 preguntas
+  // que a uno con 12.
+  const aiConfidence = poolWeightedMean(
+    snapshotAnalyses.map(a => {
+      const n = (a.results?.questions || []).length;
+      return { sum: (a.results?.overallConfidence || 0) * n, n };
+    })
+  ) || 0;
+
+  const currentState = buildCurrentState(questions, targetBrand, competitors, aiConfidence);
+
+  // Mismo cálculo por modelo, para el desglose que abre la fotografía.
+  const currentByModel: ModelBreakdown[] = snapshots.map(s => ({
+    modelKey: s.modelKey,
+    timestamp: s.analysis.timestamp,
+    staleDays: s.staleDays,
+    state: buildCurrentState(
+      s.analysis.results?.questions || [],
+      targetBrand,
+      competitors,
+      s.analysis.results?.overallConfidence || 0,
+    ),
+  }));
+
 
   // === HISTORICAL ===
   const historicalTrend: HistoricalPoint[] = sorted.map(analysis => {
@@ -356,7 +421,7 @@ function calculateMetrics(analyses: AnalysisDetail[]) {
     };
   });
 
-  return { currentState, historicalTrend };
+  return { currentState, currentByModel, historicalTrend };
 }
 
 // === COMPONENTS ===
@@ -426,6 +491,9 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [trendBrand, setTrendBrand] = useState('');
+  // Por familia es el defecto: es la única clave de modelo estable en el tiempo.
+  const [modelGranularity, setModelGranularity] = useState<ModelGranularity>('persona');
+  const [showModelBreakdown, setShowModelBreakdown] = useState(false);
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
   const [hiddenSovBrands, setHiddenSovBrands] = useState<string[]>([]);
 
@@ -434,7 +502,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     [analyses, dateFrom, dateTo]
   );
 
-  const metrics = useMemo(() => calculateMetrics(scoped), [scoped]);
+  const metrics = useMemo(() => calculateMetrics(scoped, modelGranularity), [scoped, modelGranularity]);
 
   // Evolución de menciones por categoría (topics): % de preguntas de cada categoría
   // donde la marca seleccionada es mencionada, un punto por análisis.
@@ -480,12 +548,42 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const mentionKpis = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const latest = sorted[sorted.length - 1];
-    const target = latest.configuration.brand;
-    const cur = countBrandAppearances([latest] as any, target, brandDomain || '', brandBlogPattern);
-    const prev = sorted.length > 1 ? countBrandAppearances([sorted[sorted.length - 2]] as any, target, brandDomain || '', brandBlogPattern) : null;
-    return { cur, prev, hasDomain: !!brandDomain, totalQuestions: latest.results?.questions?.length || 0 };
-  }, [scoped, brandDomain, brandBlogPattern]);
+    const target = sorted[sorted.length - 1].configuration.brand;
+
+    // Actual: el último análisis de cada modelo, agregado.
+    const snapshots = latestAnalysisPerModel(sorted, modelGranularity, {
+      freshnessDays: SNAPSHOT_FRESHNESS_DAYS,
+    });
+    const curAnalyses = snapshots.map(s => s.analysis);
+    const cur = countBrandAppearances(curAnalyses as any, target, brandDomain || '', brandBlogPattern);
+
+    // Anterior: la ejecución PREVIA DE CADA MODELO, no el análisis anterior por
+    // fecha. Con una automatización por modelo, el anterior por fecha es otro
+    // modelo del mismo día, así que el delta mostraba la diferencia entre
+    // Gemini y Claude con pinta de evolución temporal.
+    const porModelo = groupAnalysesByModel(sorted, modelGranularity);
+    const prevAnalyses = snapshots
+      .map(s => {
+        const list = porModelo.get(s.modelKey) || [];
+        return list.length > 1 ? list[list.length - 2] : null;
+      })
+      .filter((a): a is AnalysisDetail => a !== null);
+    const prev = prevAnalyses.length > 0
+      ? countBrandAppearances(prevAnalyses as any, target, brandDomain || '', brandBlogPattern)
+      : null;
+
+    // El delta solo es comparable si TODOS los modelos de la fotografía tienen
+    // ejecución previa; si no, cur suma 3 modelos y prev 2.
+    const deltaComparable = prevAnalyses.length === snapshots.length;
+
+    return {
+      cur,
+      prev: deltaComparable ? prev : null,
+      hasDomain: !!brandDomain,
+      totalQuestions: curAnalyses.reduce((n, a) => n + (a.results?.questions?.length || 0), 0),
+      modelCount: snapshots.length,
+    };
+  }, [scoped, brandDomain, brandBlogPattern, modelGranularity]);
 
   // Visibilidad por modelo (Hito 6.1 — GEO)
   const modelVis = useMemo(() => {
@@ -546,7 +644,11 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     );
   }
 
-  const { currentState: cs, historicalTrend: ht } = metrics;
+  const { currentState: cs, currentByModel: cbm, historicalTrend: ht } = metrics;
+  // Color por familia, compartido con los gráficos por modelo.
+  const modelColors = Object.fromEntries(
+    modelsInAnalysesBy(scoped, modelGranularity).map(m => [m.key, m.color])
+  );
   const targetSov = cs.shareOfVoice.find(s => s.isTarget);
 
   // Prepare historical SoV data for area chart
@@ -633,6 +735,11 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           count={scoped.length}
           total={analyses?.length}
         />
+        <ModelGranularityToggle
+          value={modelGranularity}
+          onChange={setModelGranularity}
+          analyses={scoped}
+        />
         <button
           onClick={handleExport}
           className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -648,9 +755,24 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           <h2 className="text-2xl font-bold">Métricas Cuantitativas</h2>
         </div>
         <p className="text-blue-100">
-          Fotografía actual basada en el último análisis + evolución histórica de {ht.length} análisis.
+          {cbm.length > 1 ? (
+            <>Fotografía actual: agregado de <strong>{cbm.length} modelos</strong> (último análisis de cada uno)</>
+          ) : (
+            <>Fotografía actual basada en el último análisis</>
+          )}
+          {' '}+ evolución histórica de {ht.length} análisis.
           Marca target: <strong>{cs.targetBrand}</strong>
         </p>
+        {/* Qué compone exactamente la fotografía: sin esto, un agregado de
+            varios modelos y fechas se lee como "lo de hoy". */}
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-100/90">
+          {cbm.map(m => (
+            <span key={m.modelKey}>
+              {m.modelKey} · {new Date(m.timestamp).toLocaleDateString('es-ES')}
+              {m.staleDays > 0 && <span className="text-blue-200/70"> (hace {m.staleDays} d)</span>}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Menciones vs Citaciones (Hito 2) */}
@@ -659,17 +781,17 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           <div className="bg-white rounded-xl border p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
               Respuestas con mención
-              <InfoTip text="En cuántas respuestas del último análisis aparece nombrada la marca. Cada respuesta cuenta una sola vez, aunque la marca se nombre varias veces dentro de ella. Por eso este número es menor que la frecuencia total de la tabla Share of Voice." />
+              <InfoTip text="En cuántas respuestas aparece nombrada la marca, sumando el último análisis de cada modelo. Cada respuesta cuenta una sola vez, aunque la marca se nombre varias veces dentro de ella. Por eso este número es menor que la frecuencia total de la tabla Share of Voice." />
             </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.mentionedResponses}{renderDelta(mentionKpis.cur.mentionedResponses, mentionKpis.prev?.mentionedResponses)}
             </div>
-            <div className="text-xs text-gray-400">de {mentionKpis.totalQuestions} respuestas del último análisis</div>
+            <div className="text-xs text-gray-400">de {mentionKpis.totalQuestions} respuestas{mentionKpis.modelCount > 1 ? ` · ${mentionKpis.modelCount} modelos` : ''}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
               Citaciones al sitio
-              <InfoTip text="Fuentes citadas por la IA (último análisis) cuya URL pertenece al dominio de la marca, excluyendo el blog. Se cuenta cada fuente citada, por lo que un mismo dominio puede sumar varias veces." />
+              <InfoTip text="Fuentes citadas por la IA cuya URL pertenece al dominio de la marca, excluyendo el blog, sumando el último análisis de cada modelo. Se cuenta cada fuente citada, por lo que un mismo dominio puede sumar varias veces." />
             </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.citacionCom}{renderDelta(mentionKpis.cur.citacionCom, mentionKpis.prev?.citacionCom)}
@@ -679,7 +801,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           <div className="bg-white rounded-xl border p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
               Citaciones al blog
-              <InfoTip text="Fuentes citadas por la IA (último análisis) que enlazan a la sección /blog del dominio de la marca." />
+              <InfoTip text="Fuentes citadas por la IA que enlazan a la sección /blog del dominio de la marca, sumando el último análisis de cada modelo." />
             </div>
             <div className="text-2xl font-bold text-gray-900">
               {mentionKpis.cur.citacionBlog}{renderDelta(mentionKpis.cur.citacionBlog, mentionKpis.prev?.citacionBlog)}
@@ -697,7 +819,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           icon={<Award className="w-5 h-5 text-blue-600" />}
           color="bg-blue-50"
           subtitle={targetSov ? `frecuencia: ${targetSov.mentions} de ${cs.totalMentions} menciones totales` : undefined}
-          info="% de veces que se nombra tu marca sobre el total de veces que se nombra cualquier marca en el último análisis. Cuenta la frecuencia: si una respuesta nombra la marca 3 veces, suma 3. Por eso es un número mayor que 'Respuestas con mención'."
+          info="% de veces que se nombra tu marca sobre el total de veces que se nombra cualquier marca, agregando el último análisis de cada modelo. Cuenta la frecuencia: si una respuesta nombra la marca 3 veces, suma 3. Por eso es un número mayor que 'Respuestas con mención'."
         />
         <KpiCard
           label="Posición Promedio"
@@ -715,7 +837,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
             : <TrendingDown className="w-5 h-5 text-red-600" />}
           color={cs.netSentimentScore >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
           subtitle="Escala -2 (muy negativo) a +2 (muy positivo)"
-          info="Media del sentimiento de las menciones de tu marca en el último análisis, en escala de -2 (muy negativo) a +2 (muy positivo)."
+          info="Media del sentimiento de las menciones de tu marca, agregando el último análisis de cada modelo, en escala de -2 (muy negativo) a +2 (muy positivo)."
         />
         <KpiCard
           label="Confianza IA"
@@ -723,16 +845,99 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           icon={<CheckCircle2 className="w-5 h-5 text-purple-600" />}
           color="bg-purple-50"
           subtitle="Confianza promedio del análisis"
-          info="Confianza que declara la propia IA sobre su análisis (promedio del último análisis). No mide visibilidad de la marca."
+          info="Confianza que declara la propia IA sobre su análisis, ponderada por nº de preguntas de cada modelo. No mide visibilidad de la marca."
         />
       </div>
+
+      {/* Desglose de la fotografía por modelo.
+          Las tarjetas de arriba son el agregado pooled; aquí se ve de dónde
+          sale cada número y cuánto se separan los modelos entre sí. */}
+      {cbm.length > 1 && (
+        <div className="bg-white rounded-xl shadow-sm border">
+          <button
+            onClick={() => setShowModelBreakdown(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left"
+          >
+            <span className="font-semibold text-gray-800 inline-flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-gray-500" />
+              Desglose por modelo
+              <span className="text-xs font-normal text-gray-400">
+                las tarjetas de arriba son el total de estos {cbm.length} modelos
+              </span>
+            </span>
+            <span className="text-sm text-gray-500">{showModelBreakdown ? 'Ocultar' : 'Ver'}</span>
+          </button>
+          {showModelBreakdown && (
+            <div className="px-5 pb-5 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 uppercase border-b">
+                    <th className="text-left py-2">Modelo</th>
+                    <th className="text-right py-2">Share of Voice</th>
+                    <th className="text-right py-2">Posición</th>
+                    <th className="text-right py-2">Sentimiento</th>
+                    <th className="text-right py-2">Confianza</th>
+                    <th className="text-right py-2">Preguntas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cbm.map(m => {
+                    const sov = m.state.shareOfVoice.find(x => x.isTarget);
+                    const color = modelColors[m.modelKey] || '#888';
+                    return (
+                      <tr key={m.modelKey} className="border-b last:border-0">
+                        <td className="py-2">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                            <span className="text-gray-800">{m.modelKey}</span>
+                          </span>
+                          <div className="text-xs text-gray-400 ml-[18px]">
+                            {new Date(m.timestamp).toLocaleDateString('es-ES')}
+                            {m.staleDays > 0 && ` · hace ${m.staleDays} d`}
+                          </div>
+                        </td>
+                        <td className="text-right py-2 tabular-nums">{sov ? `${sov.percentage.toFixed(1)}%` : 'N/A'}</td>
+                        <td className="text-right py-2 tabular-nums">
+                          {m.state.avgAppearanceOrder ? `#${m.state.avgAppearanceOrder.toFixed(1)}` : 'N/A'}
+                        </td>
+                        <td className="text-right py-2 tabular-nums">{fmtSentiment(m.state.netSentimentScore)}</td>
+                        <td className="text-right py-2 tabular-nums">{(m.state.aiConfidence * 100).toFixed(0)}%</td>
+                        <td className="text-right py-2 tabular-nums text-gray-500">
+                          {m.state.categoryBreakdown.reduce((n, c) => n + c.count, 0)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold text-gray-900">
+                    <td className="py-2">Total (pooled)</td>
+                    <td className="text-right py-2 tabular-nums">{targetSov ? `${targetSov.percentage.toFixed(1)}%` : 'N/A'}</td>
+                    <td className="text-right py-2 tabular-nums">
+                      {cs.avgAppearanceOrder ? `#${cs.avgAppearanceOrder.toFixed(1)}` : 'N/A'}
+                    </td>
+                    <td className="text-right py-2 tabular-nums">{fmtSentiment(cs.netSentimentScore)}</td>
+                    <td className="text-right py-2 tabular-nums">{(cs.aiConfidence * 100).toFixed(0)}%</td>
+                    <td className="text-right py-2 tabular-nums text-gray-500">
+                      {cs.categoryBreakdown.reduce((n, c) => n + c.count, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-xs text-gray-400 mt-3">
+                El total no es la media de las filas: suma las menciones y las preguntas de todos los
+                modelos y divide una sola vez, para que un modelo con menos preguntas no pese igual
+                que uno con muchas.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Visibilidad por modelo (Hito 6.1 — GEO) */}
       {modelVis.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-1.5">
             Visibilidad por modelo
-            <InfoTip text="A diferencia de las tarjetas de arriba (que usan solo el último análisis), esta tabla agrega TODOS los análisis del rango de fechas seleccionado. Mention rate = % de respuestas del modelo que nombran la marca. SoV = % de la frecuencia de menciones de la marca sobre todas las marcas, en ese modelo." />
+            <InfoTip text="Las tarjetas de arriba son la fotografía (último análisis de cada modelo); esta tabla agrega TODOS los análisis del rango de fechas seleccionado. Mention rate = % de respuestas del modelo que nombran la marca. SoV = % de la frecuencia de menciones de la marca sobre todas las marcas, en ese modelo." />
           </h3>
           <p className="text-xs text-gray-400 mb-4">Dónde es visible {cs.targetBrand} según el motor de IA (¿fuerte en uno, ausente en otro?). Calculado sobre todos los análisis del rango.</p>
           <div className="overflow-x-auto">
@@ -779,7 +984,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl shadow-sm border p-5">
             <h3 className="font-semibold text-gray-800 mb-1">Distribución de posición</h3>
-            <p className="text-xs text-gray-400 mb-4">En qué posición aparece {cs.targetBrand} (último análisis).</p>
+            <p className="text-xs text-gray-400 mb-4">En qué posición aparece {cs.targetBrand} (último análisis de cada modelo).</p>
             {(() => {
               const c = posDist.current;
               const pieData = [
@@ -870,9 +1075,9 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-1.5">
             Share of Voice — Top Marcas
-            <InfoTip text="Frecuencia = veces que se nombra cada marca en total en el último análisis (una misma respuesta puede nombrarla varias veces, y cada vez suma). No es el número de respuestas: para eso está la tarjeta 'Respuestas con mención'. SoV % = frecuencia de la marca / frecuencia total de todas las marcas (competidores y descubiertas incluidas)." />
+            <InfoTip text="Frecuencia = veces que se nombra cada marca en total, sumando el último análisis de cada modelo (una misma respuesta puede nombrarla varias veces, y cada vez suma). No es el número de respuestas: para eso está la tarjeta 'Respuestas con mención'. SoV % = frecuencia de la marca / frecuencia total de todas las marcas (competidores y descubiertas incluidas)." />
           </h3>
-          <p className="text-xs text-gray-400 mb-4">Veces que se nombra cada marca en el último análisis (con repeticiones dentro de cada respuesta).</p>
+          <p className="text-xs text-gray-400 mb-4">Veces que se nombra cada marca, sumando el último análisis de cada modelo (con repeticiones dentro de cada respuesta).</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

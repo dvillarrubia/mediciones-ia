@@ -541,7 +541,10 @@ export const MODEL_GRANULARITY_HINTS: Record<ModelGranularity, string> = {
  */
 export function normalizeModelName(name: string | undefined): string {
   return (name || '')
-    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+    // Los selectores de variación van aparte del rango de emoji: mezclarlos en
+    // la misma clase de caracteres forma pares combinados y el linter avisa.
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
