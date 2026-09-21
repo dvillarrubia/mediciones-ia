@@ -22,6 +22,7 @@ import {
   modelLabel,
   modelosDelRango,
   evidenceStrings,
+  type ModelGranularity,
 } from './sharedMetrics';
 
 interface Props {
@@ -30,6 +31,8 @@ interface Props {
   brandDomain?: string;
   brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
+  /** Granularidad activa en el hub; las hojas deben cuadrar con la pantalla. */
+  modelGranularity?: ModelGranularity;
 }
 
 /** Bloques exportables. `build` devuelve las hojas de ese bloque. */
@@ -47,7 +50,7 @@ const BLOQUES: Bloque[] = [
   { id: 'gaps',       label: 'GAPS',          descripcion: 'Matriz de prompts × fecha' },
 ];
 
-export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
+export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern, modelGranularity = 'persona' }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set(BLOQUES.map(b => b.id)));
@@ -88,7 +91,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
         ],
         cols: [26, 12, 14, 14, 18, 16],
       });
-      const d = buildPositionDistribution(scoped, target).current;
+      const d = buildPositionDistribution(scoped, target, modelGranularity).current;
       hojas.push({
         name: 'Distribución posición',
         aoa: [
@@ -134,7 +137,7 @@ export const DownloadsDashboard: React.FC<Props> = ({ analyses, loading, brandDo
     }
 
     if (seleccion.has('topics')) {
-      const topics = buildTopicMetrics(scoped);
+      const topics = buildTopicMetrics(scoped, modelGranularity);
       hojas.push({
         name: 'Topics',
         aoa: [

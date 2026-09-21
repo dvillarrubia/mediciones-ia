@@ -15,13 +15,14 @@ import {
   dateLabel,
   sortByDate,
   SentimentKey,
-  analysisModelLabel,
-  modelsInAnalyses,
+  analysisModelKey,
+  modelsInAnalysesBy,
   COLORS,
   modelosDelRango,
   evidenceStrings,
+  type ModelGranularity,
 } from './sharedMetrics';
-import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange, ModelGranularityToggle } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 const DETAIL_PAGE_SIZE = 50;
@@ -29,6 +30,9 @@ const DETAIL_PAGE_SIZE = 50;
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
+  /** Granularidad de modelo, compartida por todas las pestañas del hub. */
+  modelGranularity?: ModelGranularity;
+  onModelGranularityChange?: (g: ModelGranularity) => void;
 }
 
 interface BrandSentiment {
@@ -52,7 +56,7 @@ interface DetailRow {
   reasoning?: string;
 }
 
-const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
+const SentimentDashboard: React.FC<Props> = ({ analyses, loading, modelGranularity = 'persona', onModelGranularityChange }) => {
   const [sentimentFilter, setSentimentFilter] = useState<'all' | SentimentKey>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [modelFilter, setModelFilter] = useState<string>('all');
@@ -75,12 +79,12 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     // Modelos presentes en el rango. Cada análisis se ejecuta con UN modelo
     // (las automatizaciones se configuran una por modelo), así que la dimensión
     // "modelo" está entre análisis, no dentro de cada pregunta.
-    const modelos = modelsInAnalyses(sorted);
+    const modelos = modelsInAnalysesBy(sorted, modelGranularity).map(m => m.key);
 
     // Análisis a considerar según el filtro de modelo.
     const enFoco = modelFilter === 'all'
       ? sorted
-      : sorted.filter(a => analysisModelLabel(a) === modelFilter);
+      : sorted.filter(a => analysisModelKey(a, modelGranularity) === modelFilter);
 
     // === Distribución y detalle sobre TODO el rango ===
     //
@@ -95,7 +99,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     const detailRows: DetailRow[] = [];
 
     enFoco.forEach(analisis => {
-    const modeloDelAnalisis = analysisModelLabel(analisis);
+    const modeloDelAnalisis = analysisModelKey(analisis, modelGranularity);
     (analisis.results?.questions || []).forEach(q => {
       (q.brandMentions || []).forEach(bm => {
         if (!bm.mentioned) return;
@@ -143,7 +147,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     // de respuestas producía además un número que no significaba nada.
     const netPorModeloYFecha = new Map<string, Map<string, { pos: number; neg: number; total: number }>>();
     sorted.forEach(a => {
-      const modelo = analysisModelLabel(a);
+      const modelo = analysisModelKey(a, modelGranularity);
       const fecha = dateLabel(a.timestamp);
       if (!netPorModeloYFecha.has(fecha)) netPorModeloYFecha.set(fecha, new Map());
       const porModelo = netPorModeloYFecha.get(fecha)!;
@@ -172,20 +176,34 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       return fila;
     });
 
-    // === Serie agregada (un punto por análisis) ===
-    const overTime = sorted.map(a => {
+    // === Serie agregada (un punto por FECHA) ===
+    //
+    // Antes era un punto por análisis: con una automatización por modelo salían
+    // tres barras seguidas con la misma etiqueta de día. Además respeta el
+    // filtro de modelo (`enFoco`), que antes no se aplicaba aquí.
+    const porFecha = new Map<string, typeof enFoco>();
+    enFoco.forEach(a => {
+      const label = dateLabel(a.timestamp);
+      if (!porFecha.has(label)) porFecha.set(label, []);
+      porFecha.get(label)!.push(a);
+    });
+
+    const overTime = Array.from(porFecha.entries()).map(([label, delDia]) => {
       const d: Record<SentimentKey, number> = {
         very_positive: 0, positive: 0, neutral: 0, negative: 0, very_negative: 0,
       };
-      (a.results?.questions || []).forEach(q => {
-        (q.brandMentions || []).forEach(bm => {
-          if (!bm.mentioned) return;
-          d[normalizeSentimentKey(bm.detailedSentiment || bm.context)]++;
+      delDia.forEach(a => {
+        (a.results?.questions || []).forEach(q => {
+          (q.brandMentions || []).forEach(bm => {
+            if (!bm.mentioned) return;
+            d[normalizeSentimentKey(bm.detailedSentiment || bm.context)]++;
+          });
         });
       });
       const tot = SENTIMENT_KEYS.reduce((s, k) => s + d[k], 0) || 1;
       return {
-        label: dateLabel(a.timestamp),
+        label,
+        modelos: delDia.length,
         ...d,
         // versión porcentual para el área 100%
         pct_very_positive: (d.very_positive / tot) * 100,
@@ -197,10 +215,14 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
     });
 
     return { targetBrand, dist, totalMentions, pieData, byBrand, overTime, netByModel, modelos, detailRows, multiple: sorted.length > 1 };
-  }, [scoped, modelFilter]);
+  }, [scoped, modelFilter, modelGranularity]);
 
   // Reset de página al cambiar cualquier filtro de la tabla de detalle.
   useEffect(() => { setPage(1); }, [sentimentFilter, brandFilter, modelFilter, dateFrom, dateTo]);
+
+  // Al cambiar de familia a versión (o al revés) las claves de modelo cambian,
+  // y el filtro se quedaría apuntando a un modelo inexistente: no saldría nada.
+  useEffect(() => { setModelFilter('all'); }, [modelGranularity]);
 
   // Las opciones de marca y el filtrado de detalle deben calcularse siempre (antes de
   // los early-returns) para no romper el orden de hooks; usan `data` de forma defensiva.
@@ -289,6 +311,13 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
           count={scoped.length}
           total={analyses?.length}
         />
+        {onModelGranularityChange && (
+          <ModelGranularityToggle
+            value={modelGranularity}
+            onChange={onModelGranularityChange}
+            analyses={scoped}
+          />
+        )}
         <button
           onClick={handleExport}
           className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -299,14 +328,14 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
 
       {/* KPIs rápidos */}
       <p className="text-xs text-gray-400 -mb-3">
-        KPIs, rankings y detalle: <strong>último análisis</strong> del rango (cada mención de marca cuenta una vez). Las series temporales usan todos los análisis.
+        KPIs, rankings y detalle: <strong>todos los análisis del rango</strong> (cada mención de marca cuenta una vez). Las series temporales agrupan por fecha, sumando los modelos que corrieron ese día.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {([['very_positive', 'Muy Positivo'], ['positive', 'Positivo'], ['negative', 'Negativo'], ['very_negative', 'Muy Negativo']] as [SentimentKey, string][]).map(([k, label]) => (
           <div key={k} className="bg-white rounded-lg border p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wide inline-flex items-center gap-1.5">
               {label}
-              <InfoTip text={`Menciones de marca del último análisis cuyo sentimiento la IA clasificó como "${label}". Cuenta menciones de TODAS las marcas (tuya, competidores y descubiertas), una por marca y respuesta. El % es sobre el total de menciones con sentimiento.`} />
+              <InfoTip text={`Menciones de marca del rango cuyo sentimiento la IA clasificó como "${label}". Cuenta menciones de TODAS las marcas (tuya, competidores y descubiertas), una por marca y respuesta. El % es sobre el total de menciones con sentimiento.`} />
             </div>
             <div className="text-2xl font-bold" style={{ color: SENTIMENT_COLORS[k] }}>{data.dist[k]}</div>
             <div className="text-xs text-gray-400">{((data.dist[k] / data.totalMentions) * 100).toFixed(1)}% del total</div>
@@ -319,7 +348,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Heart className="w-4 h-4 text-pink-500" /> Share of Sentiment
-            <InfoTip text="Reparto del sentimiento de todas las menciones de marca del último análisis. La IA asigna el sentimiento a cada mención al analizar la respuesta (según el contexto en que se nombra la marca)." />
+            <InfoTip text="Reparto del sentimiento de todas las menciones de marca del rango seleccionado. La IA asigna el sentimiento a cada mención al analizar la respuesta (según el contexto en que se nombra la marca)." />
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -335,7 +364,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Award className="w-4 h-4 text-amber-500" /> Net Sentiment Score (Ranking)
-            <InfoTip text="Net = % de menciones positivas menos % de negativas de cada marca, sobre sus propias menciones en el último análisis. Ojo: con pocas menciones el valor es poco representativo (1 sola mención positiva ya da +100%)." />
+            <InfoTip text="Net = % de menciones positivas menos % de negativas de cada marca, sobre sus propias menciones en el rango seleccionado. Ojo: con pocas menciones el valor es poco representativo (1 sola mención positiva ya da +100%)." />
           </h3>
           <div className="overflow-y-auto max-h-[300px]">
             <table className="min-w-full text-sm">
@@ -366,7 +395,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
           Sentiment by Brand
-          <InfoTip text="Reparto positivo/neutro/negativo de las menciones de cada marca en el último análisis, normalizado a 100%. Se muestran las 12 marcas con mejor net sentiment; el tooltip de cada barra da los conteos absolutos." />
+          <InfoTip text="Reparto positivo/neutro/negativo de las menciones de cada marca en el rango seleccionado, normalizado a 100%. Se muestran las 12 marcas con mejor net sentiment; el tooltip de cada barra da los conteos absolutos." />
         </h3>
         {(() => {
           const rows = data.byBrand.slice(0, 12);
@@ -465,7 +494,7 @@ const SentimentDashboard: React.FC<Props> = ({ analyses, loading }) => {
         <div className="bg-white rounded-lg border p-5">
           <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
             Drivers de sentimiento negativo
-            <InfoTip text="Menciones clasificadas como negativas en el último análisis, con el motivo que dio la propia IA al clasificarlas (su razonamiento o la cita textual de la respuesta)." />
+            <InfoTip text="Menciones clasificadas como negativas en el rango seleccionado, con el motivo que dio la propia IA al clasificarlas (su razonamiento o la cita textual de la respuesta)." />
           </h3>
           <p className="text-xs text-gray-400 mb-4">Por qué se habla mal: los motivos detrás de las menciones negativas (accionable para GEO).</p>
           <div className="space-y-2">

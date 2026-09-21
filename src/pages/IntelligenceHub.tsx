@@ -37,6 +37,7 @@ import {
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
+import type { ModelGranularity } from '../components/intelligence/sharedMetrics';
 import MetricsDashboard from '../components/intelligence/MetricsDashboard';
 import AIOverviewDashboard from '../components/intelligence/AIOverviewDashboard';
 import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
@@ -167,6 +168,11 @@ const IntelligenceHub: React.FC = () => {
   })();
   // Estado principal
   const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'gaps' | 'ai-overview' | 'downloads' | 'schedules'>(initialTab);
+  // Granularidad de modelo compartida por todas las pestañas: si cada una
+  // llevara la suya, Métricas podría agrupar por familia y Topics por versión
+  // sin que el usuario lo note. Por familia es el defecto porque es la única
+  // clave estable en el tiempo.
+  const [modelGranularity, setModelGranularity] = useState<ModelGranularity>('persona');
   const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
 
   useEffect(() => {
@@ -1506,35 +1512,35 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
             <DashboardErrorBoundary tab="Métricas">
-              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandBlogPattern={brandBlogPattern} />
+              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: SENTIMIENTO */}
           {activeTab === 'sentiment' && (
             <DashboardErrorBoundary tab="Sentimiento">
-              <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} />
+              <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: TOPICS */}
           {activeTab === 'topics' && (
             <DashboardErrorBoundary tab="Topics">
-              <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+              <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
             <DashboardErrorBoundary tab="URLs / Citas">
-              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
+              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: GAPS */}
           {activeTab === 'gaps' && (
             <DashboardErrorBoundary tab="GAPS">
-              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
+              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
@@ -1548,6 +1554,7 @@ const IntelligenceHub: React.FC = () => {
           {activeTab === 'downloads' && (
             <DashboardErrorBoundary tab="Descargas">
               <DownloadsDashboard
+                modelGranularity={modelGranularity}
                 analyses={displayAnalyses}
                 loading={trendsLoading}
                 brandDomain={brandDomain}

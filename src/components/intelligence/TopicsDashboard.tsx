@@ -6,9 +6,12 @@ import {
   AnalysisDetail,
   sortByDate,
   buildTopicMetrics,
+  latestAnalysisPerModel,
+  SNAPSHOT_FRESHNESS_DAYS,
   modelosDelRango,
+  type ModelGranularity,
 } from './sharedMetrics';
-import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange, ModelGranularityToggle } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 const TOPIC_PAGE_SIZE = 25;
@@ -16,6 +19,9 @@ const TOPIC_PAGE_SIZE = 25;
 interface Props {
   analyses: AnalysisDetail[];
   loading?: boolean;
+  /** Granularidad de modelo, compartida por todas las pestañas del hub. */
+  modelGranularity?: ModelGranularity;
+  onModelGranularityChange?: (g: ModelGranularity) => void;
 }
 
 // Color del treemap según net sentiment (rojo → gris → verde)
@@ -28,7 +34,7 @@ function netColor(net: number): string {
   return '#dc2626';
 }
 
-const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
+const TopicsDashboard: React.FC<Props> = ({ analyses, loading, modelGranularity = 'persona', onModelGranularityChange }) => {
   const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -41,10 +47,12 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
   const data = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
     // El cálculo vive en sharedMetrics: lo comparte la pestaña de Descargas.
-    const topics = buildTopicMetrics(scoped);
+    const topics = buildTopicMetrics(scoped, modelGranularity);
     const treemapData = topics.map(t => ({ name: t.topic, size: t.mentions, net: t.net }));
-    return { topics, treemapData };
-  }, [scoped]);
+    // Qué modelos componen la fotografía, para rotularlo en pantalla.
+    const foto = latestAnalysisPerModel(scoped, modelGranularity, { freshnessDays: SNAPSHOT_FRESHNESS_DAYS });
+    return { topics, treemapData, foto };
+  }, [scoped, modelGranularity]);
 
   useEffect(() => { setPage(1); }, [dateFrom, dateTo]);
 
@@ -77,6 +85,13 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
         count={scoped.length}
         total={analyses?.length}
       />
+      {onModelGranularityChange && (
+        <ModelGranularityToggle
+          value={modelGranularity}
+          onChange={onModelGranularityChange}
+          analyses={scoped}
+        />
+      )}
       <button
         onClick={handleExport}
         disabled={!data}
@@ -111,7 +126,12 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
           <Hash className="w-4 h-4 text-indigo-500" /> Topics
           <InfoTip text="Topic = la categoría temática asignada a cada prompt en la configuración del análisis. Tamaño de la caja = nº de menciones de marca en ese topic; color = net sentiment (verde positivo, gris neutro, rojo negativo)." />
         </h3>
-        <p className="text-xs text-gray-400 mb-4">Último análisis del rango. "Menciones" = marcas detectadas por respuesta en cada topic (una marca mencionada en una respuesta cuenta una vez).</p>
+        <p className="text-xs text-gray-400 mb-4">
+          {data.foto.length > 1
+            ? `Último análisis de cada modelo (${data.foto.map(f => f.modelKey).join(', ')}), sumados.`
+            : 'Último análisis del rango.'}
+          {' '}"Menciones" = marcas detectadas por respuesta en cada topic (una marca mencionada en una respuesta cuenta una vez).
+        </p>
         <ResponsiveContainer width="100%" height={360}>
           <Treemap
             data={data.treemapData}
@@ -128,7 +148,7 @@ const TopicsDashboard: React.FC<Props> = ({ analyses, loading }) => {
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
           Topic Details
-          <InfoTip text="Menciones = marcas detectadas en las respuestas de ese topic (una por marca y respuesta, último análisis). % Positivo / % Negativo = proporción de esas menciones con ese sentimiento. Net = % positivo − % negativo." />
+          <InfoTip text="Menciones = marcas detectadas en las respuestas de ese topic (una por marca y respuesta), sumando el último análisis de cada modelo. % Positivo / % Negativo = proporción de esas menciones con ese sentimiento. Net = % positivo − % negativo." />
         </h3>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

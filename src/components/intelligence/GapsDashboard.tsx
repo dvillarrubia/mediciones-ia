@@ -12,8 +12,11 @@ import {
   BrandAlias,
   brandNameVariants,
   modelosDelRango,
+  analysisModelKey,
+  modelsInAnalysesBy,
+  type ModelGranularity,
 } from './sharedMetrics';
-import { DateRangeFilter, filterAnalysesByDateRange } from './dashboardFilters';
+import { DateRangeFilter, filterAnalysesByDateRange, ModelGranularityToggle } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 interface Props {
@@ -22,6 +25,9 @@ interface Props {
   brandDomain?: string;
   brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
+  /** Granularidad de modelo, compartida por todas las pestañas del hub. */
+  modelGranularity?: ModelGranularity;
+  onModelGranularityChange?: (g: ModelGranularity) => void;
 }
 
 const LEGEND: AppearanceType[] = ['no_aparece', 'mencion', 'citacion_com', 'citacion_blog'];
@@ -29,11 +35,12 @@ const TYPE_SHORT: Record<AppearanceType, string> = {
   no_aparece: 'No aparece', mencion: 'Mención', citacion_com: 'sitio', citacion_blog: 'blog',
 };
 
-const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
+const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern, modelGranularity = 'persona', onModelGranularityChange }) => {
   const [view, setView] = useState<'temporal' | 'competencia'>('temporal');
 
   // --- temporal ---
   const [onlyGaps, setOnlyGaps] = useState(false);
+  const [onlyPartial, setOnlyPartial] = useState(false);
   const [competitor, setCompetitor] = useState<string>('all');
 
   // --- competencia ---
@@ -58,6 +65,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
   const sorted = useMemo(() => sortByDate(scoped), [scoped]);
   const targetBrand = sorted.slice(-1)[0]?.configuration.brand || '';
   const brandNames = useMemo(() => brandNameVariants(targetBrand, brandAliases), [targetBrand, brandAliases]);
+  const modelosDistintos = useMemo(() => modelsInAnalysesBy(sorted, modelGranularity), [sorted, modelGranularity]);
 
   useEffect(() => {
     if (sorted.length === 0) return;
@@ -68,8 +76,8 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
   }, [sorted, selectedAnalysisId]);
 
   const matrix = useMemo(
-    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '', brandNames, brandBlogPattern) : null),
-    [sorted, targetBrand, brandDomain, brandNames, brandBlogPattern]
+    () => (sorted.length > 0 ? buildGapsMatrix(sorted, targetBrand, brandDomain || '', brandNames, brandBlogPattern, modelGranularity) : null),
+    [sorted, targetBrand, brandDomain, brandNames, brandBlogPattern, modelGranularity]
   );
 
   const selectedAnalysis = sorted.find(a => a.id === selectedAnalysisId) || sorted[sorted.length - 1] || null;
@@ -149,6 +157,7 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
   // ---- filtros aplicados ----
   const temporalRows = matrix.rows.filter(r => {
     if (onlyGaps && !r.absentLatest) return false;
+    if (onlyPartial && !r.absentSomeModel) return false;
     if (competitor !== 'all' && !r.competitors.includes(competitor)) return false;
     return true;
   });
@@ -193,6 +202,13 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
           count={scoped.length}
           total={analyses?.length}
         />
+        {onModelGranularityChange && (
+          <ModelGranularityToggle
+            value={modelGranularity}
+            onChange={onModelGranularityChange}
+            analyses={scoped}
+          />
+        )}
         <button
           onClick={handleExport}
           className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -224,10 +240,23 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => setOnlyGaps(v => !v)}
+                title="No aparece en NINGÚN modelo de la fotografía actual"
                 className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${onlyGaps ? 'border-red-600 bg-red-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
               >
-                ● Solo GAPS (no aparece)
+                ● Solo GAPS (no aparece en ningún modelo)
               </button>
+              {/* Un prompt donde la marca sale en ChatGPT pero no en Gemini no es
+                  lo mismo que uno donde no sale en ninguno: antes se mezclaban
+                  porque el filtro miraba solo el análisis más reciente. */}
+              {modelosDistintos.length > 1 && (
+                <button
+                  onClick={() => setOnlyPartial(v => !v)}
+                  title="Aparece en unos modelos y en otros no"
+                  className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${onlyPartial ? 'border-amber-500 bg-amber-500 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  ◐ Solo parciales (según el modelo)
+                </button>
+              )}
               <select value={competitor} onChange={(e) => setCompetitor(e.target.value)} className="text-sm border rounded-md px-3 py-1.5 text-gray-700">
                 <option value="all">Competencia: todos</option>
                 {matrix.allCompetitors.map(c => <option key={c} value={c}>{c}</option>)}
@@ -335,7 +364,10 @@ const GapsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandA
             <div className="flex items-center gap-3 flex-wrap">
               <select value={selectedAnalysisId} onChange={(e) => setSelectedAnalysisId(e.target.value)} className="text-sm border rounded-md px-3 py-1.5 text-gray-700">
                 {sorted.slice().reverse().map(a => (
-                  <option key={a.id} value={a.id}>{new Date(a.timestamp).toLocaleDateString('es-ES')}</option>
+                  <option key={a.id} value={a.id}>
+                    {new Date(a.timestamp).toLocaleDateString('es-ES')}
+                    {modelosDistintos.length > 1 ? ` · ${analysisModelKey(a, modelGranularity)}` : ''}
+                  </option>
                 ))}
               </select>
               <select value={compCompetitor} onChange={(e) => setCompCompetitor(e.target.value)} className="text-sm border rounded-md px-3 py-1.5 text-gray-700">

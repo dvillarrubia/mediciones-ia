@@ -761,12 +761,18 @@ export interface TopicMetric {
  * mismo cálculo: si cada uno tuviera el suyo, el Excel podría decir una cosa y
  * la pantalla otra.
  */
-export function buildTopicMetrics(analyses: AnalysisDetail[]): TopicMetric[] {
+export function buildTopicMetrics(
+  analyses: AnalysisDetail[],
+  granularity: ModelGranularity = 'persona',
+): TopicMetric[] {
   if (!analyses || analyses.length === 0) return [];
-  const latest = sortByDate(analyses).slice(-1)[0];
+  // El último análisis de CADA modelo, no el último a secas: con una
+  // automatización por modelo, mirar solo el más reciente enseñaba los topics
+  // de un único modelo bajo el rótulo "último análisis del rango".
+  const enFoco = latestAnalysesPooled(analyses, granularity, { freshnessDays: SNAPSHOT_FRESHNESS_DAYS });
 
   const acc: Record<string, { mentions: number; pos: number; neu: number; neg: number }> = {};
-  (latest.results?.questions || []).forEach(q => {
+  enFoco.flatMap(a => a.results?.questions || []).forEach(q => {
     const topic = q.category || 'Sin categoría';
     if (!acc[topic]) acc[topic] = { mentions: 0, pos: 0, neu: 0, neg: 0 };
     (q.brandMentions || []).forEach(bm => {
@@ -862,18 +868,51 @@ function positionDistFor(analysis: AnalysisDetail, targetKey: string): PositionD
   return d;
 }
 
-/** Distribución de la posición de la marca por buckets (actual + evolución). */
-export function buildPositionDistribution(analyses: AnalysisDetail[], targetBrand: string): {
+/**
+ * Distribución de la posición de la marca por buckets (actual + evolución).
+ *
+ * `current` agrega el último análisis de CADA modelo, no solo el más reciente:
+ * son conteos absolutos, así que sumarlos es la agregación correcta.
+ * `overTime` da un punto por FECHA, no por análisis, para que un día con tres
+ * modelos no pinte tres barras con la misma etiqueta.
+ */
+export function buildPositionDistribution(
+  analyses: AnalysisDetail[],
+  targetBrand: string,
+  granularity: ModelGranularity = 'persona',
+): {
   current: PositionDist;
-  overTime: { label: string; p1: number; p2_3: number; p4_7: number; p8plus: number }[];
+  overTime: { label: string; p1: number; p2_3: number; p4_7: number; p8plus: number; modelos: number }[];
 } {
   const sorted = sortByDate(analyses);
   const targetKey = aliasKey(targetBrand);
-  const current = sorted.length > 0 ? positionDistFor(sorted[sorted.length - 1], targetKey) : { p1: 0, p2_3: 0, p4_7: 0, p8plus: 0, total: 0 };
-  const overTime = sorted.map(a => {
-    const d = positionDistFor(a, targetKey);
-    return { label: dateLabel(a.timestamp), p1: d.p1, p2_3: d.p2_3, p4_7: d.p4_7, p8plus: d.p8plus };
+
+  const sumar = (acc: PositionDist, d: PositionDist): PositionDist => ({
+    p1: acc.p1 + d.p1,
+    p2_3: acc.p2_3 + d.p2_3,
+    p4_7: acc.p4_7 + d.p4_7,
+    p8plus: acc.p8plus + d.p8plus,
+    total: acc.total + d.total,
   });
+  const vacia: PositionDist = { p1: 0, p2_3: 0, p4_7: 0, p8plus: 0, total: 0 };
+
+  const current = latestAnalysesPooled(sorted, granularity, { freshnessDays: SNAPSHOT_FRESHNESS_DAYS })
+    .map(a => positionDistFor(a, targetKey))
+    .reduce(sumar, vacia);
+
+  const porFecha = new Map<string, AnalysisDetail[]>();
+  sorted.forEach(a => {
+    const label = dateLabel(a.timestamp);
+    if (!porFecha.has(label)) porFecha.set(label, []);
+    porFecha.get(label)!.push(a);
+  });
+
+  const overTime = Array.from(porFecha.entries()).map(([label, delDia]) => {
+    const d = delDia.map(a => positionDistFor(a, targetKey)).reduce(sumar, vacia);
+    const modelos = new Set(delDia.map(a => analysisModelKey(a, granularity))).size;
+    return { label, p1: d.p1, p2_3: d.p2_3, p4_7: d.p4_7, p8plus: d.p8plus, modelos };
+  });
+
   return { current, overTime };
 }
 
@@ -1225,7 +1264,12 @@ export interface GapRow {
   cells: Record<string, GapCell>; // por analysisId
   competitors: string[];          // competidores que aparecen (en cualquier análisis)
   absentCount: number;            // nº de análisis donde la marca no aparece (severidad)
-  absentLatest: boolean;          // no aparece en el análisis más reciente
+  /** No aparece en NINGÚN modelo de la fotografía actual: gap real. */
+  absentLatest: boolean;
+  /** No aparece en alguno de los modelos, pero sí en otro: gap parcial. */
+  absentSomeModel: boolean;
+  /** Modelos de la fotografía donde no aparece, para poder nombrarlos. */
+  absentModels: string[];
 }
 export interface GapsMatrix {
   /**
@@ -1239,7 +1283,7 @@ export interface GapsMatrix {
 }
 
 /** Empareja prompts por texto normalizado y construye la matriz prompt × análisis. */
-export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[], blogPattern?: string): GapsMatrix {
+export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string, brandDomain: string, brandNames?: string[], blogPattern?: string, granularity: ModelGranularity = 'persona'): GapsMatrix {
   const sorted = sortByDate(analyses);
   // Si todos los análisis son del mismo modelo, añadirlo a cada columna solo
   // añade ruido: se incluye únicamente cuando hay más de uno que distinguir.
@@ -1264,7 +1308,7 @@ export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string,
       const key = (q.question || '').toLowerCase().replace(/\s+/g, ' ').trim();
       if (!key) return;
       if (!rowMap.has(key)) {
-        rowMap.set(key, { promptKey: key, prompt: q.question, category: q.category, cells: {}, competitors: [], absentCount: 0, absentLatest: false });
+        rowMap.set(key, { promptKey: key, prompt: q.question, category: q.category, cells: {}, competitors: [], absentCount: 0, absentLatest: false, absentSomeModel: false, absentModels: [] });
         order.push(key);
       }
       const row = rowMap.get(key)!;
@@ -1277,12 +1321,21 @@ export function buildGapsMatrix(analyses: AnalysisDetail[], targetBrand: string,
     });
   });
 
-  const latestId = columns.length ? columns[columns.length - 1].id : null;
+  // La fotografía actual es el último análisis de CADA modelo. Mirar solo el
+  // más reciente marcaba como "no aparece" prompts donde la marca SÍ sale en
+  // los otros modelos del mismo día, que es un gap distinto y menos grave.
+  const fotografia = latestAnalysisPerModel(sorted, granularity, { freshnessDays: SNAPSHOT_FRESHNESS_DAYS });
+  const fotoIds = fotografia.map(f => ({ id: f.analysis.id, modelKey: f.modelKey }));
   const allComp = new Set<string>();
   const rows = order.map(k => {
     const row = rowMap.get(k)!;
     row.absentCount = columns.reduce((n, c) => n + ((!row.cells[c.id] || row.cells[c.id].type === 'no_aparece') ? 1 : 0), 0);
-    row.absentLatest = !latestId || !row.cells[latestId] || row.cells[latestId].type === 'no_aparece';
+    const ausenteEn = fotoIds.filter(
+      f => !row.cells[f.id] || row.cells[f.id].type === 'no_aparece'
+    );
+    row.absentModels = ausenteEn.map(f => f.modelKey);
+    row.absentLatest = fotoIds.length > 0 && ausenteEn.length === fotoIds.length;
+    row.absentSomeModel = ausenteEn.length > 0 && ausenteEn.length < fotoIds.length;
     row.competitors.forEach(c => allComp.add(c));
     return row;
   });

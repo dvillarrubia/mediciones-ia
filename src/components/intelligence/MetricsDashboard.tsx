@@ -92,6 +92,9 @@ interface Props {
   loading?: boolean;
   brandDomain?: string;
   brandBlogPattern?: string;
+  /** Granularidad de modelo, compartida por todas las pestañas del hub. */
+  modelGranularity?: ModelGranularity;
+  onModelGranularityChange?: (g: ModelGranularity) => void;
 }
 
 // === CALCULATION ===
@@ -562,12 +565,15 @@ const KpiCard: React.FC<{ label: string; value: string; icon: React.ReactNode; c
   </div>
 );
 
-const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandBlogPattern }) => {
+const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandBlogPattern, modelGranularity: modelGranularityProp, onModelGranularityChange }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [trendBrand, setTrendBrand] = useState('');
-  // Por familia es el defecto: es la única clave de modelo estable en el tiempo.
-  const [modelGranularity, setModelGranularity] = useState<ModelGranularity>('persona');
+  // La granularidad la gobierna el hub para que todas las pestañas agrupen
+  // igual; el estado local solo actúa si el componente se usa suelto.
+  const [granularidadLocal, setGranularidadLocal] = useState<ModelGranularity>('persona');
+  const modelGranularity = modelGranularityProp ?? granularidadLocal;
+  const setModelGranularity = onModelGranularityChange ?? setGranularidadLocal;
   const [showModelBreakdown, setShowModelBreakdown] = useState(false);
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
   const [hiddenSovBrands, setHiddenSovBrands] = useState<string[]>([]);
@@ -691,8 +697,8 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const posDist = useMemo(() => {
     if (!scoped || scoped.length === 0) return null;
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return buildPositionDistribution(scoped as any, sorted[sorted.length - 1].configuration.brand);
-  }, [scoped]);
+    return buildPositionDistribution(scoped as any, sorted[sorted.length - 1].configuration.brand, modelGranularity);
+  }, [scoped, modelGranularity]);
 
   if (loading) {
     return (
