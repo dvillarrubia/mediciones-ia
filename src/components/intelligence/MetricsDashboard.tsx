@@ -25,7 +25,9 @@ import {
   modelosDelRango,
   latestAnalysisPerModel,
   groupAnalysesByModel,
+  analysisModelKey,
   poolWeightedMean,
+  type AnalysisDetail as SharedAnalysisDetail,
   modelsInAnalysesBy,
   SNAPSHOT_FRESHNESS_DAYS,
   type ModelGranularity,
@@ -94,6 +96,9 @@ interface Props {
 
 // === CALCULATION ===
 
+/** Nombre de la serie agregada en los gráficos con desglose por modelo. */
+const TOTAL_KEY = 'Total';
+
 interface SovItem {
   brand: string;
   mentions: number;
@@ -144,10 +149,28 @@ interface HistoricalPoint {
   date: string;
   label: string;
   analysisId: string;
+  /** Modelo con el que corrió este análisis, según la granularidad activa. */
+  modelKey: string;
   sovByBrand: Record<string, number>;
   avgAppearanceOrder: number | null;
   sentimentScore: number;
   confidence: number;
+  // Componentes crudos para poder agregar varios análisis del mismo día sin
+  // promediar porcentajes ya calculados.
+  mentionsByBrand: Record<string, number>;
+  totalMentionsAll: number;
+  orderSum: number;
+  orderCount: number;
+  sentSum: number;
+  sentCount: number;
+  questionCount: number;
+}
+
+/** Una fecha del eje X con una columna por modelo más el total pooled. */
+interface TrendRow {
+  label: string;
+  date: string;
+  [modelOrTotal: string]: string | number | null;
 }
 
 /** Fotografía de un solo modelo, para el desglose. */
@@ -410,18 +433,70 @@ function calculateMetrics(analyses: AnalysisDetail[], granularity: ModelGranular
       sovByBrand[b] = hTotal > 0 ? (d.mentions / hTotal) * 100 : 0;
     });
 
+    const mentionsByBrand: Record<string, number> = {};
+    Object.entries(hBrand).forEach(([b, d]) => { mentionsByBrand[b] = d.mentions; });
+
     return {
       date: analysis.timestamp,
       label: new Date(analysis.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
       analysisId: analysis.id,
+      modelKey: analysisModelKey(analysis, granularity),
       sovByBrand,
       avgAppearanceOrder: hOrderCount > 0 ? hOrderSum / hOrderCount : null,
       sentimentScore: hSentCount > 0 ? hSentSum / hSentCount : 0,
       confidence: analysis.results?.overallConfidence || 0,
+      mentionsByBrand,
+      totalMentionsAll: hTotal,
+      orderSum: hOrderSum,
+      orderCount: hOrderCount,
+      sentSum: hSentSum,
+      sentCount: hSentCount,
+      questionCount: qs.length,
     };
   });
 
-  return { currentState, currentByModel, historicalTrend };
+  // Modelos presentes en el histórico, en orden estable, para que las series
+  // no bailen de color entre renders.
+  const trendModels = modelsInAnalysesBy(sorted, granularity).map(m => m.key);
+
+  /**
+   * Convierte el histórico (un punto por análisis) en un punto por FECHA con una
+   * columna por modelo y otra de total pooled.
+   *
+   * Antes había N puntos consecutivos con la misma etiqueta de día, uno por
+   * modelo, y la línea zigzagueaba entre modelos como si fuera evolución.
+   *
+   * `valor` saca numerador y denominador de cada análisis; el total los suma y
+   * divide una vez. `null` cuando un modelo no corrió ese día: con 0, una línea
+   * de posición se desplomaría al mejor puesto posible.
+   */
+  const pivotByDate = (
+    valor: (h: HistoricalPoint) => { num: number; den: number },
+  ): TrendRow[] => {
+    const porFecha = new Map<string, HistoricalPoint[]>();
+    historicalTrend.forEach(h => {
+      if (!porFecha.has(h.label)) porFecha.set(h.label, []);
+      porFecha.get(h.label)!.push(h);
+    });
+
+    return Array.from(porFecha.entries()).map(([label, puntos]) => {
+      const fila: TrendRow = { label, date: puntos[0].date };
+      trendModels.forEach(m => {
+        const delModelo = puntos.filter(p => p.modelKey === m).map(valor);
+        const den = delModelo.reduce((s, v) => s + v.den, 0);
+        fila[m] = den > 0 ? delModelo.reduce((s, v) => s + v.num, 0) / den : null;
+      });
+      const todos = puntos.map(valor);
+      const denTotal = todos.reduce((s, v) => s + v.den, 0);
+      fila[TOTAL_KEY] = denTotal > 0 ? todos.reduce((s, v) => s + v.num, 0) / denTotal : null;
+      return fila;
+    });
+  };
+
+  const positionTrend = pivotByDate(h => ({ num: h.orderSum, den: h.orderCount }));
+  const sentimentTrend = pivotByDate(h => ({ num: h.sentSum, den: h.sentCount }));
+
+  return { currentState, currentByModel, historicalTrend, trendModels, positionTrend, sentimentTrend };
 }
 
 // === COMPONENTS ===
@@ -521,28 +596,37 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     });
     const categories = Object.entries(latestCatCount).sort((a, b) => b[1] - a[1]).map(([c]) => c);
     const catSet = new Set(categories);
-    const points = sorted.map(a => {
-      const acc: Record<string, { total: number; hit: number }> = {};
+    // Un punto por FECHA, no por análisis: con una automatización por modelo
+    // había tres puntos seguidos con la misma etiqueta de día. Se acumulan las
+    // preguntas de todos los modelos del día y se divide una sola vez, así que
+    // el % es sobre el total de respuestas de ese día.
+    const porFecha = new Map<string, { modelos: Set<string>; acc: Record<string, { total: number; hit: number }> }>();
+    sorted.forEach(a => {
+      const label = new Date(a.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      if (!porFecha.has(label)) porFecha.set(label, { modelos: new Set(), acc: {} });
+      const dia = porFecha.get(label)!;
+      dia.modelos.add(analysisModelKey(a as unknown as SharedAnalysisDetail, modelGranularity));
       (a.results?.questions || []).forEach(q => {
         const cat = q.category || 'Sin categoría';
         if (!catSet.has(cat)) return;
-        if (!acc[cat]) acc[cat] = { total: 0, hit: 0 };
-        acc[cat].total++;
+        if (!dia.acc[cat]) dia.acc[cat] = { total: 0, hit: 0 };
+        dia.acc[cat].total++;
         const mentioned = (q.brandMentions || []).some(bm =>
           bm.mentioned && normalizeBrandName(bm.brand, brandOptions).toLowerCase() === brand.toLowerCase()
         );
-        if (mentioned) acc[cat].hit++;
+        if (mentioned) dia.acc[cat].hit++;
       });
-      const row: Record<string, any> = {
-        label: new Date(a.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-      };
-      Object.entries(acc).forEach(([cat, d]) => {
+    });
+
+    const points = Array.from(porFecha.entries()).map(([label, dia]) => {
+      const row: Record<string, any> = { label, modelos: dia.modelos.size };
+      Object.entries(dia.acc).forEach(([cat, d]) => {
         row[cat] = d.total > 0 ? Math.round((d.hit / d.total) * 100) : 0;
       });
       return row;
     });
     return { points, categories, brand, brandOptions };
-  }, [scoped, trendBrand]);
+  }, [scoped, trendBrand, modelGranularity]);
 
   // KPIs de menciones/citaciones con delta vs análisis anterior (Hito 2)
   const mentionKpis = useMemo(() => {
@@ -644,7 +728,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     );
   }
 
-  const { currentState: cs, currentByModel: cbm, historicalTrend: ht } = metrics;
+  const { currentState: cs, currentByModel: cbm, historicalTrend: ht, trendModels, positionTrend, sentimentTrend } = metrics;
   // Color por familia, compartido con los gráficos por modelo.
   const modelColors = Object.fromEntries(
     modelsInAnalysesBy(scoped, modelGranularity).map(m => [m.key, m.color])
@@ -653,18 +737,37 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
 
   // Prepare historical SoV data for area chart
   const allBrandsInHistory = new Set<string>();
-  ht.forEach(h => Object.keys(h.sovByBrand).forEach(b => allBrandsInHistory.add(b)));
+  ht.forEach(h => Object.keys(h.mentionsByBrand).forEach(b => allBrandsInHistory.add(b)));
+
+  // El ranking se hace sobre menciones absolutas, no sumando porcentajes de
+  // cada análisis: sumar SoV daba más peso a las fechas con más modelos.
   const topBrands = [...allBrandsInHistory]
-    .map(b => ({ brand: b, totalSov: ht.reduce((s, h) => s + (h.sovByBrand[b] || 0), 0) }))
-    .sort((a, b) => b.totalSov - a.totalSov)
+    .map(b => ({ brand: b, total: ht.reduce((s, h) => s + (h.mentionsByBrand[b] || 0), 0) }))
+    .sort((a, b) => b.total - a.total)
     .slice(0, 8)
     .map(b => b.brand);
 
-  const sovAreaData = ht.map(h => {
-    const point: Record<string, any> = { label: h.label };
-    topBrands.forEach(b => { point[b] = +(h.sovByBrand[b] || 0).toFixed(1); });
-    return point;
-  });
+  // Este gráfico ya tiene una serie por marca: añadirle el modelo lo haría
+  // ilegible (8 marcas × 3 modelos). Lo que se corrige es el eje X, que tenía
+  // un punto por análisis y por tanto varios puntos con la misma fecha. Ahora
+  // cada fecha es un punto que agrupa todos los modelos que corrieron ese día,
+  // sumando menciones y dividiendo una sola vez.
+  const sovAreaData = (() => {
+    const porFecha = new Map<string, HistoricalPoint[]>();
+    ht.forEach(h => {
+      if (!porFecha.has(h.label)) porFecha.set(h.label, []);
+      porFecha.get(h.label)!.push(h);
+    });
+    return Array.from(porFecha.entries()).map(([label, puntos]) => {
+      const point: Record<string, any> = { label, modelos: puntos.length };
+      const totalDia = puntos.reduce((s, h) => s + h.totalMentionsAll, 0);
+      topBrands.forEach(b => {
+        const marca = puntos.reduce((s, h) => s + (h.mentionsByBrand[b] || 0), 0);
+        point[b] = totalDia > 0 ? +((marca / totalDia) * 100).toFixed(1) : 0;
+      });
+      return point;
+    });
+  })();
 
   // Brand position scatter data
   const scatterData = cs.shareOfVoice.slice(0, 15).map(s => ({
@@ -1381,30 +1484,79 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Position tracking */}
             <div className="bg-white rounded-xl shadow-sm border p-5">
-              <h3 className="font-semibold text-gray-800 mb-4">Tracking de Posición</h3>
+              <h3 className="font-semibold text-gray-800 mb-4 inline-flex items-center gap-1.5">
+                Tracking de Posición
+                <InfoTip text="Una línea por modelo más el total. El total pondera por número de menciones: un modelo que menciona la marca en 30 respuestas pesa más que uno que la menciona en 5. Un hueco significa que ese modelo no corrió ese día." />
+              </h3>
               <p className="text-xs text-gray-400 mb-2">Menor = mejor (1 = primera mención)</p>
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={ht.filter(h => h.avgAppearanceOrder !== null)}>
+                <LineChart data={positionTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} />
                   <YAxis reversed domain={['dataMin - 0.5', 'dataMax + 0.5']} tick={{ fill: '#6b7280', fontSize: 11 }} tickFormatter={(v: number) => `#${Number(v).toFixed(1)}`} />
-                  <Tooltip formatter={(v: number) => [`#${v.toFixed(1)}`, 'Posición']} />
-                  <Line type="monotone" dataKey="avgAppearanceOrder" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} name="Posición" />
+                  <Tooltip formatter={(v: number, n: string) => [`#${Number(v).toFixed(1)}`, n]} />
+                  {trendModels.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
+                  {trendModels.map(m => (
+                    <Line
+                      key={m}
+                      type="monotone"
+                      dataKey={m}
+                      stroke={modelColors[m] || '#888'}
+                      strokeWidth={1.5}
+                      dot={{ r: 3 }}
+                      connectNulls
+                      name={m}
+                    />
+                  ))}
+                  <Line
+                    type="monotone"
+                    dataKey={TOTAL_KEY}
+                    stroke="#111827"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 3"
+                    dot={{ r: 3 }}
+                    connectNulls
+                    name="Total"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
             {/* Sentiment evolution */}
             <div className="bg-white rounded-xl shadow-sm border p-5">
-              <h3 className="font-semibold text-gray-800 mb-4">Evolución del Sentimiento</h3>
+              <h3 className="font-semibold text-gray-800 mb-4 inline-flex items-center gap-1.5">
+                Evolución del Sentimiento
+                <InfoTip text="Una línea por modelo más el total. El total pondera por número de menciones, no promedia los promedios de cada modelo. Un hueco significa que ese modelo no corrió ese día." />
+              </h3>
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={ht}>
+                <LineChart data={sentimentTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} />
                   <YAxis domain={[-2, 2]} tick={{ fill: '#6b7280', fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => [fmtSentiment(v), 'Sentimiento']} />
-                  <Line type="monotone" dataKey="sentimentScore" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Sentimiento" />
-                  {/* Reference line at 0 */}
+                  <Tooltip formatter={(v: number, n: string) => [fmtSentiment(Number(v)), n]} />
+                  {trendModels.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
+                  {trendModels.map(m => (
+                    <Line
+                      key={m}
+                      type="monotone"
+                      dataKey={m}
+                      stroke={modelColors[m] || '#888'}
+                      strokeWidth={1.5}
+                      dot={{ r: 3 }}
+                      connectNulls
+                      name={m}
+                    />
+                  ))}
+                  <Line
+                    type="monotone"
+                    dataKey={TOTAL_KEY}
+                    stroke="#111827"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 3"
+                    dot={{ r: 3 }}
+                    connectNulls
+                    name="Total"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
