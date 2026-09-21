@@ -679,8 +679,8 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const modelVis = useMemo(() => {
     if (!scoped || scoped.length === 0) return [];
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return buildModelVisibility(scoped as any, sorted[sorted.length - 1].configuration.brand);
-  }, [scoped]);
+    return buildModelVisibility(scoped as any, sorted[sorted.length - 1].configuration.brand, modelGranularity);
+  }, [scoped, modelGranularity]);
 
   // Tracking de posición POR MODELO (petición de Salto: una línea por modelo).
   // Se calcula aparte de posDist porque aquella agrega todos los modelos en una
@@ -690,8 +690,8 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     // La marca sale del propio rango, no de `cs`: este hook corre antes de que
     // `metrics` esté disponible. Mismo patrón que posDist.
     const sorted = [...scoped].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return buildPositionByModelOverTime(scoped as unknown as AnalysisDetail[], sorted[sorted.length - 1].configuration.brand);
-  }, [scoped]);
+    return buildPositionByModelOverTime(scoped as unknown as AnalysisDetail[], sorted[sorted.length - 1].configuration.brand, modelGranularity);
+  }, [scoped, modelGranularity]);
 
   // Distribución de posición (Hito 5)
   const posDist = useMemo(() => {
@@ -818,17 +818,47 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
       ['Posición 8+', posDist.current.p8plus],
       ['Total', posDist.current.total],
     ] : [['Sin datos de posición']];
+    // La cabecera lleva "Modelos" para que se vea que cada fila agrupa varios.
     const evolucion: any[][] = [
-      ['Análisis', ...topBrands],
-      ...sovAreaData.map(p => [p.label, ...topBrands.map(b => p[b] ?? 0)]),
+      ['Fecha', 'Modelos', ...topBrands],
+      ...sovAreaData.map(p => [p.label, p.modelos ?? 1, ...topBrands.map(b => p[b] ?? 0)]),
     ];
+
+    // La fotografía es un agregado: sin esta hoja, el Excel no dice de qué
+    // modelos y de qué fechas sale la portada.
+    const fotografia: (string | number)[][] = [
+      ['Modelo', 'Fecha', 'Antigüedad (días)', 'SoV (%)', 'Posición media', 'Sentimiento', 'Confianza (%)', 'Preguntas'],
+      ...cbm.map(m => {
+        const sovM = m.state.shareOfVoice.find(x => x.isTarget);
+        return [
+          m.modelKey,
+          new Date(m.timestamp).toLocaleDateString('es-ES'),
+          m.staleDays,
+          sovM ? +sovM.percentage.toFixed(1) : '',
+          m.state.avgAppearanceOrder !== null ? +m.state.avgAppearanceOrder.toFixed(2) : '',
+          +m.state.netSentimentScore.toFixed(2),
+          +(m.state.aiConfidence * 100).toFixed(0),
+          m.state.categoryBreakdown.reduce((n, c) => n + c.count, 0),
+        ];
+      }),
+      [
+        'TOTAL (pooled)', '', '',
+        targetSov ? +targetSov.percentage.toFixed(1) : '',
+        cs.avgAppearanceOrder !== null ? +cs.avgAppearanceOrder.toFixed(2) : '',
+        +cs.netSentimentScore.toFixed(2),
+        +(cs.aiConfidence * 100).toFixed(0),
+        cs.categoryBreakdown.reduce((n, c) => n + c.count, 0),
+      ],
+    ];
+
     exportSheetsToExcel(
       downloadFilename('metricas', cs.targetBrand, modelosDelRango(scoped as unknown as AnalysisDetail[])),
       [
         { name: 'Share of Voice', aoa: sov, cols: [6, 24, 10, 26, 12, 14] },
-        { name: 'Visibilidad por modelo', aoa: modelos, cols: [18, 12, 22, 16, 12, 16] },
+        { name: 'Fotografía por modelo', aoa: fotografia, cols: [26, 12, 16, 12, 14, 14, 14, 12] },
+        { name: 'Visibilidad por modelo', aoa: modelos, cols: [26, 12, 22, 16, 12, 16] },
         { name: 'Distribución posición', aoa: posicion, cols: [18, 14] },
-        { name: 'Evolución histórica', aoa: evolucion, cols: [22, ...topBrands.map(() => 14)] },
+        { name: 'Evolución histórica', aoa: evolucion, cols: [22, 10, ...topBrands.map(() => 14)] },
       ]
     );
   };
@@ -1065,14 +1095,14 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                   <tr key={m.persona}>
                     <td className="py-2">
                       <span className="inline-flex items-center gap-2 font-medium text-gray-800">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: modelColors[m.label] || m.color }} />
                         {m.label}
                       </span>
                     </td>
                     <td className="py-2 pr-4">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${m.mentionRate}%`, backgroundColor: m.color }} />
+                          <div className="h-full rounded-full" style={{ width: `${m.mentionRate}%`, backgroundColor: modelColors[m.label] || m.color }} />
                         </div>
                         <span className="text-xs text-gray-600 w-10 text-right">{m.mentionRate.toFixed(0)}%</span>
                       </div>
@@ -1152,13 +1182,13 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                   />
                   <Tooltip formatter={(v: number | string | null) => (v == null ? 'sin datos' : `#${Number(v).toFixed(2)}`)} />
                   <Legend />
-                  {posPorModelo.models.map((m, i) => (
+                  {posPorModelo.models.map(m => (
                     <Line
                       key={m}
                       type="monotone"
                       dataKey={m}
                       name={m}
-                      stroke={COLORS[i % COLORS.length]}
+                      stroke={modelColors[m] || '#888'}
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       connectNulls={false}
@@ -1394,7 +1424,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
             <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
               <h3 className="font-semibold text-gray-800 inline-flex items-center gap-1.5">
                 Evolución de Menciones por Categoría
-                <InfoTip text="Por cada análisis, % de preguntas de cada categoría temática donde la marca seleccionada es mencionada (misma métrica que 'Menciones por Categoría y Marca', vista en el tiempo). Se muestran las categorías del análisis más reciente. Haz clic en una categoría de la leyenda para ocultarla o mostrarla." />
+                <InfoTip text="Por cada fecha, % de preguntas de cada categoría temática donde la marca seleccionada es mencionada, sumando los modelos que corrieron ese día (misma métrica que 'Menciones por Categoría y Marca', vista en el tiempo). Se muestran las categorías del análisis más reciente. Haz clic en una categoría de la leyenda para ocultarla o mostrarla." />
               </h3>
               <select
                 value={categoryTrend.brand}

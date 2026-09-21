@@ -938,17 +938,18 @@ export function buildPositionDistribution(
  */
 export function buildPositionByModelOverTime(
   analyses: AnalysisDetail[],
-  targetBrand: string
+  targetBrand: string,
+  granularity: ModelGranularity = 'persona',
 ): { rows: Array<Record<string, string | number | null>>; models: string[] } {
   const sorted = sortByDate(analyses);
   const targetKey = aliasKey(targetBrand);
-  const models = modelsInAnalyses(sorted);
+  const models = modelsInAnalysesBy(sorted, granularity).map(m => m.key);
 
   // fecha -> modelo -> acumulado de posiciones
   const porFecha = new Map<string, Map<string, { suma: number; n: number }>>();
 
   sorted.forEach(a => {
-    const modelo = analysisModelLabel(a);
+    const modelo = analysisModelKey(a, granularity);
     const fecha = dateLabel(a.timestamp);
     if (!porFecha.has(fecha)) porFecha.set(fecha, new Map());
     const porModelo = porFecha.get(fecha)!;
@@ -991,38 +992,60 @@ export interface ModelVisibility {
   avgPosition: number | null;
 }
 
-/** Visibilidad de la marca objetivo desglosada por modelo de IA (¿visible en ChatGPT pero no en Gemini?). */
-export function buildModelVisibility(analyses: AnalysisDetail[], targetBrand: string): ModelVisibility[] {
+/**
+ * Visibilidad de la marca objetivo desglosada por modelo de IA (¿visible en
+ * ChatGPT pero no en Gemini?).
+ *
+ * Agrupa por la granularidad activa, no siempre por familia: si el resto de la
+ * pestaña está mirando versiones, esta tabla no puede seguir fundiendo GPT-5
+ * Mini y GPT-5.5 en una fila "ChatGPT".
+ */
+export function buildModelVisibility(
+  analyses: AnalysisDetail[],
+  targetBrand: string,
+  granularity: ModelGranularity = 'persona',
+): ModelVisibility[] {
   const targetKey = aliasKey(targetBrand);
-  const acc: Record<string, { responses: number; mentioned: number; brandFreq: number; totalFreq: number; posSum: number; posCount: number }> = {};
+  const acc: Record<string, { persona: string; responses: number; mentioned: number; brandFreq: number; totalFreq: number; posSum: number; posCount: number }> = {};
 
   analyses.forEach(a => {
+    // El modelo es del análisis: cada ejecución corre con uno solo.
+    const key = analysisModelKey(a, granularity);
+    const persona = analysisPersona(a);
+    if (!acc[key]) acc[key] = { persona, responses: 0, mentioned: 0, brandFreq: 0, totalFreq: 0, posSum: 0, posCount: 0 };
+
     (a.results?.questions || []).forEach(q => {
       (q.multiModelAnalysis || []).forEach(m => {
-        const persona = m.modelPersona || 'otros';
-        if (!acc[persona]) acc[persona] = { responses: 0, mentioned: 0, brandFreq: 0, totalFreq: 0, posSum: 0, posCount: 0 };
-        acc[persona].responses++;
+        acc[key].responses++;
         const mentions = (m.brandMentions && m.brandMentions.length > 0 ? m.brandMentions : q.brandMentions) || [];
         let here = false;
+        // La posición se toma una vez por respuesta (la mejor), igual que en
+        // positionDistFor y buildPositionByModelOverTime: el glosario de alias
+        // puede dejar varias entradas de la misma marca y sumarlas todas
+        // duplicaba el promedio.
+        let mejorPos: number | null = null;
         mentions.forEach(bm => {
           if (!bm.mentioned || (bm.frequency || 0) <= 0) return;
-          acc[persona].totalFreq += bm.frequency;
+          acc[key].totalFreq += bm.frequency;
           if (aliasKey(bm.brand) === targetKey) {
-            acc[persona].brandFreq += bm.frequency;
+            acc[key].brandFreq += bm.frequency;
             here = true;
-            if (bm.appearanceOrder && bm.appearanceOrder > 0) { acc[persona].posSum += bm.appearanceOrder; acc[persona].posCount++; }
+            if (bm.appearanceOrder && bm.appearanceOrder > 0) {
+              mejorPos = mejorPos === null ? bm.appearanceOrder : Math.min(mejorPos, bm.appearanceOrder);
+            }
           }
         });
-        if (here) acc[persona].mentioned++;
+        if (here) acc[key].mentioned++;
+        if (mejorPos !== null) { acc[key].posSum += mejorPos; acc[key].posCount++; }
       });
     });
   });
 
   return Object.entries(acc)
-    .map(([persona, d]) => ({
-      persona,
-      label: PERSONA_LABELS[persona] || persona,
-      color: PERSONA_COLORS[persona] || '#888',
+    .map(([key, d]) => ({
+      persona: d.persona,
+      label: key,
+      color: PERSONA_COLORS[d.persona] || '#888',
       responses: d.responses,
       mentioned: d.mentioned,
       mentionRate: d.responses > 0 ? (d.mentioned / d.responses) * 100 : 0,
