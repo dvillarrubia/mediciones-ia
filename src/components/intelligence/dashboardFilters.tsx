@@ -5,8 +5,14 @@
 // - Pagination / paginate: paginación controlada reutilizable en cualquier tabla.
 
 import React from 'react';
-import { Calendar, X } from 'lucide-react';
-import { AnalysisDetail } from './sharedMetrics';
+import { Calendar, X, Layers } from 'lucide-react';
+import {
+  AnalysisDetail,
+  ModelGranularity,
+  MODEL_GRANULARITY_LABELS,
+  MODEL_GRANULARITY_HINTS,
+  modelsInAnalysesBy,
+} from './sharedMetrics';
 
 /**
  * Filtra los análisis por rango de fechas (inclusive). `dateTo` se interpreta
@@ -73,6 +79,65 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       {typeof count === 'number' && (
         <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
           {count}{typeof total === 'number' ? ` / ${total}` : ''} análisis
+        </span>
+      )}
+    </div>
+  );
+};
+
+interface ModelGranularityToggleProps {
+  value: ModelGranularity;
+  onChange: (next: ModelGranularity) => void;
+  /** Análisis del rango, para avisar de cuántas series genera cada opción. */
+  analyses?: AnalysisDetail[];
+  className?: string;
+}
+
+/**
+ * Conmutador familia / versión para los widgets con dimensión de modelo.
+ *
+ * Se oculta cuando el rango tiene una sola familia: ahí las dos opciones darían
+ * lo mismo y el control solo añadiría ruido.
+ */
+export const ModelGranularityToggle: React.FC<ModelGranularityToggleProps> = ({
+  value, onChange, analyses, className,
+}) => {
+  const porFamilia = modelsInAnalysesBy(analyses || [], 'persona');
+  const porVersion = modelsInAnalysesBy(analyses || [], 'modelo');
+  if (porFamilia.length <= 1 && porVersion.length <= 1) return null;
+
+  const conteo: Record<ModelGranularity, number> = {
+    persona: porFamilia.length,
+    modelo: porVersion.length,
+  };
+  const opciones: ModelGranularity[] = ['persona', 'modelo'];
+
+  return (
+    <div className={`flex items-center gap-2 flex-wrap bg-gray-50 border rounded-lg px-3 py-2 ${className || ''}`}>
+      <Layers className="w-4 h-4 text-gray-500 flex-shrink-0" />
+      <span className="text-xs text-gray-500">Modelos:</span>
+      <div className="inline-flex rounded-md border bg-white overflow-hidden">
+        {opciones.map(op => (
+          <button
+            key={op}
+            onClick={() => onChange(op)}
+            title={MODEL_GRANULARITY_HINTS[op]}
+            className={`text-sm px-3 py-1 ${
+              value === op ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {MODEL_GRANULARITY_LABELS[op]}
+            <span className={`ml-1.5 text-xs ${value === op ? 'text-blue-100' : 'text-gray-400'}`}>
+              {conteo[op]}
+            </span>
+          </button>
+        ))}
+      </div>
+      {/* Con más versiones que familias, agrupar por versión parte cada familia
+          en varias series: el usuario debe saberlo antes de cambiar. */}
+      {porVersion.length > porFamilia.length && (
+        <span className="text-xs text-gray-400">
+          {porVersion.length} versiones de {porFamilia.length} familias en el rango
         </span>
       )}
     </div>

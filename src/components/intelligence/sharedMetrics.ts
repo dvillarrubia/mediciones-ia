@@ -236,7 +236,10 @@ export const PERSONA_COLORS: Record<string, string> = {
 /** Etiqueta legible para un análisis multi-modelo: usa modelName si existe, si no la persona. */
 export function modelLabel(mm: MultiModelAnalysis | undefined): string {
   if (!mm) return 'IA';
-  if (mm.modelName) return mm.modelName;
+  // Se normaliza para que el 💰 de los modelos baratos no genere dos etiquetas
+  // distintas para el mismo modelo.
+  const limpio = normalizeModelName(mm.modelName);
+  if (limpio) return limpio;
   return PERSONA_LABELS[mm.modelPersona] || mm.modelPersona || 'IA';
 }
 
@@ -471,7 +474,7 @@ export function analysisModelLabel(a: AnalysisDetail): string {
 
   // Sin datos por pregunta, metadata es lo único que queda. Se ordena para que
   // el mismo conjunto no genere dos etiquetas distintas según el orden.
-  const desdeMetadata = (a.metadata?.modelsUsed || []).filter(Boolean);
+  const desdeMetadata = (a.metadata?.modelsUsed || []).map(normalizeModelName).filter(Boolean);
   if (desdeMetadata.length > 0) return Array.from(new Set(desdeMetadata)).sort().join(' + ');
   return 'Sin modelo';
 }
@@ -498,6 +501,245 @@ export function modelosDelRango(analyses: AnalysisDetail[]): string {
   if (ms.length === 0) return '';
   if (ms.length === 1) return ms[0];
   return 'multimodelo';
+}
+
+// === Granularidad de modelo: familia vs versión ===
+
+/**
+ * A qué nivel se agrupa la dimensión "modelo".
+ *
+ * - `persona`: familia (ChatGPT, Claude, Gemini…). Es la ÚNICA clave estable en
+ *   el tiempo y por eso es la que deben usar las series temporales.
+ * - `modelo`: versión concreta (GPT-5 Mini, Claude Haiku 4.5…). Útil en la
+ *   fotografía y en tablas de un rango corto, donde la versión no cambia.
+ *
+ * El motivo de que no valga una sola: el `modelName` DERIVA con el tiempo dentro
+ * de la misma automatización. En el proyecto 48084612 las ejecuciones de julio
+ * son "Gemini 3.5 Flash + Search" y desde agosto "Gemini 3.1 Flash Lite +
+ * Search": agrupando por versión, una serie de julio a septiembre parte cada
+ * familia en dos líneas con huecos y el gráfico sugiere que Gemini dejó de
+ * correr, cuando solo cambió de versión.
+ */
+export type ModelGranularity = 'persona' | 'modelo';
+
+export const MODEL_GRANULARITY_LABELS: Record<ModelGranularity, string> = {
+  persona: 'Por familia',
+  modelo: 'Por versión',
+};
+
+export const MODEL_GRANULARITY_HINTS: Record<ModelGranularity, string> = {
+  persona: 'Agrupa ChatGPT, Claude y Gemini sin distinguir versión. Es lo estable en series largas.',
+  modelo: 'Distingue GPT-5 Mini de GPT-5.5. En rangos largos una familia puede partirse en varias líneas.',
+};
+
+/**
+ * Limpia un nombre de modelo para usarlo como clave o etiqueta.
+ *
+ * `modelName` llega de la configuración con adornos que NO son parte del modelo
+ * (el 💰 que marca los baratos). Sin quitarlos, "Claude Haiku 4.5 + Search 💰" y
+ * "Claude Haiku 4.5 + Search" serían dos series distintas.
+ */
+export function normalizeModelName(name: string | undefined): string {
+  return (name || '')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Familia (persona) con la que se ejecutó un análisis. */
+export function analysisPersona(a: AnalysisDetail): string {
+  const encontradas = new Set<string>();
+  (a?.results?.questions || []).forEach(q => {
+    (q.multiModelAnalysis || []).forEach(mm => { if (mm.modelPersona) encontradas.add(mm.modelPersona); });
+  });
+  if (encontradas.size === 0) return 'otros';
+  return Array.from(encontradas).sort().join(' + ');
+}
+
+/**
+ * Clave de agrupación por modelo de un análisis, según la granularidad elegida.
+ *
+ * Es la única función que decide "de qué modelo es este análisis". Todo lo que
+ * agrupe, filtre o pinte por modelo debe pasar por aquí para que las pestañas no
+ * cuenten cada una a su manera.
+ */
+export function analysisModelKey(a: AnalysisDetail, granularity: ModelGranularity): string {
+  if (granularity === 'persona') {
+    const p = analysisPersona(a);
+    if (p !== 'otros') {
+      return p.split(' + ').map(x => PERSONA_LABELS[x] || x).join(' + ');
+    }
+    // Sin datos por pregunta no se puede inferir la familia; cae a la versión
+    // para no colapsar en un cajón "otros" todos los análisis antiguos.
+    return analysisModelLabel(a);
+  }
+  return analysisModelLabel(a);
+}
+
+export interface ModelInfo {
+  /** Clave de agrupación; también sirve de etiqueta legible. */
+  key: string;
+  label: string;
+  persona: string;
+  color: string;
+}
+
+/** Aclara un color hex mezclándolo con blanco (0 = igual, 1 = blanco). */
+function lightenHex(hex: string, amount: number): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return hex;
+  const mix = (c: number) => Math.round(c + (255 - c) * Math.min(Math.max(amount, 0), 0.75));
+  const r = mix(parseInt(h.slice(0, 2), 16));
+  const g = mix(parseInt(h.slice(2, 4), 16));
+  const b = mix(parseInt(h.slice(4, 6), 16));
+  return `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Modelos presentes en un conjunto de análisis, con color asignado.
+ *
+ * El color sale SIEMPRE de la familia, así que en granularidad de versión todas
+ * las de Claude salen en tonos del naranja de Claude (la primera con el color
+ * base y las siguientes progresivamente más claras). Así el gráfico se sigue
+ * leyendo por familia aunque se esté mirando por versión.
+ */
+export function modelsInAnalysesBy(analyses: AnalysisDetail[], granularity: ModelGranularity): ModelInfo[] {
+  const acc = new Map<string, string>(); // key -> persona
+  sortByDate(analyses || []).forEach(a => {
+    const key = analysisModelKey(a, granularity);
+    if (!acc.has(key)) acc.set(key, analysisPersona(a));
+  });
+
+  const usadosPorPersona = new Map<string, number>();
+  return Array.from(acc.entries())
+    .sort((x, y) => x[0].localeCompare(y[0]))
+    .map(([key, persona]) => {
+      const n = usadosPorPersona.get(persona) || 0;
+      usadosPorPersona.set(persona, n + 1);
+      const base = PERSONA_COLORS[persona] || '#888888';
+      return { key, label: key, persona, color: n === 0 ? base : lightenHex(base, n * 0.22) };
+    });
+}
+
+/** Agrupa los análisis por modelo, cada grupo ordenado por fecha ascendente. */
+export function groupAnalysesByModel(
+  analyses: AnalysisDetail[],
+  granularity: ModelGranularity,
+): Map<string, AnalysisDetail[]> {
+  const out = new Map<string, AnalysisDetail[]>();
+  sortByDate(analyses || []).forEach(a => {
+    const key = analysisModelKey(a, granularity);
+    if (!out.has(key)) out.set(key, []);
+    out.get(key)!.push(a);
+  });
+  return out;
+}
+
+export interface ModelSnapshot {
+  modelKey: string;
+  analysis: AnalysisDetail;
+  /** Días de antigüedad respecto al análisis más reciente del conjunto. */
+  staleDays: number;
+}
+
+/**
+ * Ventana por defecto de la "fotografía actual": un modelo cuyo último análisis
+ * sea más viejo que esto queda fuera.
+ *
+ * NO es una defensa teórica. Agrupando por versión, un modelo retirado se queda
+ * congelado en su última ejecución y se colaría en la fotografía de hoy: en el
+ * proyecto 48084612 "ChatGPT (GPT-5.5)" no corre desde el 20/07 (63 días) y en
+ * 9d30f020 "GPT-4o Search" desde el 18/08 (28 días). Sin ventana, la fotografía
+ * de septiembre mezclaría esas ejecuciones con las de esta semana.
+ *
+ * 14 días cubre holgadamente una monitorización semanal saltándose una semana.
+ */
+export const SNAPSHOT_FRESHNESS_DAYS = 14;
+
+export interface LatestPerModelOptions {
+  /**
+   * Descarta un modelo si su último análisis es más viejo que N días respecto
+   * al más reciente del conjunto. Sin valor, no se descarta ninguno.
+   *
+   * Para la fotografía usar `SNAPSHOT_FRESHNESS_DAYS`. Sin ventana solo tiene
+   * sentido cuando se quiere el histórico completo (p.ej. listar qué modelos
+   * han intervenido alguna vez en el rango).
+   */
+  freshnessDays?: number;
+}
+
+/**
+ * El último análisis de CADA modelo dentro del conjunto.
+ *
+ * Sustituye al patrón `sorted[sorted.length - 1]`, que con varias
+ * automatizaciones devuelve solo la del modelo que acabó más tarde ese día: una
+ * "fotografía" que en realidad es de un único modelo y que cambia si se reordena
+ * la hora de los schedules.
+ */
+export function latestAnalysisPerModel(
+  analyses: AnalysisDetail[],
+  granularity: ModelGranularity,
+  options: LatestPerModelOptions = {},
+): ModelSnapshot[] {
+  const grupos = groupAnalysesByModel(analyses, granularity);
+  if (grupos.size === 0) return [];
+
+  const ultimos = Array.from(grupos.entries()).map(([modelKey, list]) => ({
+    modelKey,
+    analysis: list[list.length - 1],
+  }));
+
+  const masReciente = Math.max(...ultimos.map(u => new Date(u.analysis.timestamp).getTime()));
+  const DIA_MS = 86400000;
+
+  return ultimos
+    .map(u => ({
+      ...u,
+      staleDays: Math.floor((masReciente - new Date(u.analysis.timestamp).getTime()) / DIA_MS),
+    }))
+    .filter(u => options.freshnessDays === undefined || u.staleDays <= options.freshnessDays)
+    .sort((a, b) => a.modelKey.localeCompare(b.modelKey));
+}
+
+/** Los análisis de `latestAnalysisPerModel`, para pasarlos a funciones que esperan una lista. */
+export function latestAnalysesPooled(
+  analyses: AnalysisDetail[],
+  granularity: ModelGranularity,
+  options: LatestPerModelOptions = {},
+): AnalysisDetail[] {
+  return latestAnalysisPerModel(analyses, granularity, options).map(s => s.analysis);
+}
+
+// === Agregación pooled (nunca media de medias) ===
+
+export interface Ratio { num: number; den: number }
+
+/**
+ * Combina ratios de varios modelos sumando numeradores y denominadores, y
+ * dividiendo UNA sola vez.
+ *
+ * Promediar los porcentajes por modelo daría el mismo peso a un modelo que
+ * respondió 40 preguntas que a uno que respondió 12. Con 65% sobre 40 y 25%
+ * sobre 12, la media de medias da 45% y el pooled 55,8%: el segundo es el que
+ * responde a "de todas las respuestas que tenemos, ¿en cuántas aparecemos?".
+ */
+export function poolRatios(parts: Ratio[]): { num: number; den: number; pct: number } {
+  const num = parts.reduce((s, p) => s + (p.num || 0), 0);
+  const den = parts.reduce((s, p) => s + (p.den || 0), 0);
+  return { num, den, pct: den > 0 ? (num / den) * 100 : 0 };
+}
+
+/**
+ * Media ponderada por número de observaciones, para magnitudes que no son
+ * ratios (posición media, confianza). Devuelve `null` si no hay observaciones:
+ * un 0 en posición media significaría "el mejor puesto posible", lo contrario
+ * de "no hay dato".
+ */
+export function poolWeightedMean(parts: Array<{ sum: number; n: number }>): number | null {
+  const n = parts.reduce((s, p) => s + (p.n || 0), 0);
+  if (n === 0) return null;
+  const sum = parts.reduce((s, p) => s + (p.sum || 0), 0);
+  return sum / n;
 }
 
 // === Topics (extraído de TopicsDashboard para que pantalla y Excel no diverjan) ===
