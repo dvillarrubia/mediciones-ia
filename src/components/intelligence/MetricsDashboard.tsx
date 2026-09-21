@@ -475,6 +475,7 @@ function calculateMetrics(analyses: AnalysisDetail[], granularity: ModelGranular
    */
   const pivotByDate = (
     valor: (h: HistoricalPoint) => { num: number; den: number },
+    escala = 1,
   ): TrendRow[] => {
     const porFecha = new Map<string, HistoricalPoint[]>();
     historicalTrend.forEach(h => {
@@ -487,19 +488,23 @@ function calculateMetrics(analyses: AnalysisDetail[], granularity: ModelGranular
       trendModels.forEach(m => {
         const delModelo = puntos.filter(p => p.modelKey === m).map(valor);
         const den = delModelo.reduce((s, v) => s + v.den, 0);
-        fila[m] = den > 0 ? delModelo.reduce((s, v) => s + v.num, 0) / den : null;
+        fila[m] = den > 0 ? +((delModelo.reduce((s, v) => s + v.num, 0) / den) * escala).toFixed(2) : null;
       });
       const todos = puntos.map(valor);
       const denTotal = todos.reduce((s, v) => s + v.den, 0);
-      fila[TOTAL_KEY] = denTotal > 0 ? todos.reduce((s, v) => s + v.num, 0) / denTotal : null;
+      fila[TOTAL_KEY] = denTotal > 0 ? +((todos.reduce((s, v) => s + v.num, 0) / denTotal) * escala).toFixed(2) : null;
       return fila;
     });
   };
 
+  const sovTrendByModel = pivotByDate(
+    h => ({ num: h.mentionsByBrand[targetBrand] || 0, den: h.totalMentionsAll }),
+    100,
+  );
   const positionTrend = pivotByDate(h => ({ num: h.orderSum, den: h.orderCount }));
   const sentimentTrend = pivotByDate(h => ({ num: h.sentSum, den: h.sentCount }));
 
-  return { currentState, currentByModel, historicalTrend, trendModels, positionTrend, sentimentTrend };
+  return { currentState, currentByModel, historicalTrend, trendModels, positionTrend, sentimentTrend, sovTrendByModel };
 }
 
 // === COMPONENTS ===
@@ -575,6 +580,9 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const modelGranularity = modelGranularityProp ?? granularidadLocal;
   const setModelGranularity = onModelGranularityChange ?? setGranularidadLocal;
   const [showModelBreakdown, setShowModelBreakdown] = useState(false);
+  // El área apilada compara marcas entre sí; la vista por modelo compara la
+  // propia marca entre modelos. Son preguntas distintas, de ahí el conmutador.
+  const [sovView, setSovView] = useState<'marcas' | 'modelos'>('marcas');
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
   const [hiddenSovBrands, setHiddenSovBrands] = useState<string[]>([]);
 
@@ -734,7 +742,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
     );
   }
 
-  const { currentState: cs, currentByModel: cbm, historicalTrend: ht, trendModels, positionTrend, sentimentTrend } = metrics;
+  const { currentState: cs, currentByModel: cbm, historicalTrend: ht, trendModels, positionTrend, sentimentTrend, sovTrendByModel } = metrics;
   // Color por familia, compartido con los gráficos por modelo.
   const modelColors = Object.fromEntries(
     modelsInAnalysesBy(scoped, modelGranularity).map(m => [m.key, m.color])
@@ -1092,7 +1100,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {modelVis.map(m => (
-                  <tr key={m.persona}>
+                  <tr key={m.label}>
                     <td className="py-2">
                       <span className="inline-flex items-center gap-2 font-medium text-gray-800">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: modelColors[m.label] || m.color }} />
@@ -1351,8 +1359,14 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
 
         return (
           <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h3 className="font-semibold text-gray-800 mb-1">Menciones por Categoría y Marca</h3>
-            <p className="text-xs text-gray-400 mb-4">% de preguntas donde cada marca es mencionada, por categoría temática</p>
+            <h3 className="font-semibold text-gray-800 mb-1 inline-flex items-center gap-1.5">
+              Menciones por Categoría y Marca
+              <InfoTip text="% de preguntas de cada categoría donde la marca aparece, sumando las respuestas del último análisis de cada modelo. Cada pregunta cuenta una vez por marca. Al agregar varios modelos el denominador es el total de respuestas, no el de preguntas del cuestionario: si un modelo menciona la marca y otro no, la categoría queda en un punto intermedio en vez de en 0% o 100%." />
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">
+              % de preguntas donde cada marca es mencionada, por categoría temática
+              {cbm.length > 1 && ` · suma de ${cbm.length} modelos (${cbm.map(m => m.modelKey).join(', ')})`}
+            </p>
             <ResponsiveContainer width="100%" height={Math.max(400, cs.categoryBrandMentions.length * 70)}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }} barCategoryGap="20%" barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
@@ -1472,7 +1486,10 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
         <>
           <div className="border-t pt-6">
             <h3 className="text-xl font-bold text-gray-800 mb-1">Evolución Histórica</h3>
-            <p className="text-sm text-gray-500 mb-6">{ht.length} análisis desde {ht[0].label} hasta {ht[ht.length - 1].label}</p>
+            <p className="text-sm text-gray-500 mb-6">
+              {positionTrend.length} fechas desde {ht[0].label} hasta {ht[ht.length - 1].label}
+              {trendModels.length > 1 && ` · ${ht.length} análisis de ${trendModels.length} modelos`}
+            </p>
           </div>
 
           {/* SoV: líneas (el valor de cada marca se lee directamente sobre el eje) */}
@@ -1481,8 +1498,60 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
             const isTargetBrand = (b: string) => b.toLowerCase() === cs.targetBrand.toLowerCase();
             return (
               <div className="bg-white rounded-xl shadow-sm border p-5">
-                <h3 className="font-semibold text-gray-800 mb-1">Evolución del Share of Voice</h3>
-                <p className="text-xs text-gray-400 mb-4">% de menciones de cada marca sobre el total en cada análisis</p>
+                <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+                  <h3 className="font-semibold text-gray-800">Evolución del Share of Voice</h3>
+                  {trendModels.length > 1 && (
+                    <div className="inline-flex rounded-md border bg-white overflow-hidden">
+                      {([['marcas', 'Entre marcas'], ['modelos', 'Por modelo']] as const).map(([v, label]) => (
+                        <button
+                          key={v}
+                          onClick={() => setSovView(v)}
+                          className={`text-xs px-2.5 py-1 ${sovView === v ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mb-4">
+                  {sovView === 'marcas'
+                    ? '% de menciones de cada marca sobre el total, en cada fecha (sumando los modelos que corrieron ese día)'
+                    : `% de menciones de ${cs.targetBrand} sobre el total, en cada modelo por separado. La línea negra es el total pooled.`}
+                </p>
+                {sovView === 'modelos' ? (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={sovTrendByModel} margin={{ left: 0, right: 16, top: 12, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 12 }} padding={{ left: 28, right: 28 }} tickMargin={8} />
+                      <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} unit="%" domain={[0, 'auto']} width={45} />
+                      <Tooltip formatter={(v: number | string | null, n: string) => [v == null ? 'sin datos' : `${Number(v).toFixed(1)}%`, n]} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      {trendModels.map(m => (
+                        <Line
+                          key={m}
+                          type="monotone"
+                          dataKey={m}
+                          name={m}
+                          stroke={modelColors[m] || '#888'}
+                          strokeWidth={1.5}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      ))}
+                      <Line
+                        type="monotone"
+                        dataKey={TOTAL_KEY}
+                        name="Total"
+                        stroke="#111827"
+                        strokeWidth={2.5}
+                        strokeDasharray="5 3"
+                        dot={{ r: 3 }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={sovAreaData} margin={{ left: 0, right: 16, top: 12, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1505,13 +1574,18 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-                <ChipLegend
-                  items={topBrands}
-                  colorOf={sovColorOf}
-                  hidden={hiddenSovBrands}
-                  onToggle={b => setHiddenSovBrands(h => h.includes(b) ? h.filter(x => x !== b) : [...h, b])}
-                  bold={isTargetBrand}
-                />
+                )}
+                {/* La leyenda de marcas solo aplica a la vista "Entre marcas";
+                    en la de modelos las series son los modelos. */}
+                {sovView === 'marcas' && (
+                  <ChipLegend
+                    items={topBrands}
+                    colorOf={sovColorOf}
+                    hidden={hiddenSovBrands}
+                    onToggle={b => setHiddenSovBrands(h => h.includes(b) ? h.filter(x => x !== b) : [...h, b])}
+                    bold={isTargetBrand}
+                  />
+                )}
               </div>
             );
           })()}
