@@ -117,7 +117,7 @@ export default function ShareOfVoiceChart({ data }: ShareOfVoiceChartProps) {
         <span className="text-sm text-gray-500">
           ({data.length} {data.length === 1 ? 'marca' : 'marcas'})
         </span>
-        <InfoTip text="Visión global acumulada: suma las veces que se nombra cada marca en TODOS los análisis históricos del proyecto (con repeticiones dentro de cada respuesta). Por eso no coincide con la pestaña Métricas del Centro de Inteligencia, que usa solo el último análisis." />
+        <InfoTip text="Suma las veces que se nombra cada marca en los análisis del periodo seleccionado, juntando todos los modelos que corrieron (con repeticiones dentro de cada respuesta). No coincide con la pestaña Métricas del Centro de Inteligencia: allí la fotografía es solo el último análisis de cada modelo, aquí es todo el periodo." />
       </div>
 
       {/* Gráfico de barras */}
