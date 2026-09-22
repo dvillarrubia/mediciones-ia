@@ -747,6 +747,12 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
   const modelColors = Object.fromEntries(
     modelsInAnalysesBy(scoped, modelGranularity).map(m => [m.key, m.color])
   );
+  const modelosFueraDeFoto = metrics.trendModels
+    .filter(m => !metrics.currentByModel.some(c => c.modelKey === m))
+    .map(m => {
+      const ultimo = [...metrics.historicalTrend].reverse().find(h => h.modelKey === m);
+      return { modelKey: m, ultima: ultimo ? new Date(ultimo.date).toLocaleDateString('es-ES') : '—' };
+    });
   const targetSov = cs.shareOfVoice.find(s => s.isTarget);
 
   // Prepare historical SoV data for area chart
@@ -920,6 +926,16 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
             </span>
           ))}
         </div>
+        {/* Un modelo retirado se queda congelado en su ultima ejecucion y no
+            puede formar parte de la fotografia de hoy, pero sigue en las series
+            para poder compararlo. Sin este aviso, la cabecera dice "3 modelos"
+            y la evolucion "4" sin explicar la diferencia. */}
+        {modelosFueraDeFoto.length > 0 && (
+          <p className="mt-1 text-xs text-blue-200/80">
+            Fuera de la fotografía por antigüedad, pero visibles en la evolución:{' '}
+            {modelosFueraDeFoto.map(m => `${m.modelKey} (última: ${m.ultima})`).join(' · ')}
+          </p>
+        )}
       </div>
 
       {/* Menciones vs Citaciones (Hito 2) */}
@@ -1487,7 +1503,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
           <div className="border-t pt-6">
             <h3 className="text-xl font-bold text-gray-800 mb-1">Evolución Histórica</h3>
             <p className="text-sm text-gray-500 mb-6">
-              {positionTrend.length} fechas desde {ht[0].label} hasta {ht[ht.length - 1].label}
+              {positionTrend.length} {positionTrend.length === 1 ? 'fecha' : 'fechas'} desde {ht[0].label} hasta {ht[ht.length - 1].label}
               {trendModels.length > 1 && ` · ${ht.length} análisis de ${trendModels.length} modelos`}
             </p>
           </div>
@@ -1536,7 +1552,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                           stroke={modelColors[m] || '#888'}
                           strokeWidth={1.5}
                           dot={{ r: 3 }}
-                          connectNulls
+                          connectNulls={false}
                         />
                       ))}
                       <Line
@@ -1547,7 +1563,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                         strokeWidth={2.5}
                         strokeDasharray="5 3"
                         dot={{ r: 3 }}
-                        connectNulls
+                        connectNulls={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -1614,7 +1630,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                       stroke={modelColors[m] || '#888'}
                       strokeWidth={1.5}
                       dot={{ r: 3 }}
-                      connectNulls
+                      connectNulls={false}
                       name={m}
                     />
                   ))}
@@ -1625,7 +1641,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                     strokeWidth={2.5}
                     strokeDasharray="5 3"
                     dot={{ r: 3 }}
-                    connectNulls
+                    connectNulls={false}
                     name="Total"
                   />
                 </LineChart>
@@ -1653,7 +1669,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                       stroke={modelColors[m] || '#888'}
                       strokeWidth={1.5}
                       dot={{ r: 3 }}
-                      connectNulls
+                      connectNulls={false}
                       name={m}
                     />
                   ))}
@@ -1664,7 +1680,7 @@ const MetricsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, bra
                     strokeWidth={2.5}
                     strokeDasharray="5 3"
                     dot={{ r: 3 }}
-                    connectNulls
+                    connectNulls={false}
                     name="Total"
                   />
                 </LineChart>
