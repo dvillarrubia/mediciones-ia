@@ -4,6 +4,7 @@
  * la tabla scheduled_reports. Arranca con el server y tiquea cada minuto.
  */
 import sqlite3 from 'sqlite3';
+import { modelsUsedFromResult } from '../utils/modelsUsed.js';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -203,6 +204,7 @@ class SchedulerService {
     }
 
     const analysisId = (result as any).analysisId || `analysis_${uuidv4()}`;
+    const modelosReales = modelsUsedFromResult(result);
     await databaseService.saveAnalysis({
       id: analysisId,
       projectId: schedule.projectId,
@@ -216,8 +218,12 @@ class SchedulerService {
       results: result,
       metadata: {
         duration: (result as any).duration,
-        modelsUsed: isMultiModel
-          ? (aiModels || ['chatgpt'])
+        // Los modelos EJECUTADOS, no los solicitados. `aiModels` es la lista
+        // pedida en la configuración: claude/gemini nativos están filtrados
+        // desde que solo se usa OpenAI directo y OpenRouter, así que una config
+        // antigua etiquetaba el análisis con tres modelos habiendo corrido uno.
+        modelsUsed: modelosReales.length > 0
+          ? modelosReales
           : [getModelById(selectedModel)?.name || selectedModel],
         totalQuestions: configAny.questions.length,
       },
