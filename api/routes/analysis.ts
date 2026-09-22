@@ -582,7 +582,8 @@ router.post('/multi-model', async (req: Request, res: Response) => {
         },
         results: result,
         metadata: {
-          modelsUsed: configuration.aiModels,
+          // Igual que en /execute: los ejecutados, no los solicitados.
+          modelsUsed: modelsUsedFromResult(result),
           totalQuestions: questions.length
         }
       };
@@ -866,7 +867,7 @@ status: 'completed',
 categories: analysis.results.questions?.map((q: any) => q.category) || [],
 summary: `Análisis de ${analysis.configuration.brand} con ${analysis.configuration.questionsCount} preguntas`,
 overallConfidence: analysis.results.overallConfidence || 0.8,
-modelsUsed: analysis.metadata?.modelsUsed || ['chatgpt'],
+modelsUsed: analysis.metadata?.modelsUsed || modelsUsedFromResult(analysis.results),
 questionsCount: analysis.configuration.questionsCount
 }));
 
@@ -951,7 +952,7 @@ router.get('/saved', async (req: Request, res: Response) => {
       categories: analysis.results.questions?.map((q: any) => q.category) || [],
       summary: `Análisis de ${analysis.configuration.brand} con ${analysis.configuration.questionsCount} preguntas`,
       overallConfidence: analysis.results.overallConfidence || 0.8,
-      modelsUsed: analysis.metadata?.modelsUsed || ['chatgpt'],
+      modelsUsed: analysis.metadata?.modelsUsed || modelsUsedFromResult(analysis.results),
       questionsCount: analysis.configuration.questionsCount
     }));
 

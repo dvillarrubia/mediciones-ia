@@ -16,7 +16,9 @@
     "release": "bash tools/release.sh",
     "modelos:check": "node scripts/verificar-modelos.mjs",
     "test:evidencias": "tsx scripts/test-evidencias.ts",
-    "keys:compartidas": "tsx scripts/detectar-keys-compartidas.ts"
+    "keys:compartidas": "tsx scripts/detectar-keys-compartidas.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
@@ -73,6 +75,7 @@
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5",
     "vite-plugin-trae-solo-badge": "^1.0.0",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^5.0.1"
   }
 }

@@ -37,6 +37,11 @@ import {
 import { API_ENDPOINTS, apiFetch } from '../config/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
+import {
+  analysisModelKey,
+  type ModelGranularity,
+  type AnalysisDetail as SharedAnalysisDetail,
+} from '../components/intelligence/sharedMetrics';
 import MetricsDashboard from '../components/intelligence/MetricsDashboard';
 import AIOverviewDashboard from '../components/intelligence/AIOverviewDashboard';
 import SchedulesDashboard from '../components/intelligence/SchedulesDashboard';
@@ -167,6 +172,11 @@ const IntelligenceHub: React.FC = () => {
   })();
   // Estado principal
   const [activeTab, setActiveTab] = useState<'list' | 'compare' | 'metrics' | 'sentiment' | 'topics' | 'citations' | 'gaps' | 'ai-overview' | 'downloads' | 'schedules'>(initialTab);
+  // Granularidad de modelo compartida por todas las pestañas: si cada una
+  // llevara la suya, Métricas podría agrupar por familia y Topics por versión
+  // sin que el usuario lo note. Por familia es el defecto porque es la única
+  // clave estable en el tiempo.
+  const [modelGranularity, setModelGranularity] = useState<ModelGranularity>('persona');
   const [scheduleErrorCount, setScheduleErrorCount] = useState<number>(0);
 
   useEffect(() => {
@@ -1408,6 +1418,20 @@ const IntelligenceHub: React.FC = () => {
                     </button>
                   </div>
 
+                  {(() => {
+                    const modelos = new Set(compareAnalyses.map(a => analysisModelKey(a as unknown as SharedAnalysisDetail, modelGranularity)));
+                    const fechas = new Set(compareAnalyses.map(a => new Date(a.timestamp).toLocaleDateString('es-ES')));
+                    if (modelos.size <= 1) return null;
+                    return (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        <strong>Estás comparando {modelos.size} modelos distintos</strong>
+                        {fechas.size === 1
+                          ? ` del mismo día (${[...fechas][0]}). La diferencia entre columnas es entre modelos, no evolución en el tiempo.`
+                          : '. Las columnas mezclan modelo y fecha, así que la diferencia no es solo evolución temporal.'}
+                      </div>
+                    );
+                  })()}
+
                   <div className="bg-white rounded-lg shadow overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50">
@@ -1418,6 +1442,9 @@ const IntelligenceHub: React.FC = () => {
                               {a.configuration.brand}
                               <div className="text-xs font-normal text-gray-500">
                                 {new Date(a.timestamp).toLocaleDateString('es-ES')}
+                              </div>
+                              <div className="text-xs font-normal text-gray-400">
+                                {analysisModelKey(a as unknown as SharedAnalysisDetail, modelGranularity)}
                               </div>
                             </th>
                           ))}
@@ -1453,12 +1480,24 @@ const IntelligenceHub: React.FC = () => {
                           ))}
                         </tr>
                         <tr className="bg-gray-50">
-                          <td className="px-4 py-3 font-medium">Menciones de Marca</td>
-                          {compareAnalyses.map(a => (
-                            <td key={a.id} className="px-4 py-3 font-semibold">
-                              {a.results.brandSummary.targetBrands.filter(b => b.mentioned).length}
-                            </td>
-                          ))}
+                          <td className="px-4 py-3 font-medium">Respuestas con mención</td>
+                          {compareAnalyses.map(a => {
+                            // Antes contaba entradas de `targetBrands` con mentioned=true,
+                            // que es 0 o 1 casi siempre: no eran menciones.
+                            const conMencion = (a.results.questions || []).filter(q =>
+                              (q.brandMentions || []).some(bm =>
+                                bm.mentioned &&
+                                bm.brand.toLowerCase().replace(/[\s\-_.]+/g, '') ===
+                                  a.configuration.brand.toLowerCase().replace(/[\s\-_.]+/g, '')
+                              )
+                            ).length;
+                            return (
+                              <td key={a.id} className="px-4 py-3 font-semibold">
+                                {conMencion}
+                                <span className="text-xs font-normal text-gray-400"> / {a.results.questions.length}</span>
+                              </td>
+                            );
+                          })}
                         </tr>
                       </tbody>
                     </table>
@@ -1506,35 +1545,35 @@ const IntelligenceHub: React.FC = () => {
           {/* TAB 5: MÉTRICAS */}
           {activeTab === 'metrics' && (
             <DashboardErrorBoundary tab="Métricas">
-              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandBlogPattern={brandBlogPattern} />
+              <MetricsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: SENTIMIENTO */}
           {activeTab === 'sentiment' && (
             <DashboardErrorBoundary tab="Sentimiento">
-              <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} />
+              <SentimentDashboard analyses={displayAnalyses} loading={trendsLoading} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: TOPICS */}
           {activeTab === 'topics' && (
             <DashboardErrorBoundary tab="Topics">
-              <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} />
+              <TopicsDashboard analyses={displayAnalyses} loading={trendsLoading} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: URLs / CITAS */}
           {activeTab === 'citations' && (
             <DashboardErrorBoundary tab="URLs / Citas">
-              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
+              <CitationsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
           {/* TAB: GAPS */}
           {activeTab === 'gaps' && (
             <DashboardErrorBoundary tab="GAPS">
-              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} />
+              <GapsDashboard analyses={displayAnalyses} loading={trendsLoading} brandDomain={brandDomain} brandAliases={brandAliases} brandBlogPattern={brandBlogPattern} modelGranularity={modelGranularity} onModelGranularityChange={setModelGranularity} />
             </DashboardErrorBoundary>
           )}
 
@@ -1548,6 +1587,7 @@ const IntelligenceHub: React.FC = () => {
           {activeTab === 'downloads' && (
             <DashboardErrorBoundary tab="Descargas">
               <DownloadsDashboard
+                modelGranularity={modelGranularity}
                 analyses={displayAnalyses}
                 loading={trendsLoading}
                 brandDomain={brandDomain}

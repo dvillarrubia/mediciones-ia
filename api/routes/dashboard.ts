@@ -3,6 +3,7 @@
  * Soporta multi-tenant: filtra por userId
  */
 import express, { Request, Response } from 'express';
+import { modelsUsedFromResult } from '../utils/modelsUsed.js';
 import { databaseService } from '../services/databaseService.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -43,6 +44,10 @@ interface DashboardMetrics {
       negative: number;
     };
   }>;
+  /** Nº de análisis del periodo que aporta cada modelo, para poder decir
+   *  sobre qué está calculado el Share of Voice. */
+  analysesByModel: Record<string, number>;
+
 }
 
 /**
@@ -171,9 +176,15 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
              analysisDate.getFullYear() === date.getFullYear();
     });
 
-    // Calcular confianza promedio real de los análisis del mes
-    const avgConfidence = monthAnalyses.length > 0
-      ? monthAnalyses.reduce((sum, a) => sum + (a.results?.overallConfidence || 0), 0) / monthAnalyses.length * 100
+    // Confianza del mes ponderada por nº de preguntas. Promediar los
+    // `overallConfidence` daba el mismo peso a un análisis de 12 preguntas que
+    // a uno de 103, y con una automatización por modelo el mes acumula un
+    // análisis por modelo.
+    const preguntasDelMes = monthAnalyses.reduce((n, a) => n + (a.questions?.length || 0), 0);
+    const avgConfidence = preguntasDelMes > 0
+      ? (monthAnalyses.reduce(
+          (sum, a) => sum + (a.results?.overallConfidence || 0) * (a.questions?.length || 0), 0,
+        ) / preguntasDelMes) * 100
       : 0;
 
     monthlyTrends.push({
@@ -183,13 +194,23 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
     });
   }
 
-  // Calcular Share of Voice por marca - Usar TODOS los análisis para visión global
-  // IMPORTANTE: Calculamos el sentimiento desde las preguntas individuales,
-  // no desde el brandSummary consolidado (que solo tiene un valor promedio)
+  // Share of Voice del PERIODO seleccionado.
+  //
+  // Antes usaba siempre todos los análisis del proyecto ignorando `period`, lo
+  // que además dejaba que un modelo pesara más solo por haber corrido más
+  // veces: con tres automatizaciones semanales, una semana con los tres
+  // modelos valía el triple que una con uno. Al acotar al periodo y contar
+  // menciones absolutas, el reparto es el de las respuestas realmente
+  // obtenidas en esa ventana.
+  //
+  // IMPORTANTE: el sentimiento sale de las preguntas individuales, no del
+  // brandSummary consolidado (que solo tiene un valor promedio).
   const brandMentions: { [key: string]: { count: number; positive: number; neutral: number; negative: number } } = {};
 
-  // Usar TODOS los análisis (no solo periodAnalyses) para tener visión completa del SOV
-  analyses.forEach(analysis => {
+  // Si el periodo no tiene datos todavía se cae a todos los análisis, para no
+  // enseñar un dashboard vacío el día 1 de mes.
+  const sovAnalyses = periodAnalyses.length > 0 ? periodAnalyses : analyses;
+  sovAnalyses.forEach(analysis => {
     // Procesar cada pregunta individualmente para obtener sentimientos precisos
     const questions = analysis.questions || [];
 
@@ -217,6 +238,20 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
         }
       });
     });
+  });
+
+  // Cuántos análisis aporta cada modelo al periodo: sin esto, el SoV de la
+  // portada no dice sobre cuántas respuestas de cada modelo está calculado.
+  const analysesByModel: Record<string, number> = {};
+  sovAnalyses.forEach(a => {
+    // Del resultado, no de `metadata.modelsUsed`: en los análisis anteriores al
+    // fix ese campo guarda los modelos SOLICITADOS, y un proyecto con tres
+    // automatizaciones separadas aparecía como un único
+    // "chatgpt + claude + gemini" en vez de tres modelos distintos.
+    const modelo = modelsUsedFromResult(a.results).join(' + ')
+      || (a.metadata?.modelsUsed || []).join(' + ')
+      || 'desconocido';
+    analysesByModel[modelo] = (analysesByModel[modelo] || 0) + 1;
   });
 
   const totalMentions = Object.values(brandMentions).reduce((sum, b) => sum + b.count, 0);
@@ -247,7 +282,8 @@ function calculateMetrics(savedAnalyses: any[], period: string): DashboardMetric
     topCategories,
     recentAnalyses,
     monthlyTrends,
-    shareOfVoice
+    shareOfVoice,
+    analysesByModel
   };
 }
 

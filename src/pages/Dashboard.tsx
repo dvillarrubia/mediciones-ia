@@ -61,6 +61,9 @@ interface DashboardMetrics {
       negative: number;
     };
   }>;
+  /** Nº de análisis del periodo por modelo. Dice sobre qué respuestas está
+   *  calculado el Share of Voice de arriba. */
+  analysesByModel?: Record<string, number>;
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -277,6 +280,30 @@ export default function Dashboard() {
 
         {/* Share of Voice */}
         <ShareOfVoiceChart data={metrics.shareOfVoice || []} />
+
+        {/* De qué modelos sale ese Share of Voice. Con una automatización por
+            modelo, el reparto se calcula sobre las respuestas de todos ellos y
+            conviene ver si alguno aporta muchas más que el resto. */}
+        {metrics.analysesByModel && Object.keys(metrics.analysesByModel).length > 1 && (
+          <div className="bg-white p-4 rounded-lg shadow-sm mb-8 -mt-4">
+            <p className="text-xs text-gray-500 mb-2">
+              Calculado sobre los análisis del periodo, repartidos así por modelo:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(metrics.analysesByModel)
+                .sort((a, b) => b[1] - a[1])
+                .map(([modelo, n]) => (
+                  <span
+                    key={modelo}
+                    className="inline-flex items-center gap-1.5 text-xs bg-gray-50 border rounded-full px-3 py-1 text-gray-700"
+                  >
+                    {modelo}
+                    <span className="text-gray-400">{n} {n === 1 ? 'análisis' : 'análisis'}</span>
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Gráficos */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">

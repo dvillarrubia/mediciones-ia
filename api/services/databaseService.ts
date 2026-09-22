@@ -4,6 +4,7 @@ import { AnalysisResult } from './openaiService.js';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { modelsUsedFromResult } from '../utils/modelsUsed.js';
 
 export interface BrandAlias {
   canonical: string;
@@ -272,10 +273,27 @@ class DatabaseService {
           }
         });
 
+        // Migración idempotente: modelo de IA con el que se ejecutó el análisis.
+        //
+        // Hasta ahora el modelo solo vivía dentro del JSON de `results`, así que
+        // agrupar por modelo obligaba a parsear 428 análisis en el cliente y no
+        // había forma de filtrar en SQL. La columna se rellena con el modelo
+        // REAL (derivado de results), no con el solicitado.
+        this.db!.run('ALTER TABLE analysis ADD COLUMN model TEXT', (err) => {
+          if (err && !err.message.includes('duplicate column')) {
+            console.error('Error añadiendo model:', err);
+            return;
+          }
+          // Backfill de las filas anteriores a la columna. Es idempotente:
+          // solo toca las que siguen a NULL.
+          this.backfillAnalysisModel();
+        });
+
         // Crear índices para optimización multi-tenant
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_project_id ON analysis(project_id)');
+        this.db!.run('CREATE INDEX IF NOT EXISTS idx_analysis_model ON analysis(model)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_user_id ON scheduled_reports(user_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_project_id ON scheduled_reports(project_id)');
         this.db!.run('CREATE INDEX IF NOT EXISTS idx_scheduled_reports_due ON scheduled_reports(enabled, next_run_at)', () => {
@@ -674,6 +692,57 @@ class DatabaseService {
 
   // ==================== MÉTODOS DE ANÁLISIS ====================
 
+  /**
+   * Rellena `analysis.model` en las filas que aún lo tienen a NULL.
+   *
+   * Se ejecuta al arrancar, después de crear la columna. Hay que parsear el
+   * JSON de resultados de cada fila, que en producción pesa ~820 KB de media,
+   * así que se hace por lotes y solo sobre las pendientes: en el segundo
+   * arranque no queda ninguna y la consulta sale en vacío.
+   */
+  private backfillAnalysisModel(): void {
+    if (!this.db) return;
+
+    this.db.all(
+      'SELECT id, results FROM analysis WHERE model IS NULL LIMIT 500',
+      (err, rows: Array<{ id: string; results: string }>) => {
+        if (err) {
+          // La columna puede no existir todavía en la primera pasada.
+          if (!err.message.includes('no such column')) {
+            console.error('Backfill de model:', err);
+          }
+          return;
+        }
+        if (!rows || rows.length === 0) return;
+
+        let pendientes = rows.length;
+        let rellenadas = 0;
+        rows.forEach(row => {
+          let modelo: string | null = null;
+          try {
+            modelo = modelsUsedFromResult(JSON.parse(row.results)).join(' + ') || null;
+          } catch {
+            modelo = null;
+          }
+          // Sin modelo derivable se marca como desconocido, para no volver a
+          // parsear esa fila en cada arranque.
+          this.db!.run(
+            'UPDATE analysis SET model = ? WHERE id = ?',
+            [modelo || 'desconocido', row.id],
+            () => {
+              rellenadas++;
+              if (--pendientes === 0) {
+                console.log(`Backfill de model: ${rellenadas} análisis actualizados`);
+                // Puede haber más de 500 pendientes: seguir hasta vaciar.
+                if (rows.length === 500) this.backfillAnalysisModel();
+              }
+            }
+          );
+        });
+      }
+    );
+  }
+
   async saveAnalysis(analysis: SavedAnalysis, userId?: string): Promise<void> {
     await this.ensureInitialized();
 
@@ -695,8 +764,8 @@ class DatabaseService {
       const query = `
         INSERT OR REPLACE INTO analysis (
           id, user_id, project_id, timestamp, brand, competitors, template_id, questions_count,
-          configuration, results, metadata
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          configuration, results, metadata, model
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const params = [
@@ -710,7 +779,10 @@ class DatabaseService {
         configuration.questionsCount,
         JSON.stringify(configuration),
         JSON.stringify(results),
-        metadata ? JSON.stringify(metadata) : null
+        metadata ? JSON.stringify(metadata) : null,
+        // Modelo real, el mismo criterio que `metadata.modelsUsed`. Varios
+        // modelos en una fila solo pasa en análisis históricos.
+        modelsUsedFromResult(results).join(' + ') || null
       ];
 
       this.db.run(query, params, function(err) {

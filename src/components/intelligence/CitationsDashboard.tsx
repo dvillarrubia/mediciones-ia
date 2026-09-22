@@ -8,9 +8,6 @@ import {
 import {
   AnalysisDetail,
   COLORS,
-  PERSONA_LABELS,
-  PERSONA_COLORS,
-  personasInQuestion,
   isRealDomain,
   isWebUrl,
   dateLabel,
@@ -23,8 +20,11 @@ import {
   BrandAlias,
   brandNameVariants,
   modelosDelRango,
+  analysisModelKey,
+  modelsInAnalysesBy,
+  type ModelGranularity,
 } from './sharedMetrics';
-import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange } from './dashboardFilters';
+import { DateRangeFilter, Pagination, paginate, filterAnalysesByDateRange, ModelGranularityToggle } from './dashboardFilters';
 import { exportSheetsToExcel, downloadFilename } from './dashboardExcelExport';
 
 const URL_PAGE_SIZE = 50;
@@ -35,12 +35,15 @@ interface Props {
   brandDomain?: string;
   brandBlogPattern?: string;
   brandAliases?: BrandAlias[];
+  /** Granularidad de modelo, compartida por todas las pestañas del hub. */
+  modelGranularity?: ModelGranularity;
+  onModelGranularityChange?: (g: ModelGranularity) => void;
 }
 
 interface UrlRank { url: string; domain: string; count: number; }
 interface DomainRank { domain: string; count: number; percentage: number; }
 
-const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern }) => {
+const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, brandAliases, brandBlogPattern, modelGranularity = 'persona', onModelGranularityChange }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | AppearanceType>('all');
   const [page, setPage] = useState(1);
@@ -92,23 +95,21 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
     let questionsWithCitation = 0;
 
     sorted.forEach(a => {
+      // El modelo es del análisis, no de la pregunta: cada ejecución corre con
+      // uno solo. Se usa la granularidad activa para que el reparto coincida
+      // con el resto de pestañas.
+      const modeloDelAnalisis = analysisModelKey(a, modelGranularity);
       (a.results?.questions || []).forEach(q => {
         questionsTotal++;
         const webSources = (q.sources || []).filter(s => isWebUrl(s.url));
         if (webSources.length > 0) questionsWithCitation++;
-        const personas = personasInQuestion(q);
 
         webSources.forEach(s => {
           totalCitations++;
           if (!urlAcc[s.url]) urlAcc[s.url] = { domain: s.domain || '', count: 0 };
           urlAcc[s.url].count++;
           if (isRealDomain(s.domain)) domainAcc[s.domain] = (domainAcc[s.domain] || 0) + 1;
-
-          if (personas.length > 0) {
-            personas.forEach(p => { byModel[p] = (byModel[p] || 0) + 1; });
-          } else {
-            byModel['otros'] = (byModel['otros'] || 0) + 1;
-          }
+          byModel[modeloDelAnalisis] = (byModel[modeloDelAnalisis] || 0) + 1;
         });
       });
     });
@@ -124,8 +125,11 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
       .sort((a, b) => b.count - a.count)
       .slice(0, 12);
 
+    const coloresModelo = Object.fromEntries(
+      modelsInAnalysesBy(sorted, modelGranularity).map(m => [m.key, m.color])
+    );
     const modelPie = Object.entries(byModel)
-      .map(([k, v]) => ({ name: PERSONA_LABELS[k] || (k === 'otros' ? 'Otros' : k), value: v, color: PERSONA_COLORS[k] }))
+      .map(([k, v]) => ({ name: k, value: v, color: coloresModelo[k] || '#888' }))
       .sort((a, b) => b.value - a.value);
 
     const overTime = sorted.map(a => {
@@ -140,7 +144,7 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
     const uniqueDomains = Object.keys(domainAcc).length;
 
     return { topUrls, topDomains, modelPie, overTime, totalCitations, citationRate, uniqueDomains, multiple: sorted.length > 1 };
-  }, [scoped]);
+  }, [scoped, modelGranularity]);
 
   useEffect(() => { setPage(1); }, [search, dateFrom, dateTo]);
 
@@ -208,6 +212,13 @@ const CitationsDashboard: React.FC<Props> = ({ analyses, loading, brandDomain, b
         count={scoped.length}
         total={analyses?.length}
       />
+      {onModelGranularityChange && (
+        <ModelGranularityToggle
+          value={modelGranularity}
+          onChange={onModelGranularityChange}
+          analyses={scoped}
+        />
+      )}
       <button
         onClick={handleExport}
         disabled={!data}
