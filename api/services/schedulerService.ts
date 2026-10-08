@@ -137,8 +137,10 @@ class SchedulerService {
     }
 
     const apiKeys = await authService.getApiKeys(schedule.userId);
-    if (!apiKeys.openai && !apiKeys.openrouter) {
-      throw new Error('El usuario no tiene API Keys de LLM configuradas (OpenAI u OpenRouter)');
+    // Todos los modelos van vía OpenRouter (ago 2026): la key de OpenAI se ignora,
+    // así que dejar pasar solo con ella hacía fallar cada pregunta una a una.
+    if (!apiKeys.openrouter) {
+      throw new Error('El usuario no tiene API Key de OpenRouter configurada. Añádela en Configuración → API Keys (la de OpenAI ya no se usa).');
     }
 
     const config = await configService.getConfiguration('custom', schedule.configurationId, schedule.userId);
@@ -371,16 +373,21 @@ export function humanizeSchedulerError(raw: string, _scheduleType: 'llm' | 'aio'
     return `API Key de ${providerLabel} inválida o expirada. Actualízala en Configuración → API Keys.`;
   }
 
+  // Sin API keys configuradas. Va antes que el caso de DataForSEO: "no tiene
+  // credenciales de DataForSEO" se traducía como "credenciales incorrectas".
+  if (
+    lower.includes('no tiene api key') ||
+    lower.includes('no tiene credenciales') ||
+    lower.includes('no hay api key')
+  ) {
+    return msg; // ya es amigable
+  }
+
   // DataForSEO credenciales
   if (lower.includes('dataforseo')) {
     if (lower.includes('credenciales') || lower.includes('credentials') || lower.includes('authentication')) {
       return 'Credenciales de DataForSEO incorrectas. Revisa login/password en Configuración → API Keys.';
     }
-  }
-
-  // Sin API keys configuradas
-  if (lower.includes('no tiene api keys') || lower.includes('no tiene credenciales')) {
-    return msg; // ya es amigable
   }
 
   // Sin resultados (caso especial lanzado por el scheduler)

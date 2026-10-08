@@ -101,6 +101,12 @@ const Configuration: React.FC = () => {
     openrouter: '',
     dataforseo: ''
   });
+  // Qué proveedores tienen clave guardada en el servidor (las claves nunca vuelven en claro)
+  const [apiKeysStatus, setApiKeysStatus] = useState({
+    openai: false,
+    openrouter: false,
+    dataforseo: false
+  });
   const [showApiKeys, setShowApiKeys] = useState({
     openai: false,
     openrouter: false,
@@ -141,6 +147,23 @@ const Configuration: React.FC = () => {
     // Limpieza de la entrada heredada, para que no quede ninguna clave suelta en
     // el navegador de nadie.
     localStorage.removeItem('userApiKeys');
+    refreshApiKeysStatus();
+  };
+
+  const refreshApiKeysStatus = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/auth/api-keys`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const status = data.apiKeys || {};
+      setApiKeysStatus({
+        openai: !!status.openai,
+        openrouter: !!status.openrouter,
+        dataforseo: !!status.dataforseo
+      });
+    } catch {
+      // Sin estado del servidor las etiquetas se quedan como estaban
+    }
   };
 
   const alternarLista = (id: string) => {
@@ -216,42 +239,58 @@ const Configuration: React.FC = () => {
         openrouter: apiKeys.openrouter.trim(),
         dataforseo: apiKeys.dataforseo.trim()
       };
-      setApiKeys(trimmedKeys);
 
       // Único destino: el servidor, cifradas y por usuario. Antes se guardaba
       // además una copia en localStorage que acababa filtrándose entre sesiones.
       // Nota: anthropic/google ya no se gestionan aquí; las keys antiguas
       // guardadas en servidor se dejan intactas (sin uso).
-      const providers = ['openai', 'openrouter', 'dataforseo'] as const;
+      //
+      // Solo se envía lo escrito: un campo vacío NO borra la clave guardada.
+      // Los campos empiezan siempre vacíos (las claves no vuelven del servidor),
+      // así que borrar en vacío eliminaba en silencio las demás claves cada vez
+      // que alguien guardaba una sola. Para borrar está "Eliminar todas".
+      const providers = (['openai', 'openrouter', 'dataforseo'] as const).filter(p => trimmedKeys[p]);
+      if (providers.length === 0) {
+        setError('Escribe al menos una API Key antes de guardar');
+        return;
+      }
+
+      const saved: string[] = [];
       const serverErrors: string[] = [];
       for (const provider of providers) {
-        const apiKey = trimmedKeys[provider];
         try {
-          if (apiKey) {
-            const res = await apiFetch(`${API_BASE_URL}/api/auth/api-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ provider, apiKey }),
-            });
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              serverErrors.push(`${provider}: ${data.error || res.status}`);
-            }
+          const res = await apiFetch(`${API_BASE_URL}/api/auth/api-keys`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, apiKey: trimmedKeys[provider] }),
+          });
+          if (res.ok) {
+            saved.push(provider);
           } else {
-            // Vacío: eliminar del servidor si existía
-            await apiFetch(`${API_BASE_URL}/api/auth/api-keys/${provider}`, {
-              method: 'DELETE',
-            });
+            const data = await res.json().catch(() => ({}));
+            serverErrors.push(`${provider}: ${data.error || res.status}`);
           }
         } catch (err: any) {
           serverErrors.push(`${provider}: ${err?.message || 'error de red'}`);
         }
       }
 
+      // Vaciar los campos guardados; los que fallaron se quedan para corregirlos
+      setApiKeys(prev => {
+        const next = { ...prev };
+        for (const p of providers) {
+          // Si se tecleó algo nuevo mientras se guardaba, no pisarlo
+          if (saved.includes(p) && prev[p].trim() === trimmedKeys[p]) next[p] = '';
+        }
+        return next;
+      });
+      await refreshApiKeysStatus();
+
       if (serverErrors.length > 0) {
-        setError(`No se pudieron guardar en el servidor: ${serverErrors.join(', ')}`);
+        const okMsg = saved.length > 0 ? `Guardadas: ${saved.join(', ')}. ` : '';
+        setError(`${okMsg}No se pudieron guardar en el servidor: ${serverErrors.join(', ')}`);
       } else {
-        setSuccess('API Keys guardadas correctamente');
+        setSuccess(`API Keys guardadas: ${saved.join(', ')}`);
       }
     } catch (e) {
       setError('Error al guardar las API Keys');
@@ -270,6 +309,7 @@ const Configuration: React.FC = () => {
           apiFetch(`${API_BASE_URL}/api/auth/api-keys/${p}`, { method: 'DELETE' }).catch(() => null)
         )
       );
+      await refreshApiKeysStatus();
 
       setSuccess('API Keys eliminadas');
     }
@@ -1193,8 +1233,8 @@ const Configuration: React.FC = () => {
                       <p className="text-sm text-gray-500">Para usar GPT-4 en análisis</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.openai ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {apiKeys.openai ? 'Configurada' : 'No configurada'}
+                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeysStatus.openai ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {apiKeysStatus.openai ? 'Configurada' : 'No configurada'}
                   </span>
                 </div>
                 <div className="relative">
@@ -1228,8 +1268,8 @@ const Configuration: React.FC = () => {
                       <p className="text-sm text-gray-500">Una sola key para ChatGPT, Claude, Gemini y Perplexity (con búsqueda)</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.openrouter ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {apiKeys.openrouter ? 'Configurada' : 'No configurada'}
+                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeysStatus.openrouter ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {apiKeysStatus.openrouter ? 'Configurada' : 'No configurada'}
                   </span>
                 </div>
                 <div className="relative">
@@ -1264,8 +1304,8 @@ const Configuration: React.FC = () => {
                       <p className="text-sm text-gray-500">Para análisis AI Overview (Share of Voice)</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeys.dataforseo ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {apiKeys.dataforseo ? 'Configurada' : 'No configurada'}
+                  <span className={`px-2 py-1 rounded-full text-xs ${apiKeysStatus.dataforseo ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {apiKeysStatus.dataforseo ? 'Configurada' : 'No configurada'}
                   </span>
                 </div>
                 <div className="relative">
