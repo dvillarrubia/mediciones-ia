@@ -215,8 +215,16 @@ class OpenAIService {
   // precio nominal tres veces menor.
   private readonly ANALYSIS_MODEL = "openai/gpt-4o-mini";
   private readonly DEFAULT_MODEL = "openai/gpt-5-mini:online"; // Modelo con búsqueda web por defecto
+  // Equivalentes para OpenAI directo: mismo modelo de fase 2 (gpt-4o-mini) para
+  // que los informes sean comparables con los de OpenRouter.
+  private readonly OPENAI_DIRECT_GENERATION_MODEL = "gpt-5-mini";
+  private readonly OPENAI_DIRECT_ANALYSIS_MODEL = "gpt-4o-mini";
+  // Timeout de la llamada real a OpenAI directo (dentro del thunk, no cuenta la cola).
+  private readonly OPENAI_TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS) || 300000; // 5 min
 
-  // OpenRouter usa el SDK de OpenAI apuntando a su baseURL (API-compatible)
+  // OpenAI directo (Responses API con web_search) y OpenRouter (SDK de OpenAI
+  // apuntando a su baseURL). Cada análisis usa el del modelo seleccionado.
+  private openaiClient: OpenAI | null = null;
   private openrouterClient: OpenAI | null = null;
 
   constructor(userApiKeys?: { openai?: string; anthropic?: string; google?: string; openrouter?: string }) {
@@ -224,12 +232,14 @@ class OpenAIService {
 
     console.log('🔧 AIService constructor - Inicializando proveedores:');
 
-    // Proveedores directos eliminados (ago 2026): OpenAI, Anthropic y Google se
-    // usan TODOS vía OpenRouter. Una sola integración que mantener y una sola key.
-    // El constructor sigue aceptando esas keys en el tipo por compatibilidad con
-    // llamantes antiguos, pero se ignoran.
-    if (userApiKeys?.openai) {
-      console.log('ℹ️ Key de OpenAI recibida pero ignorada: la integración directa se eliminó (usa OpenRouter).');
+    // OpenAI directo - SOLO key del usuario (sin fallback a process.env).
+    // Anthropic y Google nativos siguen eliminados: van vía OpenRouter.
+    const openaiKey = userApiKeys?.openai;
+    if (openaiKey) {
+      this.openaiClient = new OpenAI({ apiKey: openaiKey });
+      console.log('✅ OpenAI client initialized con key del usuario');
+    } else {
+      console.log('ℹ️ No hay API key de OpenAI del usuario');
     }
 
     // OpenRouter - SDK de OpenAI apuntando a su baseURL (una key, todos los modelos)
@@ -249,7 +259,7 @@ class OpenAIService {
     }
 
     console.log(`⚙️ Configuración: Concurrencia=${this.CONCURRENT_REQUESTS}, Cache=${this.ENABLE_CACHE}`);
-    console.log(`🤖 Modelo de análisis (fase 2): ${this.ANALYSIS_MODEL} (siempre OpenAI)`);
+    console.log(`🤖 Modelo de análisis (fase 2): ${this.ANALYSIS_MODEL} / ${this.OPENAI_DIRECT_ANALYSIS_MODEL} (OpenRouter / OpenAI directo)`);
   }
 
   /**
@@ -535,11 +545,15 @@ class OpenAIService {
         console.log(`🔀 Modelo OpenRouter seleccionado: ${selectedModel}`);
         return selectedModel;
       }
+      if (modelInfo?.provider === 'openai') {
+        console.log(`🟢 Modelo OpenAI directo seleccionado: ${selectedModel}`);
+        return selectedModel;
+      }
 
-      // Modelo de un proveedor directo (todos deprecados). No se puede
-      // sustituir en silencio: cambiaría el modelo que el informe dice medir.
+      // Modelo deprecado (p.ej. gpt-4o-search-preview) o de un proveedor nativo
+      // eliminado. Se avisa en el log: cambia el modelo que el informe dice medir.
       console.warn(
-        `⚠️ El modelo "${selectedModel}" pertenece a un proveedor directo ya no soportado. ` +
+        `⚠️ El modelo "${selectedModel}" ya no está soportado. ` +
         `Usando el defecto de OpenRouter: ${this.DEFAULT_MODEL}. ` +
         `Actualiza el modelo del proyecto para que el informe refleje el modelo real.`
       );
@@ -553,15 +567,23 @@ class OpenAIService {
 
   /**
    * Cliente y modelo para la FASE 2 (extracción de menciones, JSON barato).
-   * Prefiere OpenAI directo (gpt-4o-mini); si el usuario solo tiene OpenRouter,
-   * usa gpt-4o-mini a través de OpenRouter. Así un usuario solo-OpenRouter
-   * puede completar el análisis sin key directa de OpenAI.
+   * Va por el MISMO proveedor que la fase 1 cuando se conoce el modelo de
+   * generación: un modelo OpenAI directo usa la key de OpenAI, uno de OpenRouter
+   * la de OpenRouter. Sin modelo, el que esté configurado (OpenRouter primero).
+   * En ambos casos el modelo es gpt-4o-mini, así los informes son comparables.
    */
-  private getAnalysisClientAndModel(): { client: OpenAI; model: string; queue: 'openai' | 'openrouter' } {
+  private getAnalysisClientAndModel(generationModelId?: string): { client: OpenAI; model: string; queue: 'openai' | 'openrouter' } {
+    const generationProvider = generationModelId ? getModelById(generationModelId)?.provider : undefined;
+    if (generationProvider === 'openai' && this.openaiClient) {
+      return { client: this.openaiClient, model: this.OPENAI_DIRECT_ANALYSIS_MODEL, queue: 'openai' };
+    }
     if (this.openrouterClient) {
       return { client: this.openrouterClient, model: this.ANALYSIS_MODEL, queue: 'openrouter' };
     }
-    throw new Error('No hay cliente para la fase de análisis de menciones. Configura tu API key de OpenRouter.');
+    if (this.openaiClient) {
+      return { client: this.openaiClient, model: this.OPENAI_DIRECT_ANALYSIS_MODEL, queue: 'openai' };
+    }
+    throw new Error('No hay cliente para la fase de análisis de menciones. Configura tu API key de OpenAI u OpenRouter.');
   }
 
   /**
@@ -581,12 +603,31 @@ class OpenAIService {
     generationModel: string;
     analysisModel: string;
   } {
-    // OpenRouter es el único proveedor: la MISMA key para las dos llamadas.
+    const selected = configuration?.selectedModel;
+    const selectedInfo = selected ? getModelById(selected) : null;
+
+    // OpenAI directo: lo decide el MODELO seleccionado, no la mera presencia de
+    // la key (antes tener key de OpenAI forzaba OpenAI ignorando la selección).
+    // También se usa si no hay selección y el usuario solo tiene key de OpenAI.
+    const useOpenAIDirect = selectedInfo?.provider === 'openai'
+      || (!selectedInfo && !this.openrouterClient && !!this.openaiClient);
+    if (useOpenAIDirect) {
+      if (!this.openaiClient) {
+        throw new Error(`El modelo "${selected}" requiere tu API key de OpenAI. Configúrala en Configuración > API Keys.`);
+      }
+      return {
+        provider: 'openai',
+        client: this.openaiClient,
+        queue: 'openai',
+        generationModel: selectedInfo?.provider === 'openai' ? selected : this.OPENAI_DIRECT_GENERATION_MODEL,
+        analysisModel: this.OPENAI_DIRECT_ANALYSIS_MODEL,
+      };
+    }
+
+    // OpenRouter: la MISMA key para las dos llamadas.
     if (this.openrouterClient) {
       // Fase 1: si el usuario seleccionó un modelo OpenRouter en el proyecto, se
       // respeta; si no, default económico con búsqueda web (sufijo ':online').
-      const selected = configuration?.selectedModel;
-      const selectedInfo = selected ? getModelById(selected) : null;
       const generationModel = selectedInfo?.provider === 'openrouter'
         ? selected
         : (configuration?.openrouterGenerationModel || this.GENERATION_MODEL);
@@ -733,17 +774,74 @@ class OpenAIService {
    * Genera contenido con OpenAI usando búsqueda web
    * Devuelve contenido Y fuentes web (thread-safe para ejecución paralela)
    */
-  private async generateWithOpenAI(_question: string, modelId: string, _configuration?: any): Promise<{ content: string; webSources: WebSearchSource[] }> {
-    // Ruta eliminada (ago 2026). Los únicos modelos de OpenAI con búsqueda web en
-    // chat/completions (gpt-4o-search-preview, gpt-4o-mini-search-preview) fueron
-    // deprecados y devuelven 404. El parámetro `web_search_options` era exclusivo
-    // de ellos, así que no se puede sustituir el id y seguir: OpenAI movió la
-    // búsqueda web a la Responses API. Todo pasa ahora por OpenRouter.
-    throw new Error(
-      `El modelo "${modelId}" usa la integración directa de OpenAI, que ya no está soportada ` +
-      `(los modelos *-search-preview fueron deprecados por OpenAI). ` +
-      `Selecciona un modelo de OpenRouter, por ejemplo openai/gpt-5-mini:online.`
-    );
+  private async generateWithOpenAI(question: string, modelId: string, configuration?: any, systemPromptOverride?: string): Promise<{ content: string; webSources: WebSearchSource[] }> {
+    if (!this.openaiClient) {
+      throw new Error('No hay API key de OpenAI configurada. Añade tu API key de OpenAI para usar este modelo.');
+    }
+
+    // La búsqueda web de OpenAI está en la Responses API (herramienta
+    // `web_search`), no en chat/completions: el antiguo `web_search_options`
+    // solo existía para los *-search-preview, ya deprecados.
+    const countryName = configuration?.countryName || 'España';
+    const now = new Date();
+    const systemPrompt = systemPromptOverride || `País: ${countryName}. Fecha y hora actual: ${now.toLocaleString('es-ES', {
+      timeZone: configuration?.timezone || 'Europe/Madrid',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    })}.`;
+
+    const webSearchTool: any = { type: 'web_search' };
+    if (configuration?.countryCode) {
+      // Localiza los resultados de búsqueda en el país del análisis.
+      webSearchTool.user_location = { type: 'approximate', country: String(configuration.countryCode).toUpperCase() };
+    }
+
+    const requestBody: any = {
+      model: modelId,
+      instructions: systemPrompt,
+      input: question,
+      tools: [webSearchTool],
+    };
+    // Modelos de razonamiento (gpt-5*, o*): esfuerzo bajo por coste, como en
+    // OpenRouter. 'minimal' no es válido aquí: OpenAI no admite web_search con
+    // razonamiento 'minimal'. Los modelos sin razonamiento rechazan el parámetro.
+    if (/^(gpt-5|o\d)/i.test(modelId)) {
+      requestBody.reasoning = { effort: 'low' };
+    }
+
+    console.log(`🌐 [OpenAI] Generando con modelo: ${modelId} (Responses API + web_search)`);
+
+    // El timeout va DENTRO del thunk encolado: mide solo la llamada real a
+    // OpenAI una vez despachada, no la espera en cola (en runs programados con
+    // bypassCache se encolan cientos de preguntas).
+    const response = await providerQueues.openai.enqueue(
+      () => Promise.race([
+        this.openaiClient!.responses.create(requestBody),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout: OpenAI tardó más de ${Math.round(this.OPENAI_TIMEOUT_MS / 1000)} segundos`)), this.OPENAI_TIMEOUT_MS)
+        )
+      ]),
+      `generateWithOpenAI:${modelId}`
+    ) as any;
+
+    const content: string = response.output_text || '';
+    if (!content) {
+      throw new Error('OpenAI devolvió una respuesta vacía');
+    }
+
+    // Las citas vienen como annotations url_citation en cada bloque output_text
+    // de los items 'message'. Se aplanan para reutilizar extractWebSources.
+    const annotations: any[] = [];
+    for (const item of response.output || []) {
+      if (item?.type !== 'message') continue;
+      for (const part of item.content || []) {
+        if (Array.isArray(part?.annotations)) annotations.push(...part.annotations);
+      }
+    }
+    const webSources = this.extractWebSources({ annotations });
+    console.log(`📚 [OpenAI] Fuentes web extraídas: ${webSources.length}`);
+
+    return { content, webSources };
   }
 
   /**
@@ -1059,7 +1157,7 @@ Menciona empresas, marcas y servicios que operen en ese territorio.`;
 
         const analysisPrompt = this.buildGenerativeAnalysisPrompt(questionData.question, generatedContent, configuration);
 
-        const analysis2 = this.getAnalysisClientAndModel();
+        const analysis2 = this.getAnalysisClientAndModel(generationModel);
         // El timeout va DENTRO del thunk encolado: así los 60s miden solo la
         // llamada real al proveedor, no la espera en cola.
         //
@@ -2657,9 +2755,9 @@ private async analyzeQuestionWithMultipleModels(questionData: any, configuration
 private validateApiKeyForModel(modelPersona: AIModelPersona): { valid: boolean; error?: string } {
   switch (modelPersona) {
     case 'chatgpt':
-      // La persona "chatgpt" corre por OpenRouter (integración directa eliminada).
-      if (!this.openrouterClient) {
-        return { valid: false, error: 'No hay API key de OpenRouter configurada.' };
+      // La persona "chatgpt" corre por OpenAI directo o por OpenRouter.
+      if (!this.openrouterClient && !this.openaiClient) {
+        return { valid: false, error: 'No hay API key de OpenAI ni de OpenRouter configurada.' };
       }
       return { valid: true };
 
@@ -2721,13 +2819,18 @@ Responde de forma completa y útil (200-400 palabras), enfocándote en ${country
 
   console.log(`🔍 [${modelPersona}] Llamada 1: Búsqueda web (pregunta limpia, país: ${countryName})...`);
 
-  // Fase 1 vía OpenRouter (mismo proveedor que la fase 2). Reutiliza el helper
-  // que ya gestiona el plugin web / sufijo ':online' y la extracción de fuentes.
-  // La antigua rama de OpenAI directo se eliminó: dependía de `web_search_options`,
-  // exclusivo de los modelos *-search-preview ya deprecados.
-  console.log(`🔀 [${modelPersona}] Fase 1 vía OpenRouter con modelo: ${providerCfg!.generationModel}`);
-  {
-    const orResult = await this.generateWithOpenRouter(cleanPrompt, providerCfg!.generationModel, configuration);
+  // Fase 1 por el mismo proveedor que la fase 2. Los helpers gestionan la
+  // búsqueda web (Responses API en OpenAI; plugin web / ':online' en OpenRouter)
+  // y la extracción de fuentes.
+  if (providerCfg.provider === 'openai') {
+    console.log(`🟢 [${modelPersona}] Fase 1 vía OpenAI directo con modelo: ${providerCfg.generationModel}`);
+    const systemPrompt = `Responde siempre en ${countryLanguage}. Contexto geográfico: ${countryName}.`;
+    const oaResult = await this.generateWithOpenAI(cleanPrompt, providerCfg.generationModel, configuration, systemPrompt);
+    naturalResponse = oaResult.content;
+    webSources = oaResult.webSources;
+  } else {
+    console.log(`🔀 [${modelPersona}] Fase 1 vía OpenRouter con modelo: ${providerCfg.generationModel}`);
+    const orResult = await this.generateWithOpenRouter(cleanPrompt, providerCfg.generationModel, configuration);
     naturalResponse = orResult.content;
     webSources = orResult.webSources;
   }

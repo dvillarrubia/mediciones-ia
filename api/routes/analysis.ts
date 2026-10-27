@@ -125,7 +125,7 @@ router.post('/execute-async', async (req: Request, res: Response) => {
     const apiKeysToUse = await resolveUserApiKeys(req.userId);
 
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
-      return res.status(400).json({ error: 'API Key de OpenRouter requerida', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
+      return res.status(400).json({ error: 'API Key requerida', code: 'API_KEYS_REQUIRED', message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.' });
     }
 
     const modelInfo = getModelById(selectedModel || DEFAULT_MODEL);
@@ -339,8 +339,8 @@ router.post('/execute', async (req: Request, res: Response) => {
     // VALIDACIÓN OBLIGATORIA: El usuario DEBE tener API keys configuradas
     if (!apiKeysToUse || (!apiKeysToUse.openai && !apiKeysToUse.openrouter)) {
       return res.status(400).json({
-        error: 'API Key de OpenRouter requerida',
-        message: 'Debes configurar tu API Key de OpenRouter en Configuración > API Keys antes de ejecutar análisis.',
+        error: 'API Key requerida',
+        message: 'Debes configurar tu API Key de OpenAI o de OpenRouter en Configuración > API Keys antes de ejecutar análisis.',
         code: 'API_KEYS_REQUIRED'
       });
     }

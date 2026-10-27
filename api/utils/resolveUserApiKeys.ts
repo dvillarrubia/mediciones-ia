@@ -50,4 +50,4 @@ export async function resolveUserApiKeys(userId: string | undefined): Promise<Us
 }
 
 /** ¿Hay alguna clave con la que ejecutar un análisis LLM? */
-export const hasLlmKey = (keys: UserApiKeys): boolean => !!keys.openrouter;
+export const hasLlmKey = (keys: UserApiKeys): boolean => !!keys.openrouter || !!keys.openai;

@@ -26,18 +26,38 @@ export interface AIModelInfo {
 
 export const AI_MODELS: AIModelInfo[] = [
   // =====================================================
-  // SIN PROVEEDORES DIRECTOS (ago 2026)
+  // OPENAI DIRECTO (Responses API + herramienta web_search)
   // =====================================================
-  // Los modelos de OpenAI con búsqueda web (gpt-4o-search-preview y
-  // gpt-4o-mini-search-preview) fueron DEPRECADOS por OpenAI y devuelven 404.
-  // No hay reemplazo directo: `web_search_options` era un parámetro exclusivo
-  // de esos modelos en chat/completions, y OpenAI movió la búsqueda web a la
-  // Responses API. En vez de mantener dos integraciones, TODO pasa ahora por
-  // OpenRouter (ver OPENROUTER_MODELS), que además sale entre 3× y 6× más
-  // barato por el coste de búsqueda ($0.005-$0.014 vs. $0.030 de OpenAI).
+  // Los antiguos gpt-4o-search-preview / gpt-4o-mini-search-preview (búsqueda
+  // en chat/completions con `web_search_options`) fueron DEPRECADOS y devuelven
+  // 404. La búsqueda web de OpenAI vive ahora en la Responses API como
+  // herramienta `web_search`: es la ruta que usa generateWithOpenAI.
   //
-  // Esta lista se deja vacía a propósito: el tipo y los consumidores siguen
-  // funcionando, y si algún día vuelve a haber un proveedor directo se añade aquí.
+  // Los ids NO llevan '/': así getModelById no los confunde con un slug de
+  // OpenRouter. El equivalente vía OpenRouter es openai/gpt-5-mini:online.
+  {
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini + Search (OpenAI directo) 💰',
+    provider: 'openai',
+    description: 'GPT económico con búsqueda web, llamando directamente a la API de OpenAI con tu key de OpenAI.',
+    strengths: ['🌐 Búsqueda web', '💰 Económico', '📚 Citaciones', '🔑 Key de OpenAI'],
+    contextWindow: '400K tokens',
+    pricing: '$0.25/M in · $2/M out · $0.01/búsqueda',
+    recommended: true,
+    requiresApiKey: 'OPENAI_API_KEY',
+    supportsWebSearch: true,
+  },
+  {
+    id: 'gpt-4.1-mini',
+    name: 'GPT-4.1 Mini + Search (OpenAI directo)',
+    provider: 'openai',
+    description: 'GPT sin razonamiento con búsqueda web, vía API directa de OpenAI. Respuestas rápidas.',
+    strengths: ['🌐 Búsqueda web', '⚡ Rápido', '📚 Citaciones', '🔑 Key de OpenAI'],
+    contextWindow: '1M tokens',
+    pricing: '$0.40/M in · $1.60/M out · $0.025/búsqueda',
+    requiresApiKey: 'OPENAI_API_KEY',
+    supportsWebSearch: true,
+  },
 ] as const;
 
 // ==========================================

@@ -13,5 +13,6 @@
     "forceConsistentCasingInFileNames": false,
     "types": ["node"]
   },
-  "include": ["api"]
+  "include": ["api"],
+  "exclude": ["api/**/*.test.ts"]
 }
