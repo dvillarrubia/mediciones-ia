@@ -1307,7 +1307,9 @@ MARCAS A BUSCAR:
 
 INSTRUCCIONES:
 1. Analiza ÚNICAMENTE el contenido generado por IA arriba
-2. Identifica si alguna de las marcas objetivo o competidores es mencionada
+2. Identifica TODAS las marcas, empresas, organizaciones, productos o servicios con nombre propio que se mencionan, estén o no en la lista de arriba. Incluye una entrada por cada una en "brandMentions"
+   - Si una marca objetivo o un competidor aparece con otro nombre, abreviatura o variante (p.ej. sin el texto entre paréntesis, o por su dominio), usa en "brand" el nombre EXACTO de la lista
+   - Para el resto, usa el nombre tal como aparece en el texto, sin añadirle aclaraciones entre paréntesis
 3. Evalúa el contexto y sentimiento de cada mención
 4. Determina la frecuencia y relevancia de cada mención
 5. Proporciona evidencia textual específica de las menciones

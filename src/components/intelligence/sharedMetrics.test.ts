@@ -20,6 +20,7 @@ import {
   QuestionAnalysis,
   analysisModelKey,
   buildGapsMatrix,
+  buildAliasMap,
   buildModelVisibility,
   buildPositionDistribution,
   buildTopicMetrics,
@@ -28,6 +29,7 @@ import {
   normalizeModelName,
   poolRatios,
   poolWeightedMean,
+  resolveBrandName,
 } from './sharedMetrics';
 
 // === Fixtures ===
@@ -337,5 +339,27 @@ describe('buildModelVisibility', () => {
     })];
     const [fila] = buildModelVisibility(conAlias, 'Marca', 'persona');
     expect(fila.avgPosition).toBe(1);
+  });
+});
+
+// La extracción devolvía «MIDE (Mide360)» o «MIDE 360 (Mide y Vencerás)» y el
+// glosario solo casaba el nombre exacto: menciones reales contadas como ausencia.
+describe('resolveBrandName', () => {
+  const mapa = buildAliasMap([{ canonical: 'MIDE (Mide y Vencerás)', variants: ['MIDE', 'MIDE 360', 'Mide y Vencerás'] }]);
+
+  it('resuelve el nombre exacto y sus variantes normalizadas', () => {
+    expect(resolveBrandName('MIDE', mapa)).toBe('MIDE (Mide y Vencerás)');
+    expect(resolveBrandName('Mide360', mapa)).toBe('MIDE (Mide y Vencerás)');
+  });
+
+  it('resuelve nombres compuestos por su nombre principal', () => {
+    expect(resolveBrandName('MIDE (Mide360)', mapa)).toBe('MIDE (Mide y Vencerás)');
+    expect(resolveBrandName('MIDE 360 (Mide y Vencerás)', mapa)).toBe('MIDE (Mide y Vencerás)');
+    expect(resolveBrandName('Mide y Vencerás – Pack GTM', mapa)).toBe('MIDE (Mide y Vencerás)');
+  });
+
+  it('no atribuye la marca por lo que va entre paréntesis', () => {
+    expect(resolveBrandName('Escuela Marketing and Web (Mide y Vencerás)', mapa)).toBe('Escuela Marketing and Web (Mide y Vencerás)');
+    expect(resolveBrandName('IEBS', mapa)).toBe('IEBS');
   });
 });

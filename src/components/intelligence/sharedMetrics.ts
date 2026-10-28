@@ -163,10 +163,24 @@ export function buildAliasMap(aliases: BrandAlias[] | undefined): Map<string, st
   return map;
 }
 
-/** Resuelve un nombre de marca a su forma canónica si está en el glosario; si no, lo deja igual. */
+/**
+ * Resuelve un nombre de marca a su forma canónica si está en el glosario; si no, lo deja igual.
+ *
+ * El modelo de extracción a veces devuelve nombres compuestos («Marca (marca.com)»,
+ * «Marca 360 (Nombre largo)», «Marca – Producto»). Si el nombre entero no está en
+ * el glosario, se prueba con el nombre principal: lo que va antes del primer
+ * paréntesis o separador. Solo ese: en «Otra empresa (Marca)» la marca es Otra
+ * empresa, y atribuirla por el paréntesis inflaría las menciones.
+ */
 export function resolveBrandName(name: string, aliasMap: Map<string, string>): string {
   if (!name) return name;
-  return aliasMap.get(aliasKey(name)) || name;
+  const exact = aliasMap.get(aliasKey(name));
+  if (exact) return exact;
+  const lead = name.split(/\s*(?:[(\[/|–—]|\s-\s)/)[0];
+  if (lead && lead !== name && aliasKey(lead)) {
+    return aliasMap.get(aliasKey(lead)) || name;
+  }
+  return name;
 }
 
 /**
