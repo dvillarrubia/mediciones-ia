@@ -52,6 +52,7 @@ import GapsDashboard from '../components/intelligence/GapsDashboard';
 import DashboardErrorBoundary from '../components/DashboardErrorBoundary';
 import DownloadsDashboard from '../components/intelligence/DownloadsDashboard';
 import { exportSheetsToExcel, downloadFilename, type SheetSpec } from '../components/intelligence/dashboardExcelExport';
+import { exportAnalysisToExcel } from '../components/intelligence/analysisExcelExport';
 import { applyAliasesToAnalyses } from '../components/intelligence/sharedMetrics';
 import { useProjectStore } from '../store/projectStore';
 
@@ -500,25 +501,17 @@ const IntelligenceHub: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        const reportResponse = await apiFetch(API_ENDPOINTS.analysisReportExcel, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            analysisResult: data.data.results,
-            configuration: data.data.configuration
-          })
+        // Se genera en el navegador con las mismas funciones que los dashboards
+        // y el glosario de alias del proyecto: así cuadra con lo que se ve.
+        // El glosario es del proyecto DEL análisis, no del seleccionado en pantalla.
+        const project = projects.find(p => p.id === data.data.projectId) || selectedProject;
+        exportAnalysisToExcel(data.data, {
+          name: project?.name,
+          brandAliases: project?.brandAliases,
+          brandDomain: project?.brandDomain,
+          brandBlogPattern: project?.brandBlogPattern,
         });
-
-        if (reportResponse.ok) {
-          const blob = await reportResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `analysis-${analysisId}.xlsx`;
-          a.click();
-          window.URL.revokeObjectURL(url);
-          showNotification('success', 'Reporte Excel descargado');
-        }
+        showNotification('success', 'Reporte Excel descargado');
       }
     } catch (error) {
       console.error('Error generating Excel report:', error);

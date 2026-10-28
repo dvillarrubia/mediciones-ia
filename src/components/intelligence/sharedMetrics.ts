@@ -176,7 +176,7 @@ export function resolveBrandName(name: string, aliasMap: Map<string, string>): s
   if (!name) return name;
   const exact = aliasMap.get(aliasKey(name));
   if (exact) return exact;
-  const lead = name.split(/\s*(?:[(\[/|–—]|\s-\s)/)[0];
+  const lead = name.split(/\s*(?:[([/|–—]|\s-\s)/)[0];
   if (lead && lead !== name && aliasKey(lead)) {
     return aliasMap.get(aliasKey(lead)) || name;
   }
@@ -1459,4 +1459,223 @@ export function countBrandAppearances(
     });
   });
   return acc;
+}
+
+// === Fotografía (estado actual) ===
+// Vive aquí y no en MetricsDashboard porque el Excel de un análisis la necesita:
+// si cada uno calculara la suya, el Excel podría decir una cosa y la pantalla otra.
+
+export interface SovItem {
+  brand: string;
+  mentions: number;
+  percentage: number;
+  sentimentScore: number;
+  isTarget: boolean;
+}
+
+export interface DomainRank {
+  domain: string;
+  count: number;
+  percentage: number;
+}
+
+export interface CategoryMetric {
+  category: string;
+  count: number;
+  avgSentiment: number;
+  avgConfidence: number;
+}
+
+export interface DiscoveredBrand {
+  brand: string;
+  frequency: number;
+  sentiment: number;
+}
+
+export interface CategoryBrandMention {
+  category: string;
+  totalQuestions: number;
+  brands: Record<string, { mentions: number; percentage: number; avgSentiment: number }>;
+}
+
+export interface CurrentState {
+  targetBrand: string;
+  shareOfVoice: SovItem[];
+  avgAppearanceOrder: number | null;
+  netSentimentScore: number;
+  aiConfidence: number;
+  discoveredBrands: DiscoveredBrand[];
+  topDomains: DomainRank[];
+  categoryBreakdown: CategoryMetric[];
+  categoryBrandMentions: CategoryBrandMention[];
+  totalMentions: number;
+}
+
+/**
+ * Calcula la "fotografía" a partir de un conjunto de preguntas ya agregado.
+ *
+ * Recibe las preguntas en vez de un análisis porque la fotografía del total
+ * agrupa las del último análisis de CADA modelo: sumar aquí numeradores y
+ * denominadores es lo que hace que los porcentajes sean pooled y no una media
+ * de las medias por modelo.
+ */
+export function buildCurrentState(
+  questions: QuestionAnalysis[],
+  targetBrand: string,
+  competitors: string[],
+  aiConfidence: number,
+): CurrentState {
+  // Build canonical brand list for normalization
+  const configuredBrandsList = [targetBrand, ...competitors];
+  const configuredSet = new Set(configuredBrandsList.map(b => b.toLowerCase()));
+
+  // SoV
+  const brandAcc: Record<string, { mentions: number; sentSum: number; sentCount: number; isTarget: boolean }> = {};
+  const domainAcc: Record<string, number> = {};
+  const catAcc: Record<string, { count: number; sentSum: number; confSum: number }> = {};
+  const discoveredMap: Record<string, { freq: number; sentSum: number; count: number }> = {};
+  let targetOrderSum = 0, targetOrderCount = 0;
+
+  questions.forEach(q => {
+    // Categories
+    const cat = q.category || 'Sin categoría';
+    if (!catAcc[cat]) catAcc[cat] = { count: 0, sentSum: 0, confSum: 0 };
+    catAcc[cat].count++;
+    catAcc[cat].sentSum += sentimentToNumeric(q.sentiment);
+    catAcc[cat].confSum += q.confidenceScore || 0;
+
+    // Domains
+    (q.sources || []).forEach(s => {
+      if (isRealDomain(s.domain)) domainAcc[s.domain] = (domainAcc[s.domain] || 0) + 1;
+    });
+
+    // Brands
+    // La posición del target se toma una vez por pregunta (la mejor), no por entrada:
+    // el glosario de alias puede dejar varias entradas de la misma marca en una pregunta.
+    let qTargetOrder: number | null = null;
+    (q.brandMentions || []).forEach(bm => {
+      if (!bm.mentioned || bm.frequency <= 0) return;
+      const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
+      const isTarget = brandName.toLowerCase() === targetBrand.toLowerCase();
+
+      if (!brandAcc[brandName]) brandAcc[brandName] = { mentions: 0, sentSum: 0, sentCount: 0, isTarget };
+      brandAcc[brandName].mentions += bm.frequency;
+      brandAcc[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+      brandAcc[brandName].sentCount++;
+
+      if (isTarget && bm.appearanceOrder && bm.appearanceOrder > 0) {
+        qTargetOrder = qTargetOrder === null ? bm.appearanceOrder : Math.min(qTargetOrder, bm.appearanceOrder);
+      }
+
+      // Una marca configurada no es "descubierta" aunque la IA la marque así
+      // (pasa cuando el glosario canonicaliza una variante descubierta).
+      if (bm.isDiscovered && !configuredSet.has(brandName.toLowerCase())) {
+        if (!discoveredMap[brandName]) discoveredMap[brandName] = { freq: 0, sentSum: 0, count: 0 };
+        discoveredMap[brandName].freq += bm.frequency;
+        discoveredMap[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+        discoveredMap[brandName].count++;
+      }
+    });
+    if (qTargetOrder !== null) {
+      targetOrderSum += qTargetOrder;
+      targetOrderCount++;
+    }
+  });
+
+  const totalMentions = Object.values(brandAcc).reduce((s, b) => s + b.mentions, 0);
+
+  const shareOfVoice: SovItem[] = Object.entries(brandAcc)
+    .map(([brand, d]) => ({
+      brand,
+      mentions: d.mentions,
+      percentage: totalMentions > 0 ? (d.mentions / totalMentions) * 100 : 0,
+      sentimentScore: d.sentCount > 0 ? d.sentSum / d.sentCount : 0,
+      isTarget: d.isTarget,
+    }))
+    .sort((a, b) => b.mentions - a.mentions);
+
+  const targetSov = shareOfVoice.find(s => s.isTarget);
+
+  const totalDomainRefs = Object.values(domainAcc).reduce((s, c) => s + c, 0);
+  const topDomains: DomainRank[] = Object.entries(domainAcc)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([domain, count]) => ({ domain, count, percentage: totalDomainRefs > 0 ? (count / totalDomainRefs) * 100 : 0 }));
+
+  const categoryBreakdown: CategoryMetric[] = Object.entries(catAcc)
+    .map(([category, d]) => ({
+      category,
+      count: d.count,
+      avgSentiment: d.count > 0 ? d.sentSum / d.count : 0,
+      avgConfidence: d.count > 0 ? d.confSum / d.count : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const discoveredBrands: DiscoveredBrand[] = Object.entries(discoveredMap)
+    .map(([brand, d]) => ({
+      brand,
+      frequency: d.freq,
+      sentiment: d.count > 0 ? d.sentSum / d.count : 0,
+    }))
+    .sort((a, b) => b.frequency - a.frequency)
+    .slice(0, 15);
+
+  // Category × Brand mentions
+  const catBrandAcc: Record<string, { total: number; brands: Record<string, { count: number; sentSum: number; sentCount: number }> }> = {};
+  const configuredBrands = configuredSet;
+
+  questions.forEach(q => {
+    const cat = q.category || 'Sin categoría';
+    if (!catBrandAcc[cat]) catBrandAcc[cat] = { total: 0, brands: {} };
+    catBrandAcc[cat].total++;
+
+    // count = preguntas distintas donde aparece la marca (una pregunta puede traer
+    // varias entradas de la misma marca tras aplicar alias); así el % nunca supera 100.
+    const seenInQuestion = new Set<string>();
+    (q.brandMentions || []).forEach(bm => {
+      if (!bm.mentioned) return;
+      const brandName = normalizeBrandName(bm.brand, configuredBrandsList);
+      // Only include target + configured competitors (skip discovered brands)
+      if (!configuredBrands.has(brandName.toLowerCase())) return;
+
+      if (!catBrandAcc[cat].brands[brandName]) catBrandAcc[cat].brands[brandName] = { count: 0, sentSum: 0, sentCount: 0 };
+      if (!seenInQuestion.has(brandName)) {
+        catBrandAcc[cat].brands[brandName].count++;
+        seenInQuestion.add(brandName);
+      }
+      catBrandAcc[cat].brands[brandName].sentSum += sentimentToNumeric(bm.detailedSentiment || bm.context);
+      catBrandAcc[cat].brands[brandName].sentCount++;
+    });
+  });
+
+  const categoryBrandMentions: CategoryBrandMention[] = Object.entries(catBrandAcc)
+    .map(([category, d]) => ({
+      category,
+      totalQuestions: d.total,
+      brands: Object.fromEntries(
+        Object.entries(d.brands).map(([brand, info]) => [
+          brand,
+          {
+            mentions: info.count,
+            percentage: d.total > 0 ? (info.count / d.total) * 100 : 0,
+            avgSentiment: info.sentCount > 0 ? info.sentSum / info.sentCount : 0,
+          },
+        ])
+      ),
+    }))
+    .sort((a, b) => b.totalQuestions - a.totalQuestions);
+
+  const currentState: CurrentState = {
+    targetBrand,
+    shareOfVoice,
+    avgAppearanceOrder: targetOrderCount > 0 ? targetOrderSum / targetOrderCount : null,
+    netSentimentScore: targetSov?.sentimentScore || 0,
+    aiConfidence,
+    discoveredBrands,
+    topDomains,
+    categoryBreakdown,
+    categoryBrandMentions,
+    totalMentions,
+  };
+  return currentState;
 }

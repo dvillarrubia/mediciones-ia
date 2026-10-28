@@ -7,6 +7,8 @@ import { useNotifications } from '../hooks/useNotifications';
 import AnalysisResultsViewer from '../components/analysis/AnalysisResultsViewer';
 import OpenRouterModelPicker from '../components/OpenRouterModelPicker';
 import { useProjectStore } from '../store/projectStore';
+import { exportAnalysisToExcel } from '../components/intelligence/analysisExcelExport';
+import type { AnalysisDetail } from '../components/intelligence/sharedMetrics';
 
 interface AnalysisQuestion {
   id: string;
@@ -147,7 +149,7 @@ const Analysis = () => {
   const [showCountryInfo, setShowCountryInfo] = useState(false);
 
   // Proyecto seleccionado
-  const { selectedProjectId } = useProjectStore();
+  const { selectedProjectId, projects } = useProjectStore();
 
   // Sistema de notificaciones
   const { notifications, removeNotification, notifySuccess, notifyError, notifyInfo } = useNotifications();
@@ -490,6 +492,31 @@ const Analysis = () => {
 
   const handleDownload = async (format: 'pdf' | 'excel') => {
     if (!analysisResult) return;
+
+    if (format === 'excel') {
+      // Mismo Excel que el historial del Intelligence Hub: se calcula en el
+      // navegador con las funciones de los dashboards y el glosario del proyecto.
+      const cfg = (selectedConfig || {}) as { targetBrand?: string; targetBrands?: string[]; competitorBrands?: string[] };
+      const project = projects.find(p => p.id === selectedProjectId);
+      exportAnalysisToExcel({
+        id: analysisResult.analysisId,
+        timestamp: analysisResult.timestamp,
+        configuration: {
+          brand: cfg.targetBrand || cfg.targetBrands?.[0] || '',
+          competitors: cfg.competitorBrands || [],
+          templateId: 'custom',
+          questionsCount: analysisResult.questions?.length || 0,
+        },
+        results: analysisResult,
+      } as unknown as AnalysisDetail, project && {
+        name: project.name,
+        brandAliases: project.brandAliases,
+        brandDomain: project.brandDomain,
+        brandBlogPattern: project.brandBlogPattern,
+      });
+      notifySuccess('Descarga Completada', 'Informe EXCEL descargado exitosamente.');
+      return;
+    }
 
     try {
       const configuration = selectedConfig ? {

@@ -48,6 +48,9 @@ interface AnalysisResult {
 interface ExcelConfiguration {
   targetBrand?: string;
   competitorBrands?: string[];
+  // Forma de la configuración guardada con el análisis (historial).
+  brand?: string;
+  competitors?: string[];
 }
 
 class ExcelService {
@@ -67,9 +70,16 @@ class ExcelService {
     workbook.created = new Date();
     workbook.modified = new Date();
 
+    // La configuración guardada con el análisis usa brand/competitors; sin
+    // normalizar, la marca objetivo y los competidores salían como "Descubierto".
+    const config: ExcelConfiguration | undefined = configuration && {
+      targetBrand: configuration.targetBrand || configuration.brand,
+      competitorBrands: configuration.competitorBrands || configuration.competitors,
+    };
+
     // Crear las 3 hojas simplificadas
     this.createLLMResponseSheet(workbook, analysis);
-    this.createBrandRankingSheet(workbook, analysis, configuration);
+    this.createBrandRankingSheet(workbook, analysis, config);
     this.createSourcesSheet(workbook, analysis);
 
     return await workbook.xlsx.writeBuffer() as Buffer;
@@ -240,49 +250,14 @@ class ExcelService {
       fgColor: { argb: 'FF1F4788' }
     };
 
-    // Datos - usar sourcesCited[] (fuentes web reales)
+    // Una fila por URL real. Antes había un primer bucle sobre sourcesCited que
+    // escribía cada fuente con 6 columnas bajo una cabecera de 2, y este segundo
+    // la repetía: cada URL salía dos veces.
     let row = 2;
     analysis.questions.forEach(question => {
-      const sources = question?.['sourcesCited'] || (question as any).sources;
-      if (sources && sources.length > 0) {
-        sources.forEach((source: any) => {
-          // Saltar fuentes sintéticas (generadas cuando no hay web search)
-          if (source.url === 'ai-generated-response' || source.url === 'generative-ai-response') {
-            return;
-          }
-
-          sheet.getRow(row).values = [
-            question.question.substring(0, 100) + (question.question.length > 100 ? '...' : ''),
-            source.title || 'Sin título',
-            source.domain || '',
-            source.url || 'N/A',
-            source.isPriority ? 'Sí' : 'No',
-            source.snippet?.substring(0, 200) || ''
-          ];
-
-          // Color para fuentes prioritarias
-          const priorityCell = sheet.getCell(`E${row}`);
-          if (source.isPriority) {
-            priorityCell.font = { color: { argb: 'FF008000' }, bold: true };
-          }
-
-          // Hacer URL clicable
-          if (source.url && source.url !== 'N/A') {
-            const urlCell = sheet.getCell(`D${row}`);
-            urlCell.value = {
-              text: source.url,
-              hyperlink: source.url
-            };
-            urlCell.font = { color: { argb: 'FF0066CC' }, underline: true };
-          }
-
-          row++;
-        });
-      }
-
       // Filtrar URLs reales (excluir sinteticas)
       // Consistente con filtrado en AnalysisResultsViewer.tsx
-      const realSources = question.sources.filter(source => {
+      const realSources = (question.sources || []).filter(source => {
         if (!source.url) return false;
         // Filtro igual que UI: excluir URLs sinteticas
         if (source.url.includes('ai-generated')) return false;
