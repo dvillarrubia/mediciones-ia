@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 import { adminService } from './adminService.js';
 import { encryptSecret, decryptSecret, isEncryptedV2, looksLikePlausibleApiKey } from '../utils/crypto.js';
 
@@ -396,15 +397,26 @@ class AuthService {
         return;
       }
 
-      const tokenHash = this.hashToken(token);
       const query = 'DELETE FROM sessions WHERE user_id = ? AND token_hash = ?';
 
-      this.db.run(query, [userId, tokenHash], (err) => {
+      const db = this.db;
+      const legacyHash = this.legacyHashToken(token);
+      db.run(query, [userId, this.hashToken(token)], function (err) {
         if (err) {
           reject(err);
-        } else {
-          resolve();
+          return;
         }
+        if (this.changes > 0) {
+          resolve();
+          return;
+        }
+        // Sesión creada antes del cambio de hash: solo se identifica por el hash
+        // antiguo, común a todas las sesiones antiguas del usuario, así que se
+        // cierran juntas (como antes). Desaparecen solas al caducar, en 7 días.
+        db.run(query, [userId, legacyHash], (legacyErr) => {
+          if (legacyErr) reject(legacyErr);
+          else resolve();
+        });
       });
     });
   }
@@ -678,10 +690,23 @@ class AuthService {
       email: user.email
     };
 
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // jwtid: sin él, dos logins en el mismo segundo producían el mismo token.
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN, jwtid: uuidv4() });
   }
 
+  /**
+   * Hash del token que identifica la sesión. SHA-256 del token entero.
+   *
+   * Antes eran los primeros 64 caracteres del token en base64, que solo cubren la
+   * cabecera del JWT y el principio del payload: iguales para todas las sesiones
+   * de un mismo usuario. Cerrar sesión en un dispositivo cerraba todas.
+   */
   private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  /** Hash antiguo, solo para reconocer las sesiones creadas antes del cambio. */
+  private legacyHashToken(token: string): string {
     return Buffer.from(token).toString('base64').substring(0, 64);
   }
 
@@ -718,13 +743,12 @@ class AuthService {
         return;
       }
 
-      const tokenHash = this.hashToken(token);
       const query = `
         SELECT id FROM sessions
-        WHERE user_id = ? AND token_hash = ? AND expires_at > datetime('now')
+        WHERE user_id = ? AND token_hash IN (?, ?) AND expires_at > datetime('now')
       `;
 
-      this.db.get(query, [userId, tokenHash], (err, row) => {
+      this.db.get(query, [userId, this.hashToken(token), this.legacyHashToken(token)], (err, row) => {
         if (err) {
           reject(err);
         } else {
